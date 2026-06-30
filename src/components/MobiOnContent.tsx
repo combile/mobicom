@@ -8,6 +8,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import type {
   MobionDoc,
   MobionLink,
+  MobionMilestone,
   MobionMessage,
   MobionTask,
 } from "@/lib/mobion-data";
@@ -15,7 +16,7 @@ import type { MobionUser } from "@/lib/mobion-auth";
 
 gsap.registerPlugin(ScrollTrigger);
 
-type ViewKey = "dashboard" | "tasks" | "docs" | "links" | "room";
+type ViewKey = "dashboard" | "tasks" | "timeline" | "docs" | "links" | "room";
 type AuthMode = "login" | "register";
 type TaskScope = "all" | "open" | "due" | "done";
 type DueState = "open" | "soon" | "late";
@@ -24,6 +25,7 @@ type WorkspaceData = {
   docs: MobionDoc[];
   messages: MobionMessage[];
   links: MobionLink[];
+  milestones: MobionMilestone[];
 };
 
 const EMPTY_WORKSPACE: WorkspaceData = {
@@ -31,17 +33,20 @@ const EMPTY_WORKSPACE: WorkspaceData = {
   docs: [],
   messages: [],
   links: [],
+  milestones: [],
 };
 
 const VIEWS: Array<{ key: ViewKey; label: string; icon: string }> = [
   { key: "dashboard", label: "Overview", icon: "dashboard" },
   { key: "tasks", label: "Tasks", icon: "view_kanban" },
+  { key: "timeline", label: "Timeline", icon: "event_upcoming" },
   { key: "docs", label: "Docs", icon: "article" },
   { key: "links", label: "Links", icon: "link" },
   { key: "room", label: "Room", icon: "forum" },
 ];
 
 const STATUSES: MobionTask["status"][] = ["now", "next", "review", "done"];
+const MILESTONE_STATUSES: MobionMilestone["status"][] = ["planned", "active", "done"];
 const TASK_SCOPES: Array<{ key: TaskScope; label: string }> = [
   { key: "all", label: "All" },
   { key: "open", label: "Open" },
@@ -59,6 +64,11 @@ const PRIORITY_LABEL: Record<MobionTask["priority"], string> = {
   low: "Low",
   medium: "Medium",
   high: "High",
+};
+const MILESTONE_LABEL: Record<MobionMilestone["status"], string> = {
+  planned: "Planned",
+  active: "Active",
+  done: "Done",
 };
 
 function shortDate(value?: string | null) {
@@ -85,6 +95,23 @@ function dueState(value?: string | null): DueState {
   if (diff < 0) return "late";
   if (diff <= 2) return "soon";
   return "open";
+}
+
+function dateTime(value?: string | null) {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const date = parseDateValue(value);
+  return Number.isNaN(date.getTime()) ? Number.POSITIVE_INFINITY : date.getTime();
+}
+
+function compareMilestones(a: MobionMilestone, b: MobionMilestone) {
+  const statusRank: Record<MobionMilestone["status"], number> = {
+    active: 0,
+    planned: 1,
+    done: 2,
+  };
+  const statusDiff = statusRank[a.status] - statusRank[b.status];
+  if (statusDiff) return statusDiff;
+  return dateTime(a.target_date) - dateTime(b.target_date);
 }
 
 function initials(name: string) {
@@ -132,6 +159,7 @@ export default function MobiOnContent() {
     workspace.tasks.forEach((item) => names.add(item.project));
     workspace.docs.forEach((item) => names.add(item.project));
     workspace.links.forEach((item) => names.add(item.project));
+    workspace.milestones.forEach((item) => names.add(item.project));
     return ["all", ...Array.from(names).sort((a, b) => a.localeCompare(b))];
   }, [workspace]);
 
@@ -157,6 +185,16 @@ export default function MobiOnContent() {
           matchesProject(link.project) &&
           matchesText(link.title, link.url, link.project, link.kind),
       ),
+      milestones: workspace.milestones.filter(
+        (milestone) =>
+          matchesProject(milestone.project) &&
+          matchesText(
+            milestone.title,
+            milestone.project,
+            milestone.status,
+            milestone.summary,
+          ),
+      ),
       messages: workspace.messages.filter((message) =>
         matchesText(message.author, message.body),
       ),
@@ -177,14 +215,17 @@ export default function MobiOnContent() {
     const urgent = workspace.tasks.filter(
       (task) => task.status !== "done" && dueState(task.due_date) !== "open",
     ).length;
+    const activeMilestones = workspace.milestones.filter(
+      (milestone) => milestone.status !== "done",
+    ).length;
     const progress = workspace.tasks.length
       ? Math.round(
           workspace.tasks.reduce((sum, task) => sum + task.progress, 0) /
             workspace.tasks.length,
         )
       : 0;
-    return { open, done, urgent, progress };
-  }, [workspace.tasks]);
+    return { open, done, urgent, activeMilestones, progress };
+  }, [workspace.milestones, workspace.tasks]);
 
   const taskScopeCounts = useMemo(() => {
     return {
@@ -225,10 +266,11 @@ export default function MobiOnContent() {
         const tasks = workspace.tasks.filter((task) => task.project === name);
         const docs = workspace.docs.filter((doc) => doc.project === name);
         const links = workspace.links.filter((link) => link.project === name);
+        const milestones = workspace.milestones.filter((item) => item.project === name);
         const progress = tasks.length
           ? Math.round(tasks.reduce((sum, task) => sum + task.progress, 0) / tasks.length)
           : 0;
-        return { name, tasks, docs, links, progress };
+        return { name, tasks, docs, links, milestones, progress };
       });
   }, [projects, workspace]);
 
@@ -256,7 +298,7 @@ export default function MobiOnContent() {
       .slice(0, 6);
   }, [filtered.tasks]);
 
-  const viewAnimationKey = `${active}:${visibleTasks.length}:${filtered.docs.length}:${filtered.links.length}:${filtered.messages.length}`;
+  const viewAnimationKey = `${active}:${visibleTasks.length}:${filtered.docs.length}:${filtered.links.length}:${filtered.milestones.length}:${filtered.messages.length}`;
 
   async function loadWorkspace() {
     setError("");
@@ -278,6 +320,7 @@ export default function MobiOnContent() {
       setWorkspace({
         ...data.workspace,
         links: data.workspace.links ?? [],
+        milestones: data.workspace.milestones ?? [],
       });
       setSelectedDocId((current) => current ?? data.workspace.docs[0]?.id ?? null);
     } catch (err) {
@@ -547,6 +590,75 @@ export default function MobiOnContent() {
     }
   }
 
+  async function createMilestone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setSaving(true);
+    setError("");
+    try {
+      const data = await requestJson<{ milestone: MobionMilestone }>(
+        "/api/mobion/milestones",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: form.get("title"),
+            project: form.get("project"),
+            targetDate: form.get("targetDate"),
+            status: form.get("status"),
+            summary: form.get("summary"),
+          }),
+        },
+      );
+      setWorkspace((current) => ({
+        ...current,
+        milestones: [...current.milestones, data.milestone].sort(compareMilestones),
+      }));
+      formElement.reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "마일스톤 생성 실패");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function patchMilestone(
+    id: string,
+    body: Partial<MobionMilestone> & { targetDate?: string | null },
+  ) {
+    setError("");
+    try {
+      const data = await requestJson<{ milestone: MobionMilestone }>(
+        `/api/mobion/milestones/${id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        },
+      );
+      setWorkspace((current) => ({
+        ...current,
+        milestones: current.milestones
+          .map((milestone) => (milestone.id === id ? data.milestone : milestone))
+          .sort(compareMilestones),
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "마일스톤 수정 실패");
+    }
+  }
+
+  async function deleteMilestone(id: string) {
+    setError("");
+    try {
+      await requestJson(`/api/mobion/milestones/${id}`, { method: "DELETE" });
+      setWorkspace((current) => ({
+        ...current,
+        milestones: current.milestones.filter((milestone) => milestone.id !== id),
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "마일스톤 삭제 실패");
+    }
+  }
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -623,7 +735,7 @@ export default function MobiOnContent() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search tasks, docs, links"
+                placeholder="Search tasks, milestones, docs"
               />
             </SearchWrap>
             <select value={project} onChange={(event) => setProject(event.target.value)}>
@@ -653,6 +765,7 @@ export default function MobiOnContent() {
               </p>
               <AuthPoints>
                 <span>Task board</span>
+                <span>Milestone timeline</span>
                 <span>Project docs</span>
                 <span>Resource links</span>
                 <span>Team room</span>
@@ -769,8 +882,8 @@ export default function MobiOnContent() {
                       <span>Pinned docs</span>
                     </Metric>
                     <Metric>
-                      <b>{workspace.links.length}</b>
-                      <span>Saved links</span>
+                      <b>{metrics.activeMilestones}</b>
+                      <span>Milestones</span>
                     </Metric>
                   </MetricGrid>
 
@@ -793,7 +906,7 @@ export default function MobiOnContent() {
                             <b>{item.name}</b>
                             <small>
                               {item.tasks.length} tasks · {item.docs.length} docs ·{" "}
-                              {item.links.length} links
+                              {item.milestones.length} milestones
                             </small>
                             <ProgressBar aria-label={`${item.name} progress`}>
                               <span style={{ width: `${item.progress}%` }} />
@@ -1063,6 +1176,116 @@ export default function MobiOnContent() {
                       </TaskColumn>
                     ))}
                   </StatusColumns>
+                </>
+              )}
+
+              {active === "timeline" && (
+                <>
+                  <PanelTop>
+                    <PanelTitle>Timeline</PanelTitle>
+                    <LiveBadge>{filtered.milestones.length} milestones</LiveBadge>
+                  </PanelTop>
+                  <MilestoneForm onSubmit={createMilestone}>
+                    <input name="title" placeholder="Milestone title" required />
+                    <input
+                      name="project"
+                      placeholder="Project"
+                      defaultValue={project === "all" ? "" : project}
+                    />
+                    <input name="targetDate" type="date" />
+                    <select name="status" defaultValue="planned">
+                      {MILESTONE_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {MILESTONE_LABEL[status]}
+                        </option>
+                      ))}
+                    </select>
+                    <textarea name="summary" placeholder="Outcome, deliverable, risk" />
+                    <Primary type="submit" disabled={saving}>
+                      Add milestone
+                    </Primary>
+                  </MilestoneForm>
+
+                  <MilestoneList>
+                    {filtered.milestones.map((milestone) => (
+                      <MilestoneItem key={milestone.id} data-state={dueState(milestone.target_date)}>
+                        <MilestoneDate>
+                          <b>{shortDate(milestone.target_date)}</b>
+                          <span>{MILESTONE_LABEL[milestone.status]}</span>
+                        </MilestoneDate>
+                        <MilestoneBody>
+                          <MilestoneTitleInput
+                            defaultValue={milestone.title}
+                            aria-label={`${milestone.title} title`}
+                            onBlur={(event) =>
+                              void patchMilestone(milestone.id, {
+                                title: event.currentTarget.value,
+                              })
+                            }
+                          />
+                          <MilestoneMeta>
+                            <input
+                              defaultValue={milestone.project}
+                              aria-label={`${milestone.title} project`}
+                              onBlur={(event) =>
+                                void patchMilestone(milestone.id, {
+                                  project: event.currentTarget.value,
+                                })
+                              }
+                            />
+                            <input
+                              type="date"
+                              defaultValue={milestone.target_date ?? ""}
+                              aria-label={`${milestone.title} target date`}
+                              onBlur={(event) =>
+                                void patchMilestone(milestone.id, {
+                                  targetDate: event.currentTarget.value,
+                                })
+                              }
+                            />
+                            <select
+                              value={milestone.status}
+                              aria-label={`${milestone.title} status`}
+                              onChange={(event) =>
+                                void patchMilestone(milestone.id, {
+                                  status: event.target.value as MobionMilestone["status"],
+                                })
+                              }
+                            >
+                              {MILESTONE_STATUSES.map((status) => (
+                                <option key={status} value={status}>
+                                  {MILESTONE_LABEL[status]}
+                                </option>
+                              ))}
+                            </select>
+                          </MilestoneMeta>
+                          <MilestoneSummary
+                            defaultValue={milestone.summary}
+                            aria-label={`${milestone.title} summary`}
+                            placeholder="Summary"
+                            onBlur={(event) =>
+                              void patchMilestone(milestone.id, {
+                                summary: event.currentTarget.value,
+                              })
+                            }
+                          />
+                        </MilestoneBody>
+                        <GhostButton
+                          type="button"
+                          aria-label={`${milestone.title} 삭제`}
+                          onClick={() => void deleteMilestone(milestone.id)}
+                        >
+                          <span className="material-symbols-outlined">delete</span>
+                        </GhostButton>
+                      </MilestoneItem>
+                    ))}
+                    {filtered.milestones.length === 0 && (
+                      <EmptyState>
+                        <b>No milestones</b>
+                        <span>{emptyLabel}</span>
+                      </EmptyState>
+                    )}
+                  </MilestoneList>
                 </>
               )}
 
@@ -2241,6 +2464,151 @@ const GhostButton = styled.button`
   span {
     font-size: 18px;
   }
+`;
+
+const MilestoneForm = styled.form`
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 150px 140px 128px 1.2fr 132px;
+  gap: 9px;
+  margin-bottom: 16px;
+
+  input,
+  select,
+  textarea {
+    min-width: 0;
+    height: 40px;
+    padding: 0 11px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 11px;
+    background: rgba(0, 0, 0, 0.46);
+    color: #fff;
+    font: inherit;
+  }
+
+  textarea {
+    padding-top: 10px;
+    resize: vertical;
+  }
+
+  @media (max-width: 1180px) {
+    grid-template-columns: repeat(2, 1fr);
+
+    textarea,
+    button {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 620px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const MilestoneList = styled.div`
+  display: grid;
+  gap: 11px;
+`;
+
+const MilestoneItem = styled.div`
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr) 34px;
+  gap: 13px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid rgba(0, 181, 255, 0.18);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.045);
+
+  &[data-state="soon"] {
+    border-color: rgba(255, 166, 87, 0.38);
+  }
+
+  &[data-state="late"] {
+    border-color: rgba(255, 107, 107, 0.42);
+  }
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr 34px;
+  }
+`;
+
+const MilestoneDate = styled.div`
+  display: grid;
+  gap: 6px;
+  padding: 11px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+
+  b {
+    color: #fff;
+    font-size: 18px;
+  }
+
+  span {
+    color: rgba(255, 255, 255, 0.52);
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  @media (max-width: 720px) {
+    grid-column: 1 / -1;
+  }
+`;
+
+const MilestoneBody = styled.div`
+  min-width: 0;
+`;
+
+const MilestoneTitleInput = styled.input`
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 850;
+`;
+
+const MilestoneMeta = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px 116px;
+  gap: 8px;
+  margin-top: 10px;
+
+  input,
+  select {
+    min-width: 0;
+    height: 34px;
+    padding: 0 9px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.32);
+    color: rgba(255, 255, 255, 0.72);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 760;
+  }
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const MilestoneSummary = styled.textarea`
+  width: 100%;
+  min-height: 68px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 11px;
+  outline: none;
+  resize: vertical;
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.64);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
 `;
 
 const DocsLayout = styled.div`

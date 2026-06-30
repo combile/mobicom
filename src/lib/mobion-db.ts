@@ -3,9 +3,11 @@ import { Pool, type QueryResultRow } from "pg";
 declare global {
   var mobionPool: Pool | undefined;
   var mobionSchemaReady: Promise<void> | undefined;
+  var mobionSchemaVersion: number | undefined;
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+const MOBION_SCHEMA_VERSION = 2;
 
 export const pool =
   globalThis.mobionPool ??
@@ -22,7 +24,12 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export async function ensureMobionSchema() {
+  if (globalThis.mobionSchemaVersion !== MOBION_SCHEMA_VERSION) {
+    globalThis.mobionSchemaReady = undefined;
+  }
+
   if (!globalThis.mobionSchemaReady) {
+    globalThis.mobionSchemaVersion = MOBION_SCHEMA_VERSION;
     globalThis.mobionSchemaReady = (async () => {
       if (!connectionString) {
         throw new Error("DATABASE_URL or POSTGRES_URL is required for Mobi:ON");
@@ -110,8 +117,22 @@ export async function ensureMobionSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_milestones (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          project TEXT NOT NULL DEFAULT 'General',
+          target_date DATE,
+          status TEXT NOT NULL DEFAULT 'planned',
+          summary TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
+      globalThis.mobionSchemaVersion = undefined;
       throw error;
     });
   }

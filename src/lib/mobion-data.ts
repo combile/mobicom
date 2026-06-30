@@ -40,8 +40,18 @@ export type MobionLink = {
   created_at: string;
 };
 
+export type MobionMilestone = {
+  id: string;
+  title: string;
+  project: string;
+  target_date: string | null;
+  status: "planned" | "active" | "done";
+  summary: string;
+  updated_at: string;
+};
+
 export async function getWorkspace(userId: string) {
-  const [tasks, docs, messages, links] = await Promise.all([
+  const [tasks, docs, messages, links, milestones] = await Promise.all([
     query<MobionTask>(
       `SELECT id, code, title, status, owner, progress, project, priority,
               due_date::text AS due_date, notes, updated_at
@@ -72,6 +82,14 @@ export async function getWorkspace(userId: string) {
        ORDER BY created_at DESC`,
       [userId],
     ),
+    query<MobionMilestone>(
+      `SELECT id, title, project, target_date::text AS target_date,
+              status, summary, updated_at
+       FROM mobion_milestones
+       WHERE user_id = $1
+       ORDER BY target_date NULLS LAST, updated_at DESC`,
+      [userId],
+    ),
   ]);
 
   return {
@@ -79,6 +97,7 @@ export async function getWorkspace(userId: string) {
     docs: docs.rows,
     messages: messages.rows.reverse(),
     links: links.rows,
+    milestones: milestones.rows,
   };
 }
 
@@ -110,6 +129,14 @@ export async function seedWorkspace(userId: string, name: string) {
      VALUES
        ($1, 'Mobi:ON workspace guide', 'https://huly.io', 'General', 'reference'),
        ($1, 'Shared drive', 'https://drive.google.com', 'Team Project', 'asset')`,
+    [userId],
+  );
+  await query(
+    `INSERT INTO mobion_milestones
+       (user_id, title, project, target_date, status, summary)
+     VALUES
+       ($1, '요구사항 확정', 'Team Project', current_date + 3, 'active', '역할과 제출 기준을 확정합니다.'),
+       ($1, 'MVP 시연', 'Personal', current_date + 14, 'planned', '핵심 기능만 묶어 첫 시연을 준비합니다.')`,
     [userId],
   );
   await query(
