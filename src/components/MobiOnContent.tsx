@@ -17,6 +17,8 @@ gsap.registerPlugin(ScrollTrigger);
 
 type ViewKey = "dashboard" | "tasks" | "docs" | "links" | "room";
 type AuthMode = "login" | "register";
+type TaskScope = "all" | "open" | "due" | "done";
+type DueState = "open" | "soon" | "late";
 type WorkspaceData = {
   tasks: MobionTask[];
   docs: MobionDoc[];
@@ -40,6 +42,13 @@ const VIEWS: Array<{ key: ViewKey; label: string; icon: string }> = [
 ];
 
 const STATUSES: MobionTask["status"][] = ["now", "next", "review", "done"];
+const TASK_SCOPES: Array<{ key: TaskScope; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "open", label: "Open" },
+  { key: "due", label: "Due" },
+  { key: "done", label: "Done" },
+];
+const PREFS_KEY = "mobion-workspace-prefs";
 const STATUS_LABEL: Record<MobionTask["status"], string> = {
   now: "Now",
   next: "Next",
@@ -65,7 +74,7 @@ function parseDateValue(value: string) {
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 }
 
-function dueState(value?: string | null) {
+function dueState(value?: string | null): DueState {
   if (!value) return "open";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -108,8 +117,10 @@ export default function MobiOnContent() {
   const [user, setUser] = useState<MobionUser | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceData>(EMPTY_WORKSPACE);
   const [active, setActive] = useState<ViewKey>("dashboard");
+  const [taskScope, setTaskScope] = useState<TaskScope>("all");
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [loading, setLoading] = useState(true);
+  const [prefsReady, setPrefsReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -175,6 +186,32 @@ export default function MobiOnContent() {
     return { open, done, urgent, progress };
   }, [workspace.tasks]);
 
+  const taskScopeCounts = useMemo(() => {
+    return {
+      all: filtered.tasks.length,
+      open: filtered.tasks.filter((task) => task.status !== "done").length,
+      due: filtered.tasks.filter(
+        (task) => task.status !== "done" && dueState(task.due_date) !== "open",
+      ).length,
+      done: filtered.tasks.filter((task) => task.status === "done").length,
+    };
+  }, [filtered.tasks]);
+
+  const visibleTasks = useMemo(() => {
+    if (taskScope === "open") {
+      return filtered.tasks.filter((task) => task.status !== "done");
+    }
+    if (taskScope === "due") {
+      return filtered.tasks.filter(
+        (task) => task.status !== "done" && dueState(task.due_date) !== "open",
+      );
+    }
+    if (taskScope === "done") {
+      return filtered.tasks.filter((task) => task.status === "done");
+    }
+    return filtered.tasks;
+  }, [filtered.tasks, taskScope]);
+
   const emptyLabel = useMemo(() => {
     if (query.trim()) return "검색 조건에 맞는 항목이 없습니다.";
     if (project !== "all") return `${project} 프로젝트에 아직 항목이 없습니다.`;
@@ -195,7 +232,31 @@ export default function MobiOnContent() {
       });
   }, [projects, workspace]);
 
-  const viewAnimationKey = `${active}:${filtered.tasks.length}:${filtered.docs.length}:${filtered.links.length}:${filtered.messages.length}`;
+  const focusQueue = useMemo(() => {
+    const priorityRank: Record<MobionTask["priority"], number> = {
+      high: 0,
+      medium: 1,
+      low: 2,
+    };
+    const dueRank: Record<ReturnType<typeof dueState>, number> = {
+      late: 0,
+      soon: 1,
+      open: 2,
+    };
+
+    return [...filtered.tasks]
+      .filter((task) => task.status !== "done")
+      .sort((a, b) => {
+        const dueDiff = dueRank[dueState(a.due_date)] - dueRank[dueState(b.due_date)];
+        if (dueDiff) return dueDiff;
+        const priorityDiff = priorityRank[a.priority] - priorityRank[b.priority];
+        if (priorityDiff) return priorityDiff;
+        return a.progress - b.progress;
+      })
+      .slice(0, 6);
+  }, [filtered.tasks]);
+
+  const viewAnimationKey = `${active}:${visibleTasks.length}:${filtered.docs.length}:${filtered.links.length}:${filtered.messages.length}`;
 
   async function loadWorkspace() {
     setError("");
@@ -228,8 +289,46 @@ export default function MobiOnContent() {
   }
 
   useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(PREFS_KEY);
+      if (saved) {
+        const prefs = JSON.parse(saved) as Partial<{
+          active: ViewKey;
+          project: string;
+          query: string;
+          taskScope: TaskScope;
+        }>;
+        if (prefs.active && VIEWS.some((view) => view.key === prefs.active)) {
+          setActive(prefs.active);
+        }
+        if (typeof prefs.project === "string") setProject(prefs.project);
+        if (typeof prefs.query === "string") setQuery(prefs.query);
+        if (prefs.taskScope && TASK_SCOPES.some((scope) => scope.key === prefs.taskScope)) {
+          setTaskScope(prefs.taskScope);
+        }
+      }
+    } catch {
+      window.localStorage.removeItem(PREFS_KEY);
+    } finally {
+      setPrefsReady(true);
+    }
     void loadWorkspace();
   }, []);
+
+  useEffect(() => {
+    if (!prefsReady) return;
+    window.localStorage.setItem(
+      PREFS_KEY,
+      JSON.stringify({ active, project, query, taskScope }),
+    );
+  }, [active, prefsReady, project, query, taskScope]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (project !== "all" && !projects.includes(project)) {
+      setProject("all");
+    }
+  }, [project, projects, user]);
 
   useGSAP(
     () => {
@@ -473,6 +572,33 @@ export default function MobiOnContent() {
     }
   }
 
+  function clearFilters() {
+    setProject("all");
+    setQuery("");
+    setTaskScope("all");
+  }
+
+  function exportWorkspace() {
+    const snapshot = {
+      exportedAt: new Date().toISOString(),
+      user: user ? { name: user.name, email: user.email } : null,
+      filters: { active, project, query, taskScope },
+      metrics,
+      workspace,
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `mobion-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <Root ref={root}>
       <GridGlow aria-hidden />
@@ -507,6 +633,11 @@ export default function MobiOnContent() {
                 </option>
               ))}
             </select>
+            {(query || project !== "all" || taskScope !== "all") && (
+              <ClearButton type="button" onClick={clearFilters}>
+                Clear
+              </ClearButton>
+            )}
           </CommandBar>
         </Top>
 
@@ -558,6 +689,7 @@ export default function MobiOnContent() {
                   name="email"
                   type="email"
                   placeholder="member@mobicom.dev"
+                  required
                 />
               </Field>
               <Field>
@@ -567,6 +699,8 @@ export default function MobiOnContent() {
                   name="password"
                   type="password"
                   placeholder="8 characters or more"
+                  minLength={8}
+                  required
                 />
               </Field>
               <Primary type="submit" disabled={saving}>
@@ -604,6 +738,9 @@ export default function MobiOnContent() {
               <Secondary type="button" onClick={logout}>
                 Logout
               </Secondary>
+              <Secondary type="button" onClick={exportWorkspace}>
+                Export JSON
+              </Secondary>
             </Sidebar>
 
             <MainPanel className="mobion-view">
@@ -638,7 +775,7 @@ export default function MobiOnContent() {
                   </MetricGrid>
 
                   <DashboardGrid>
-                    <SectionPanel>
+                    <SectionPanel data-wide>
                       <SectionHead>
                         <h3>Projects</h3>
                         <span>{projectCards.length}</span>
@@ -698,6 +835,42 @@ export default function MobiOnContent() {
                         )}
                       </TaskStack>
                     </SectionPanel>
+
+                    <SectionPanel>
+                      <SectionHead>
+                        <h3>Focus Queue</h3>
+                        <span>{focusQueue.length}</span>
+                      </SectionHead>
+                      <FocusList>
+                        {focusQueue.map((task) => (
+                          <FocusButton
+                            key={task.id}
+                            type="button"
+                            data-due={dueState(task.due_date)}
+                            onClick={() => {
+                              setActive("tasks");
+                              setTaskScope(dueState(task.due_date) === "open" ? "open" : "due");
+                              setQuery(task.title);
+                            }}
+                          >
+                            <span>
+                              <b>{task.title}</b>
+                              <small>
+                                {task.project} · {PRIORITY_LABEL[task.priority]} ·{" "}
+                                {shortDate(task.due_date)}
+                              </small>
+                            </span>
+                            <strong>{task.progress}%</strong>
+                          </FocusButton>
+                        ))}
+                        {focusQueue.length === 0 && (
+                          <EmptyState>
+                            <b>No focus items</b>
+                            <span>열린 태스크가 없거나 현재 필터에 맞는 항목이 없습니다.</span>
+                          </EmptyState>
+                        )}
+                      </FocusList>
+                    </SectionPanel>
                   </DashboardGrid>
                 </>
               )}
@@ -706,7 +879,22 @@ export default function MobiOnContent() {
                 <>
                   <PanelTop>
                     <PanelTitle>Task Board</PanelTitle>
-                    <LiveBadge>{filtered.tasks.length} visible</LiveBadge>
+                    <PanelTools>
+                      <ScopeTabs aria-label="Task scope">
+                        {TASK_SCOPES.map((scope) => (
+                          <button
+                            key={scope.key}
+                            type="button"
+                            data-active={taskScope === scope.key || undefined}
+                            onClick={() => setTaskScope(scope.key)}
+                          >
+                            {scope.label}
+                            <span>{taskScopeCounts[scope.key]}</span>
+                          </button>
+                        ))}
+                      </ScopeTabs>
+                      <LiveBadge>{visibleTasks.length} visible</LiveBadge>
+                    </PanelTools>
                   </PanelTop>
                   <TaskForm onSubmit={createTask}>
                     <input name="code" placeholder="CAP-01" />
@@ -743,10 +931,10 @@ export default function MobiOnContent() {
                         <ColumnTitle>
                           {STATUS_LABEL[status]}
                           <span>
-                            {filtered.tasks.filter((task) => task.status === status).length}
+                            {visibleTasks.filter((task) => task.status === status).length}
                           </span>
                         </ColumnTitle>
-                        {filtered.tasks
+                        {visibleTasks
                           .filter((task) => task.status === status)
                           .map((task) => (
                             <TaskCard key={task.id} data-priority={task.priority}>
@@ -866,6 +1054,12 @@ export default function MobiOnContent() {
                               </TaskActions>
                             </TaskCard>
                           ))}
+                        {visibleTasks.filter((task) => task.status === status).length ===
+                          0 && (
+                          <ColumnEmpty>
+                            {taskScope === "due" ? "No due tasks" : "No tasks"}
+                          </ColumnEmpty>
+                        )}
                       </TaskColumn>
                     ))}
                   </StatusColumns>
@@ -987,9 +1181,13 @@ export default function MobiOnContent() {
                     <LiveBadge>{filtered.links.length} saved</LiveBadge>
                   </PanelTop>
                   <LinkForm onSubmit={createLink}>
-                    <input name="title" placeholder="Reference title" />
-                    <input name="url" placeholder="https://..." />
-                    <input name="project" placeholder="Project" />
+                    <input name="title" placeholder="Reference title" required />
+                    <input name="url" type="url" placeholder="https://..." required />
+                    <input
+                      name="project"
+                      placeholder="Project"
+                      defaultValue={project === "all" ? "" : project}
+                    />
                     <input name="kind" placeholder="design, repo, docs" />
                     <Primary type="submit" disabled={saving}>
                       Save link
@@ -1071,6 +1269,15 @@ const Root = styled.div`
   min-height: 100vh;
   padding: clamp(126px, 13vh, 172px) 0 88px;
   overflow: hidden;
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid rgba(0, 181, 255, 0.84);
+    outline-offset: 2px;
+  }
 `;
 
 const GridGlow = styled.div`
@@ -1139,7 +1346,7 @@ const Lead = styled.p`
 
 const CommandBar = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 170px;
+  grid-template-columns: minmax(0, 1fr) 170px auto;
   gap: 10px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1161,6 +1368,16 @@ const CommandBar = styled.div`
   @media (max-width: 560px) {
     grid-template-columns: 1fr;
   }
+`;
+
+const ClearButton = styled.button`
+  min-width: 72px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.76);
+  font-weight: 850;
 `;
 
 const SearchWrap = styled.div`
@@ -1473,6 +1690,11 @@ const PanelTop = styled.div`
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+
+  @media (max-width: 760px) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 `;
 
 const PanelTitle = styled.h2`
@@ -1497,6 +1719,46 @@ const LiveBadge = styled.div`
     height: 7px;
     border-radius: 50%;
     background: #00b5ff;
+  }
+`;
+
+const PanelTools = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
+const ScopeTabs = styled.div`
+  display: inline-flex;
+  min-height: 36px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 62px;
+    min-height: 28px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  button[data-active] {
+    background: rgba(0, 181, 255, 0.2);
+    color: #fff;
+  }
+
+  span {
+    color: rgba(255, 255, 255, 0.48);
   }
 `;
 
@@ -1553,6 +1815,10 @@ const SectionPanel = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.045);
+
+  &[data-wide] {
+    grid-column: 1 / -1;
+  }
 `;
 
 const SectionHead = styled.div`
@@ -1625,6 +1891,77 @@ const EmptyState = styled.div`
   }
 `;
 
+const FocusList = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+`;
+
+const FocusButton = styled.button`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 13px;
+  border: 1px solid rgba(0, 181, 255, 0.22);
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  text-align: left;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: rgba(0, 181, 255, 0.42);
+    background: rgba(0, 181, 255, 0.08);
+  }
+
+  &[data-due="soon"] {
+    border-color: rgba(255, 166, 87, 0.38);
+    background: rgba(255, 166, 87, 0.07);
+  }
+
+  &[data-due="late"] {
+    border-color: rgba(255, 107, 107, 0.42);
+    background: rgba(255, 107, 107, 0.08);
+  }
+
+  span {
+    min-width: 0;
+  }
+
+  b,
+  small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  b {
+    font-size: 14px;
+    font-weight: 850;
+  }
+
+  small {
+    margin-top: 5px;
+    color: rgba(255, 255, 255, 0.52);
+    font-size: 12px;
+  }
+
+  strong {
+    display: grid;
+    place-items: center;
+    min-width: 46px;
+    height: 32px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #b7f0ff;
+    font-size: 12px;
+  }
+`;
+
 const TaskStack = styled.div`
   display: grid;
   gap: 9px;
@@ -1632,16 +1969,18 @@ const TaskStack = styled.div`
 
 const CompactTask = styled.div`
   padding: 12px;
-  border-left: 3px solid rgba(0, 181, 255, 0.9);
+  border: 1px solid rgba(0, 181, 255, 0.28);
   border-radius: 11px;
   background: rgba(0, 0, 0, 0.26);
 
   &[data-due="soon"] {
-    border-left-color: #ffa657;
+    border-color: rgba(255, 166, 87, 0.4);
+    background: rgba(255, 166, 87, 0.08);
   }
 
   &[data-due="late"] {
-    border-left-color: #ff6b6b;
+    border-color: rgba(255, 107, 107, 0.42);
+    background: rgba(255, 107, 107, 0.08);
   }
 
   b {
@@ -1718,6 +2057,17 @@ const TaskColumn = styled.div`
   @media (max-width: 760px) {
     min-width: 0;
   }
+`;
+
+const ColumnEmpty = styled.div`
+  display: grid;
+  place-items: center;
+  min-height: 76px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 13px;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 12px;
+  font-weight: 800;
 `;
 
 const ColumnTitle = styled.div`

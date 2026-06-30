@@ -3,6 +3,15 @@ import { mobionApiError } from "@/lib/mobion-api";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { query } from "@/lib/mobion-db";
 
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const user = await requireCurrentUser();
@@ -12,7 +21,7 @@ export async function POST(request: Request) {
     const project = String(body.project ?? "General").trim() || "General";
     const kind = String(body.kind ?? "resource").trim() || "resource";
 
-    if (!title || !/^https?:\/\//i.test(url)) {
+    if (!title || !isHttpUrl(url)) {
       return NextResponse.json(
         { error: "링크 제목과 http(s) URL을 확인해 주세요." },
         { status: 400 },
