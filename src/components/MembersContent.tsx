@@ -102,25 +102,25 @@ export default function MembersContent() {
 const Root = styled.div`
   position: relative;
   z-index: 1;
-  padding: clamp(135px, 14.4vh, 189px) 0 108px;
+  padding: clamp(126px, 13.6vh, 176px) 0 98px;
 `;
 
 const Container = styled.div`
-  max-width: 1613px;
+  max-width: 1536px;
   margin: 0 auto;
-  padding: 0 clamp(22px, 3.6vw, 58px);
+  padding: 0 clamp(20px, 3.2vw, 52px);
 `;
 
 const Head = styled.div`
   display: flex;
   align-items: flex-end;
-  gap: 36px;
+  gap: 31px;
 `;
 
 const Title = styled.h1`
   font-family: "Pretendard Variable", Pretendard, sans-serif;
   font-weight: 800;
-  font-size: clamp(36px, 5.04vw, 65px);
+  font-size: clamp(34px, 4.7vw, 60px);
   line-height: 1.1;
   color: #fff;
   white-space: nowrap;
@@ -129,7 +129,7 @@ const Title = styled.h1`
 const Divider = styled.div`
   flex: 1;
   height: 1px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.4),
@@ -138,17 +138,17 @@ const Divider = styled.div`
 `;
 
 const Lead = styled.p`
-  margin-top: 20px;
+  margin-top: 17px;
   font-weight: 300;
-  font-size: clamp(14px, 1.53vw, 22px);
+  font-size: clamp(13px, 1.38vw, 20px);
   color: #b0b0b0;
 `;
 
 const Grid = styled.div`
-  margin-top: clamp(43px, 5.4vh, 81px);
+  margin-top: clamp(38px, 4.8vh, 72px);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: clamp(18px, 1.8vw, 32px);
+  gap: clamp(16px, 1.55vw, 28px);
 
   @media (max-width: 1100px) {
     grid-template-columns: repeat(2, 1fr);
@@ -161,7 +161,7 @@ const Grid = styled.div`
 const cardBase = `
   position: relative;
   aspect-ratio: 1 / 1;
-  border-radius: 9px 9px 36px 9px;
+  border-radius: 8px 8px 31px 8px;
   overflow: hidden;
   transition: transform 0.35s ease, box-shadow 0.35s ease;
 `;
@@ -171,8 +171,8 @@ const Card = styled.div`
   background: #2b2300;
 
   &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 22px 45px rgba(0, 0, 0, 0.5),
+    transform: translateY(-4px);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5),
       0 0 0 1px rgba(0, 181, 255, 0.3);
   }
 `;
@@ -202,26 +202,26 @@ const Overlay = styled.div`
 
 const Name = styled.div`
   position: absolute;
-  top: clamp(18px, 1.8vw, 27px);
-  left: clamp(18px, 1.8vw, 27px);
+  top: clamp(16px, 1.55vw, 24px);
+  left: clamp(16px, 1.55vw, 24px);
   display: flex;
   flex-direction: column;
   font-family: "Pretendard Variable", Pretendard, sans-serif;
   font-weight: 700;
-  font-size: clamp(31px, 3.6vw, 58px);
+  font-size: clamp(28px, 3.25vw, 52px);
   line-height: 1.05;
   color: #fff;
 `;
 
 const YearTag = styled.div`
   position: absolute;
-  top: clamp(18px, 1.8vw, 27px);
+  top: clamp(16px, 1.55vw, 24px);
   right: 0;
-  padding: 7px 18px;
+  padding: 6px 15px;
   background: #827859;
   color: #fff;
   font-weight: 900;
-  font-size: clamp(14px, 1.62vw, 25px);
+  font-size: clamp(13px, 1.45vw, 22px);
   white-space: nowrap;
 `;
 
@@ -230,11 +230,11 @@ const LeaderBar = styled.div`
   left: 0;
   bottom: 0;
   width: 86%;
-  padding: clamp(11px, 1.26vw, 18px) clamp(18px, 1.8vw, 27px);
+  padding: clamp(10px, 1.12vw, 16px) clamp(16px, 1.55vw, 24px);
   background: #000;
   color: #fff;
   font-weight: 200;
-  font-size: clamp(18px, 2.16vw, 34px);
+  font-size: clamp(16px, 1.95vw, 30px);
   white-space: nowrap;
 `;
 
@@ -244,22 +244,22 @@ const WaitingCard = styled.div`
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 13px;
+  gap: 11px;
   background: rgba(43, 35, 0, 0.55);
-  border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  border: 1.3px dashed rgba(255, 255, 255, 0.18);
   text-align: center;
-  padding: 22px;
+  padding: 19px;
 
   &:hover {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
     border-color: rgba(0, 181, 255, 0.5);
-    box-shadow: 0 22px 45px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.45);
   }
 `;
 
 const Plus = styled.div`
   font-weight: 200;
-  font-size: clamp(43px, 5.4vw, 76px);
+  font-size: clamp(38px, 4.8vw, 68px);
   line-height: 1;
   color: rgba(255, 255, 255, 0.5);
 
@@ -270,12 +270,12 @@ const Plus = styled.div`
 
 const WaitName = styled.div`
   font-weight: 700;
-  font-size: clamp(22px, 2.7vw, 40px);
+  font-size: clamp(20px, 2.4vw, 36px);
   color: #fff;
 `;
 
 const WaitDesc = styled.div`
   font-weight: 300;
-  font-size: clamp(13px, 1.26vw, 18px);
+  font-size: clamp(12px, 1.12vw, 16px);
   color: #9a9a9a;
 `;

@@ -189,32 +189,32 @@ export default function BlogContent({ posts }: { posts: Post[] }) {
 const Root = styled.div`
   position: relative;
   z-index: 1;
-  padding: clamp(135px, 14.4vh, 189px) 0 126px;
+  padding: clamp(126px, 13.6vh, 176px) 0 116px;
 `;
 
 const Container = styled.div`
-  max-width: 1613px;
+  max-width: 1536px;
   margin: 0 auto;
-  padding: 0 clamp(22px, 3.6vw, 58px);
+  padding: 0 clamp(20px, 3.2vw, 52px);
 `;
 
 const Head = styled.div`
   display: flex;
   align-items: center;
-  gap: 25px;
+  gap: 22px;
 `;
 
 const TitleWrap = styled.div`
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 25px;
+  gap: 22px;
 `;
 
 const Title = styled.h1`
   font-family: "Pretendard Variable", Pretendard, sans-serif;
   font-weight: 800;
-  font-size: clamp(36px, 4.86vw, 65px);
+  font-size: clamp(34px, 4.5vw, 60px);
   color: #fff;
 `;
 
@@ -230,50 +230,50 @@ const Divider = styled.div`
 
 const Notes = styled.div`
   flex-shrink: 0;
-  padding: 13px 31px;
-  border: 1.8px solid #fff;
-  border-radius: 45px;
+  padding: 11px 27px;
+  border: 1.5px solid #fff;
+  border-radius: 38px;
   font-family: "Pretendard Variable", Pretendard, sans-serif;
   font-weight: 900;
-  font-size: clamp(18px, 1.98vw, 32px);
+  font-size: clamp(16px, 1.8vw, 29px);
   color: #fff;
   white-space: nowrap;
 `;
 
 const Subtitle = styled.p`
-  margin-top: 14px;
+  margin-top: 12px;
   font-weight: 400;
-  font-size: clamp(18px, 2.52vw, 40px);
+  font-size: clamp(16px, 2.25vw, 36px);
   color: #aeaeae;
 `;
 
 const FilterBar = styled.div`
-  margin-top: clamp(29px, 3.6vh, 50px);
+  margin-top: clamp(25px, 3.2vh, 44px);
   display: flex;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: clamp(18px, 1.8vw, 29px);
+  padding: clamp(16px, 1.55vw, 25px);
   background: rgba(0, 0, 0, 0.5);
-  border: 1.8px solid #333;
-  border-radius: 27px;
+  border: 1.5px solid #333;
+  border-radius: 22px;
 `;
 
 const SearchBox = styled.div`
   flex: 1;
-  min-width: 216px;
+  min-width: 196px;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 0 18px;
-  height: 58px;
+  gap: 10px;
+  padding: 0 15px;
+  height: 52px;
   background: #000;
-  border: 1.8px solid #333;
-  border-radius: 14px;
+  border: 1.5px solid #333;
+  border-radius: 12px;
   transition: border-color 0.2s ease;
 
   .material-symbols-outlined {
     color: #a3a3a3;
-    font-size: 22px;
+    font-size: 20px;
   }
 
   &:focus-within {
@@ -287,7 +287,7 @@ const SearchBox = styled.div`
     outline: none;
     color: #fff;
     font-family: inherit;
-    font-size: clamp(14px, 1.26vw, 20px);
+    font-size: clamp(13px, 1.15vw, 18px);
 
     &::placeholder {
       color: #a3a3a3;
@@ -303,14 +303,14 @@ const SelectWrap = styled.div`
   select {
     appearance: none;
     -webkit-appearance: none;
-    height: 58px;
-    padding: 0 43px 0 20px;
+    height: 52px;
+    padding: 0 38px 0 17px;
     background: #000;
-    border: 1.8px solid #333;
-    border-radius: 11px;
+    border: 1.5px solid #333;
+    border-radius: 10px;
     color: #fff;
     font-family: inherit;
-    font-size: clamp(14px, 1.17vw, 20px);
+    font-size: clamp(13px, 1.08vw, 18px);
     cursor: pointer;
     transition: border-color 0.2s ease;
 
@@ -321,18 +321,18 @@ const SelectWrap = styled.div`
 
   .material-symbols-outlined {
     position: absolute;
-    right: 14px;
+    right: 12px;
     color: #a3a3a3;
-    font-size: 20px;
+    font-size: 18px;
     pointer-events: none;
   }
 `;
 
 const List = styled.div`
-  margin-top: clamp(25px, 2.7vh, 40px);
+  margin-top: clamp(22px, 2.4vh, 36px);
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: clamp(16px, 1.62vw, 25px);
+  gap: clamp(14px, 1.45vw, 22px);
 
   @media (max-width: 860px) {
     grid-template-columns: 1fr;
@@ -343,18 +343,18 @@ const CardLink = styled.a`
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 13px;
-  padding: clamp(22px, 2.16vw, 32px);
+  gap: 11px;
+  padding: clamp(19px, 1.9vw, 28px);
   background: rgba(0, 0, 0, 0.55);
-  border: 1.8px solid #333;
-  border-radius: 22px;
+  border: 1.5px solid #333;
+  border-radius: 18px;
   transition: transform 0.3s ease, border-color 0.3s ease,
     box-shadow 0.3s ease;
 
   &:hover {
-    transform: translateY(-4px);
+    transform: translateY(-3px);
     border-color: rgba(0, 181, 255, 0.5);
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 13px 30px rgba(0, 0, 0, 0.5);
   }
 `;
 
@@ -362,38 +362,38 @@ const CardTop = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 11px;
+  gap: 10px;
 `;
 
 const AuthorChip = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-weight: 600;
-  font-size: clamp(12px, 1.08vw, 15px);
+  font-size: clamp(11px, 1vw, 14px);
 `;
 
 const Dot = styled.span`
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
 `;
 
 const DateText = styled.span`
-  font-size: clamp(11px, 0.99vw, 14px);
+  font-size: clamp(10px, 0.9vw, 13px);
   color: #8a8a8a;
 `;
 
 const CardTitle = styled.h2`
   font-weight: 700;
-  font-size: clamp(17px, 1.62vw, 23px);
+  font-size: clamp(15px, 1.45vw, 21px);
   line-height: 1.35;
   color: #fff;
 `;
 
 const Excerpt = styled.p`
   font-weight: 300;
-  font-size: clamp(13px, 1.17vw, 15px);
+  font-size: clamp(12px, 1.05vw, 14px);
   line-height: 1.6;
   color: #a8a8a8;
   display: -webkit-box;
@@ -405,25 +405,25 @@ const Excerpt = styled.p`
 const Tags = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
   margin-top: auto;
 `;
 
 const Tag = styled.span`
-  padding: 5px 11px;
-  border-radius: 45px;
+  padding: 4px 9px;
+  border-radius: 36px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: clamp(11px, 0.99vw, 13px);
+  font-size: clamp(10px, 0.9vw, 12px);
   color: #c0c0c0;
 `;
 
 const Arrow = styled.span`
   position: absolute;
-  top: clamp(22px, 2.16vw, 32px);
-  right: clamp(22px, 2.16vw, 32px);
+  top: clamp(19px, 1.9vw, 28px);
+  right: clamp(19px, 1.9vw, 28px);
   color: #555;
-  font-size: 20px;
+  font-size: 18px;
   transition: color 0.3s ease, transform 0.3s ease;
 
   ${CardLink}:hover & {
@@ -433,11 +433,11 @@ const Arrow = styled.span`
 `;
 
 const Empty = styled.div`
-  margin-top: 54px;
-  padding: 72px 18px;
+  margin-top: 48px;
+  padding: 62px 16px;
   text-align: center;
   color: #8a8a8a;
-  font-size: clamp(14px, 1.44vw, 20px);
-  border: 1.8px dashed #333;
-  border-radius: 22px;
+  font-size: clamp(13px, 1.3vw, 18px);
+  border: 1.5px dashed #333;
+  border-radius: 18px;
 `;

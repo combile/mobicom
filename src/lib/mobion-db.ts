@@ -56,26 +56,57 @@ export async function ensureMobionSchema() {
           status TEXT NOT NULL DEFAULT 'now',
           owner TEXT NOT NULL DEFAULT '',
           progress INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+          project TEXT NOT NULL DEFAULT 'General',
+          priority TEXT NOT NULL DEFAULT 'medium',
+          due_date DATE,
+          notes TEXT NOT NULL DEFAULT '',
           created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
+      await pool.query(
+        `ALTER TABLE mobion_tasks
+         ADD COLUMN IF NOT EXISTS project TEXT NOT NULL DEFAULT 'General',
+         ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'medium',
+         ADD COLUMN IF NOT EXISTS due_date DATE,
+         ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`,
+      );
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_docs (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
           title TEXT NOT NULL,
           body TEXT NOT NULL DEFAULT '',
+          project TEXT NOT NULL DEFAULT 'General',
+          kind TEXT NOT NULL DEFAULT 'note',
+          pinned BOOLEAN NOT NULL DEFAULT false,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
+      await pool.query(
+        `ALTER TABLE mobion_docs
+         ADD COLUMN IF NOT EXISTS project TEXT NOT NULL DEFAULT 'General',
+         ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'note',
+         ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT false`,
+      );
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_messages (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
           author TEXT NOT NULL,
           body TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_links (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          url TEXT NOT NULL,
+          project TEXT NOT NULL DEFAULT 'General',
+          kind TEXT NOT NULL DEFAULT 'resource',
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);

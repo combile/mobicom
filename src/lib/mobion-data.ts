@@ -7,6 +7,10 @@ export type MobionTask = {
   status: "now" | "next" | "review" | "done";
   owner: string;
   progress: number;
+  project: string;
+  priority: "low" | "medium" | "high";
+  due_date: string | null;
+  notes: string;
   updated_at: string;
 };
 
@@ -14,6 +18,9 @@ export type MobionDoc = {
   id: string;
   title: string;
   body: string;
+  project: string;
+  kind: "note" | "spec" | "meeting" | "retro";
+  pinned: boolean;
   updated_at: string;
 };
 
@@ -24,20 +31,30 @@ export type MobionMessage = {
   created_at: string;
 };
 
+export type MobionLink = {
+  id: string;
+  title: string;
+  url: string;
+  project: string;
+  kind: string;
+  created_at: string;
+};
+
 export async function getWorkspace(userId: string) {
-  const [tasks, docs, messages] = await Promise.all([
+  const [tasks, docs, messages, links] = await Promise.all([
     query<MobionTask>(
-      `SELECT id, code, title, status, owner, progress, updated_at
+      `SELECT id, code, title, status, owner, progress, project, priority,
+              due_date::text AS due_date, notes, updated_at
        FROM mobion_tasks
        WHERE user_id = $1
-       ORDER BY created_at DESC`,
+       ORDER BY updated_at DESC`,
       [userId],
     ),
     query<MobionDoc>(
-      `SELECT id, title, body, updated_at
+      `SELECT id, title, body, project, kind, pinned, updated_at
        FROM mobion_docs
        WHERE user_id = $1
-       ORDER BY updated_at DESC`,
+       ORDER BY pinned DESC, updated_at DESC`,
       [userId],
     ),
     query<MobionMessage>(
@@ -48,12 +65,20 @@ export async function getWorkspace(userId: string) {
        LIMIT 20`,
       [userId],
     ),
+    query<MobionLink>(
+      `SELECT id, title, url, project, kind, created_at
+       FROM mobion_links
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId],
+    ),
   ]);
 
   return {
     tasks: tasks.rows,
     docs: docs.rows,
     messages: messages.rows.reverse(),
+    links: links.rows,
   };
 }
 
@@ -65,18 +90,26 @@ export async function seedWorkspace(userId: string, name: string) {
   if (Number(existing.rows[0]?.count ?? 0) > 0) return;
 
   await query(
-    `INSERT INTO mobion_tasks (user_id, code, title, status, owner, progress)
+    `INSERT INTO mobion_tasks
+       (user_id, code, title, status, owner, progress, project, priority, due_date, notes)
      VALUES
-       ($1, 'MAC-24', '5G scheduler latency experiment', 'now', $2, 74),
-       ($1, 'RFID-11', 'Collision avoidance simulator sweep', 'review', $2, 92),
-       ($1, 'APP-08', 'Bluetooth sensing prototype', 'next', $2, 41)`,
+       ($1, 'CAP-01', '팀플 요구사항 정리', 'now', $2, 68, 'Team Project', 'high', current_date + 2, '역할, 산출물, 발표 기준을 먼저 고정합니다.'),
+       ($1, 'LAB-02', '실험 로그 정리', 'review', $2, 92, 'Research', 'medium', current_date + 5, '측정값과 스크린샷을 문서에 연결합니다.'),
+       ($1, 'SIDE-03', '개인 프로젝트 MVP 범위 확정', 'next', $2, 34, 'Personal', 'medium', current_date + 7, '기능 3개 이하로 좁히고 링크를 모읍니다.')`,
     [userId, name.slice(0, 2).toUpperCase()],
   );
   await query(
-    `INSERT INTO mobion_docs (user_id, title, body)
+    `INSERT INTO mobion_docs (user_id, title, body, project, kind, pinned)
      VALUES
-       ($1, 'Experiment protocol / 5G MAC', '실험 조건, 측정 지표, 반복 횟수를 정리합니다.'),
-       ($1, 'RFID collision notes', '충돌 회피 시뮬레이터 관찰 내용을 기록합니다.')`,
+       ($1, 'Team Project Brief', '목표, 역할, 일정, 제출물을 한 페이지에 정리합니다.', 'Team Project', 'spec', true),
+       ($1, 'Meeting Notes', '회의 결정사항과 다음 액션을 기록합니다.', 'General', 'meeting', false)`,
+    [userId],
+  );
+  await query(
+    `INSERT INTO mobion_links (user_id, title, url, project, kind)
+     VALUES
+       ($1, 'Mobi:ON workspace guide', 'https://huly.io', 'General', 'reference'),
+       ($1, 'Shared drive', 'https://drive.google.com', 'Team Project', 'asset')`,
     [userId],
   );
   await query(

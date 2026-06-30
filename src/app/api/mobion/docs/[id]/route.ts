@@ -3,6 +3,8 @@ import { mobionApiError } from "@/lib/mobion-api";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { query } from "@/lib/mobion-db";
 
+const KINDS = new Set(["note", "spec", "meeting", "retro"]);
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -13,17 +15,20 @@ export async function PATCH(
     const body = await request.json();
     const title = String(body.title ?? "").trim();
     const docBody = String(body.body ?? "").trim();
+    const project = String(body.project ?? "General").trim() || "General";
+    const kind = String(body.kind ?? "note");
+    const pinned = Boolean(body.pinned);
 
-    if (!title) {
+    if (!title || !KINDS.has(kind)) {
       return NextResponse.json({ error: "문서 제목을 입력해 주세요." }, { status: 400 });
     }
 
     const result = await query(
       `UPDATE mobion_docs
-       SET title = $3, body = $4, updated_at = now()
+       SET title = $3, body = $4, project = $5, kind = $6, pinned = $7, updated_at = now()
        WHERE id = $1 AND user_id = $2
-       RETURNING id, title, body, updated_at`,
-      [id, user.id, title, docBody],
+       RETURNING id, title, body, project, kind, pinned, updated_at`,
+      [id, user.id, title, docBody, project, kind, pinned],
     );
 
     if (!result.rows[0]) {
