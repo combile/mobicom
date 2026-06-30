@@ -124,6 +124,19 @@ const Bar = styled.header`
     );
     pointer-events: none;
   }
+
+  @media (max-width: 760px) {
+    top: 55px;
+    width: calc(100% - 40px);
+    height: 74px;
+    padding: 0 26px;
+  }
+
+  @media (max-width: 430px) {
+    width: calc(100% - 32px);
+    height: 72px;
+    padding: 0 18px;
+  }
 `;
 
 const Logo = styled.div`
@@ -134,6 +147,14 @@ const Logo = styled.div`
   font-size: 38px;
   color: #fff;
   user-select: none;
+
+  @media (max-width: 760px) {
+    font-size: 31px;
+  }
+
+  @media (max-width: 430px) {
+    font-size: 28px;
+  }
 `;
 
 const Nav = styled.nav`
@@ -144,6 +165,10 @@ const Nav = styled.nav`
   display: flex;
   align-items: center;
   gap: clamp(25px, 3.6vw, 73px);
+
+  @media (max-width: 760px) {
+    display: none;
+  }
 `;
 
 const NavLink = styled(Link)`
@@ -199,5 +224,17 @@ const LoginButton = styled.button`
 
   &:hover {
     color: #00b5ff;
+  }
+
+  @media (max-width: 760px) {
+    font-size: 18px;
+
+    .material-symbols-outlined {
+      font-size: 20px;
+    }
+  }
+
+  @media (max-width: 430px) {
+    font-size: 16px;
   }
 `;

@@ -54,16 +54,23 @@ const PRIORITY_LABEL: Record<MobionTask["priority"], string> = {
 
 function shortDate(value?: string | null) {
   if (!value) return "No date";
-  const date = new Date(value);
+  const date = parseDateValue(value);
   if (Number.isNaN(date.getTime())) return "No date";
   return `${date.getMonth() + 1}.${date.getDate()}`;
+}
+
+function parseDateValue(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return new Date(value);
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 }
 
 function dueState(value?: string | null) {
   if (!value) return "open";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const due = new Date(value);
+  const due = parseDateValue(value);
+  if (Number.isNaN(due.getTime())) return "open";
   due.setHours(0, 0, 0, 0);
   const diff = Math.round((due.getTime() - today.getTime()) / 86400000);
   if (diff < 0) return "late";
@@ -167,6 +174,12 @@ export default function MobiOnContent() {
       : 0;
     return { open, done, urgent, progress };
   }, [workspace.tasks]);
+
+  const emptyLabel = useMemo(() => {
+    if (query.trim()) return "검색 조건에 맞는 항목이 없습니다.";
+    if (project !== "all") return `${project} 프로젝트에 아직 항목이 없습니다.`;
+    return "아직 저장된 항목이 없습니다.";
+  }, [project, query]);
 
   const projectCards = useMemo(() => {
     return projects
@@ -632,7 +645,14 @@ export default function MobiOnContent() {
                       </SectionHead>
                       <ProjectStack>
                         {projectCards.map((item) => (
-                          <ProjectCard key={item.name}>
+                          <ProjectCard
+                            key={item.name}
+                            type="button"
+                            onClick={() => {
+                              setProject(item.name);
+                              setActive("tasks");
+                            }}
+                          >
                             <b>{item.name}</b>
                             <small>
                               {item.tasks.length} tasks · {item.docs.length} docs ·{" "}
@@ -643,6 +663,12 @@ export default function MobiOnContent() {
                             </ProgressBar>
                           </ProjectCard>
                         ))}
+                        {projectCards.length === 0 && (
+                          <EmptyState>
+                            <b>No projects yet</b>
+                            <span>태스크나 문서를 만들면 프로젝트가 자동으로 잡힙니다.</span>
+                          </EmptyState>
+                        )}
                       </ProjectStack>
                     </SectionPanel>
 
@@ -663,6 +689,13 @@ export default function MobiOnContent() {
                               </span>
                             </CompactTask>
                           ))}
+                        {filtered.tasks.filter((task) => task.status !== "done").length ===
+                          0 && (
+                          <EmptyState>
+                            <b>All clear</b>
+                            <span>열린 태스크가 없습니다.</span>
+                          </EmptyState>
+                        )}
                       </TaskStack>
                     </SectionPanel>
                   </DashboardGrid>
@@ -677,8 +710,12 @@ export default function MobiOnContent() {
                   </PanelTop>
                   <TaskForm onSubmit={createTask}>
                     <input name="code" placeholder="CAP-01" />
-                    <input name="title" placeholder="Task title" />
-                    <input name="project" placeholder="Project" />
+                    <input name="title" placeholder="Task title" required />
+                    <input
+                      name="project"
+                      placeholder="Project"
+                      defaultValue={project === "all" ? "" : project}
+                    />
                     <select name="priority" defaultValue="medium">
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
@@ -714,18 +751,71 @@ export default function MobiOnContent() {
                           .map((task) => (
                             <TaskCard key={task.id} data-priority={task.priority}>
                               <TaskTop>
-                                <Code>{task.code}</Code>
+                                <CodeInput
+                                  defaultValue={task.code}
+                                  aria-label={`${task.title} code`}
+                                  onBlur={(event) =>
+                                    void patchTask(task.id, {
+                                      code: event.currentTarget.value,
+                                    })
+                                  }
+                                />
                                 <Due data-state={dueState(task.due_date)}>
                                   {shortDate(task.due_date)}
                                 </Due>
                               </TaskTop>
-                              <TaskTitle>{task.title}</TaskTitle>
-                              <TaskMeta>
-                                <span>{task.project}</span>
-                                <span>{PRIORITY_LABEL[task.priority]}</span>
-                                <span>{task.owner || "MO"}</span>
-                              </TaskMeta>
-                              {task.notes && <TaskNotes>{task.notes}</TaskNotes>}
+                              <TaskTitleInput
+                                defaultValue={task.title}
+                                aria-label={`${task.title} title`}
+                                onBlur={(event) =>
+                                  void patchTask(task.id, {
+                                    title: event.currentTarget.value,
+                                  })
+                                }
+                              />
+                              <TaskMetaForm>
+                                <input
+                                  defaultValue={task.project}
+                                  aria-label={`${task.title} project`}
+                                  onBlur={(event) =>
+                                    void patchTask(task.id, {
+                                      project: event.currentTarget.value,
+                                    })
+                                  }
+                                />
+                                <select
+                                  value={task.priority}
+                                  aria-label={`${task.title} priority`}
+                                  onChange={(event) =>
+                                    void patchTask(task.id, {
+                                      priority: event.target.value as MobionTask["priority"],
+                                    })
+                                  }
+                                >
+                                  <option value="low">{PRIORITY_LABEL.low}</option>
+                                  <option value="medium">{PRIORITY_LABEL.medium}</option>
+                                  <option value="high">{PRIORITY_LABEL.high}</option>
+                                </select>
+                                <input
+                                  defaultValue={task.owner}
+                                  aria-label={`${task.title} owner`}
+                                  onBlur={(event) =>
+                                    void patchTask(task.id, {
+                                      owner: event.currentTarget.value,
+                                    })
+                                  }
+                                />
+                              </TaskMetaForm>
+                              <TaskNotesInput
+                                defaultValue={task.notes}
+                                aria-label={`${task.title} notes`}
+                                placeholder="Notes"
+                                onBlur={(event) =>
+                                  void patchTask(task.id, {
+                                    notes: event.currentTarget.value,
+                                  })
+                                }
+                              />
                               <ProgressBar>
                                 <span style={{ width: `${task.progress}%` }} />
                               </ProgressBar>
@@ -749,14 +839,26 @@ export default function MobiOnContent() {
                                   min="0"
                                   max="100"
                                   defaultValue={task.progress}
+                                  aria-label={`${task.title} progress`}
                                   onBlur={(event) =>
                                     void patchTask(task.id, {
                                       progress: Number(event.currentTarget.value),
                                     })
                                   }
                                 />
+                                <input
+                                  type="date"
+                                  defaultValue={task.due_date ?? ""}
+                                  aria-label={`${task.title} due date`}
+                                  onBlur={(event) =>
+                                    void patchTask(task.id, {
+                                      dueDate: event.currentTarget.value,
+                                    })
+                                  }
+                                />
                                 <GhostButton
                                   type="button"
+                                  aria-label={`${task.title} 삭제`}
                                   onClick={() => void deleteTask(task.id)}
                                 >
                                   <span className="material-symbols-outlined">delete</span>
@@ -796,6 +898,12 @@ export default function MobiOnContent() {
                         </span>
                       </DocButton>
                     ))}
+                    {filtered.docs.length === 0 && (
+                      <EmptyState>
+                        <b>No docs</b>
+                        <span>{emptyLabel}</span>
+                      </EmptyState>
+                    )}
                   </DocList>
                   <DocEditor onSubmit={saveDoc}>
                     <input type="hidden" name="id" value={selectedDoc?.id ?? ""} />
@@ -808,6 +916,7 @@ export default function MobiOnContent() {
                           name="title"
                           defaultValue={selectedDoc?.title ?? ""}
                           placeholder="Project brief"
+                          required
                         />
                       </Field>
                       <Field>
@@ -897,11 +1006,21 @@ export default function MobiOnContent() {
                           <span>{link.project}</span>
                           <span>{link.kind}</span>
                         </LinkMeta>
-                        <GhostButton type="button" onClick={() => void deleteLink(link.id)}>
+                        <GhostButton
+                          type="button"
+                          aria-label={`${link.title} 삭제`}
+                          onClick={() => void deleteLink(link.id)}
+                        >
                           <span className="material-symbols-outlined">delete</span>
                         </GhostButton>
                       </LinkCard>
                     ))}
+                    {filtered.links.length === 0 && (
+                      <EmptyState>
+                        <b>No links</b>
+                        <span>{emptyLabel}</span>
+                      </EmptyState>
+                    )}
                   </LinkGrid>
                 </>
               )}
@@ -922,6 +1041,12 @@ export default function MobiOnContent() {
                         </BubbleText>
                       </Bubble>
                     ))}
+                    {filtered.messages.length === 0 && (
+                      <EmptyState>
+                        <b>No messages</b>
+                        <span>{emptyLabel}</span>
+                      </EmptyState>
+                    )}
                   </RoomGrid>
                   <MessageForm onSubmit={sendMessage}>
                     <input
@@ -1454,11 +1579,19 @@ const ProjectStack = styled.div`
   gap: 10px;
 `;
 
-const ProjectCard = styled.div`
+const ProjectCard = styled.button`
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 13px;
   background: rgba(0, 0, 0, 0.22);
+  text-align: left;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba(0, 181, 255, 0.34);
+    background: rgba(0, 181, 255, 0.08);
+  }
 
   b {
     display: block;
@@ -1469,6 +1602,26 @@ const ProjectCard = styled.div`
     display: block;
     margin-top: 5px;
     color: rgba(255, 255, 255, 0.56);
+  }
+`;
+
+const EmptyState = styled.div`
+  padding: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.18);
+
+  b {
+    display: block;
+    color: rgba(255, 255, 255, 0.84);
+  }
+
+  span {
+    display: block;
+    margin-top: 5px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    line-height: 1.45;
   }
 `;
 
@@ -1549,6 +1702,11 @@ const StatusColumns = styled.div`
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 4px;
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
 `;
 
 const TaskColumn = styled.div`
@@ -1556,6 +1714,10 @@ const TaskColumn = styled.div`
   display: grid;
   align-content: start;
   gap: 10px;
+
+  @media (max-width: 760px) {
+    min-width: 0;
+  }
 `;
 
 const ColumnTitle = styled.div`
@@ -1589,7 +1751,12 @@ const TaskTop = styled.div`
   gap: 8px;
 `;
 
-const Code = styled.span`
+const CodeInput = styled.input`
+  width: 86px;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
   color: #00b5ff;
   font-size: 11px;
   font-weight: 850;
@@ -1614,33 +1781,60 @@ const Due = styled.span`
   }
 `;
 
-const TaskTitle = styled.b`
+const TaskTitleInput = styled.input`
   display: block;
+  width: 100%;
   margin-top: 9px;
+  border: 0;
+  outline: none;
+  background: transparent;
   color: #fff;
+  font: inherit;
   font-size: 15px;
+  font-weight: 800;
   line-height: 1.35;
 `;
 
-const TaskMeta = styled.div`
-  display: flex;
-  flex-wrap: wrap;
+const TaskMetaForm = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 58px;
   gap: 6px;
   margin-top: 10px;
 
-  span {
-    padding: 4px 7px;
-    border-radius: 999px;
+  input,
+  select {
+    min-width: 0;
+    height: 28px;
+    padding: 0 7px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 9px;
     background: rgba(255, 255, 255, 0.07);
     color: rgba(255, 255, 255, 0.58);
     font-size: 11px;
     font-weight: 750;
   }
+
+  @media (max-width: 760px) {
+    grid-template-columns: minmax(0, 1fr) 92px;
+
+    input:last-child {
+      grid-column: 1 / -1;
+    }
+  }
 `;
 
-const TaskNotes = styled.p`
+const TaskNotesInput = styled.textarea`
+  width: 100%;
+  min-height: 58px;
   margin-top: 10px;
+  padding: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  outline: none;
+  resize: vertical;
+  background: rgba(0, 0, 0, 0.2);
   color: rgba(255, 255, 255, 0.62);
+  font: inherit;
   font-size: 12px;
   line-height: 1.45;
 `;
@@ -1661,7 +1855,7 @@ const ProgressBar = styled.div`
 
 const TaskActions = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px 34px;
+  grid-template-columns: minmax(0, 1fr) 58px 112px 34px;
   gap: 7px;
   margin-top: 12px;
 
@@ -1673,6 +1867,14 @@ const TaskActions = styled.div`
     border-radius: 9px;
     background: rgba(0, 0, 0, 0.42);
     color: #fff;
+  }
+
+  @media (max-width: 760px) {
+    grid-template-columns: minmax(0, 1fr) 78px 34px;
+
+    input[type="date"] {
+      grid-column: 1 / 3;
+    }
   }
 `;
 

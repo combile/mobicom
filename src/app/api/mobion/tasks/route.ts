@@ -5,6 +5,7 @@ import { query } from "@/lib/mobion-db";
 
 const STATUSES = new Set(["now", "next", "review", "done"]);
 const PRIORITIES = new Set(["low", "medium", "high"]);
+const DATE_VALUE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function POST(request: Request) {
   try {
@@ -22,6 +23,9 @@ export async function POST(request: Request) {
 
     if (!title || !STATUSES.has(status) || !PRIORITIES.has(priority)) {
       return NextResponse.json({ error: "태스크 정보를 확인해 주세요." }, { status: 400 });
+    }
+    if (dueDate && !DATE_VALUE.test(dueDate)) {
+      return NextResponse.json({ error: "마감일 형식을 확인해 주세요." }, { status: 400 });
     }
 
     const result = await query(

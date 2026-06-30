@@ -5,6 +5,7 @@ import { query } from "@/lib/mobion-db";
 
 const STATUSES = new Set(["now", "next", "review", "done"]);
 const PRIORITIES = new Set(["low", "medium", "high"]);
+const DATE_VALUE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function PATCH(
   request: Request,
@@ -33,6 +34,9 @@ export async function PATCH(
     }
     if (priority && !PRIORITIES.has(priority)) {
       return NextResponse.json({ error: "우선순위 값을 확인해 주세요." }, { status: 400 });
+    }
+    if (dueDate && !DATE_VALUE.test(dueDate)) {
+      return NextResponse.json({ error: "마감일 형식을 확인해 주세요." }, { status: 400 });
     }
 
     const result = await query(
