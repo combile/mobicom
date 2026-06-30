@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSession, findUserByEmail, hashPassword } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
+import { checkRateLimit } from "@/lib/mobion-rate-limit";
 import { query } from "@/lib/mobion-db";
 import { seedWorkspace } from "@/lib/mobion-data";
 
@@ -10,6 +11,13 @@ export async function POST(request: Request) {
     const name = String(body.name ?? "").trim();
     const email = String(body.email ?? "").trim().toLowerCase();
     const password = String(body.password ?? "");
+    const limited = checkRateLimit(request, {
+      scope: "register",
+      identifier: email || "unknown",
+      limit: 5,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (limited) return limited;
 
     if (name.length < 2 || !email.includes("@") || password.length < 8) {
       return NextResponse.json(

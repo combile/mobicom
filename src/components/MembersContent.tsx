@@ -21,7 +21,7 @@ const MEMBERS: Member[] = [
   { first: "YoonSeo", last: "Kang", year: "Junior", img: "/members/yoonseo.png", leader: true },
   { first: "Eunsik", last: "Woo", year: "Junior", img: "/members/eunsik.png" },
   { first: "Daeun", last: "Ye", year: "Junior" },
-  { first: "Hajin", last: "Oh", year: "Sophomore", img: "/members/hajin.png" },
+  { first: "Hajin", last: "Oh", year: "Sophomore", img: "/members/hajin.webp" },
   { first: "Waiting", last: "For You", waiting: true },
   { first: "Waiting", last: "For You", waiting: true },
 ];
