@@ -11,6 +11,15 @@ export type MobionTask = {
   priority: "low" | "medium" | "high";
   due_date: string | null;
   notes: string;
+  checklist: MobionChecklistItem[];
+  updated_at: string;
+};
+
+export type MobionChecklistItem = {
+  id: string;
+  task_id: string;
+  title: string;
+  done: boolean;
   updated_at: string;
 };
 
@@ -51,13 +60,20 @@ export type MobionMilestone = {
 };
 
 export async function getWorkspace(userId: string) {
-  const [tasks, docs, messages, links, milestones] = await Promise.all([
-    query<MobionTask>(
+  const [tasks, checklist, docs, messages, links, milestones] = await Promise.all([
+    query<Omit<MobionTask, "checklist">>(
       `SELECT id, code, title, status, owner, progress, project, priority,
               due_date::text AS due_date, notes, updated_at
        FROM mobion_tasks
        WHERE user_id = $1
        ORDER BY updated_at DESC`,
+      [userId],
+    ),
+    query<MobionChecklistItem>(
+      `SELECT id, task_id, title, done, updated_at
+       FROM mobion_task_checklist
+       WHERE user_id = $1
+       ORDER BY created_at ASC`,
       [userId],
     ),
     query<MobionDoc>(
@@ -92,8 +108,18 @@ export async function getWorkspace(userId: string) {
     ),
   ]);
 
+  const checklistByTask = new Map<string, MobionChecklistItem[]>();
+  checklist.rows.forEach((item) => {
+    const items = checklistByTask.get(item.task_id) ?? [];
+    items.push(item);
+    checklistByTask.set(item.task_id, items);
+  });
+
   return {
-    tasks: tasks.rows,
+    tasks: tasks.rows.map((task) => ({
+      ...task,
+      checklist: checklistByTask.get(task.id) ?? [],
+    })),
     docs: docs.rows,
     messages: messages.rows.reverse(),
     links: links.rows,

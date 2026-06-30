@@ -173,7 +173,14 @@ export default function MobiOnContent() {
       tasks: workspace.tasks.filter(
         (task) =>
           matchesProject(task.project) &&
-          matchesText(task.code, task.title, task.owner, task.project, task.notes),
+          matchesText(
+            task.code,
+            task.title,
+            task.owner,
+            task.project,
+            task.notes,
+            ...task.checklist.map((item) => item.title),
+          ),
       ),
       docs: workspace.docs.filter(
         (doc) =>
@@ -498,6 +505,102 @@ export default function MobiOnContent() {
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "태스크 삭제 실패");
+    }
+  }
+
+  async function createChecklistItem(taskId: string, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const title = String(form.get("title") ?? "").trim();
+    if (!title) return;
+    setError("");
+    try {
+      const data = await requestJson<{ item: MobionTask["checklist"][number] }>(
+        `/api/mobion/tasks/${taskId}/checklist`,
+        {
+          method: "POST",
+          body: JSON.stringify({ title }),
+        },
+      );
+      setWorkspace((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) =>
+          task.id === taskId
+            ? { ...task, checklist: [...task.checklist, data.item] }
+            : task,
+        ),
+      }));
+      formElement.reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "체크리스트 생성 실패");
+    }
+  }
+
+  async function patchChecklistItem(
+    taskId: string,
+    itemId: string,
+    body: Partial<MobionTask["checklist"][number]>,
+  ) {
+    setError("");
+    setWorkspace((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              checklist: task.checklist.map((item) =>
+                item.id === itemId ? { ...item, ...body } : item,
+              ),
+            }
+          : task,
+      ),
+    }));
+    try {
+      const data = await requestJson<{ item: MobionTask["checklist"][number] }>(
+        `/api/mobion/tasks/${taskId}/checklist/${itemId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        },
+      );
+      setWorkspace((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                checklist: task.checklist.map((item) =>
+                  item.id === itemId ? data.item : item,
+                ),
+              }
+            : task,
+        ),
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "체크리스트 수정 실패");
+    }
+  }
+
+  async function deleteChecklistItem(taskId: string, itemId: string) {
+    setError("");
+    try {
+      await requestJson(`/api/mobion/tasks/${taskId}/checklist/${itemId}`, {
+        method: "DELETE",
+      });
+      setWorkspace((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                checklist: task.checklist.filter((item) => item.id !== itemId),
+              }
+            : task,
+        ),
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "체크리스트 삭제 실패");
     }
   }
 
@@ -1117,6 +1220,44 @@ export default function MobiOnContent() {
                                   })
                                 }
                               />
+                              <ChecklistBlock>
+                                {task.checklist.map((item) => (
+                                  <ChecklistRow key={item.id} data-done={item.done || undefined}>
+                                    <input
+                                      type="checkbox"
+                                      checked={item.done}
+                                      aria-label={`${item.title} 완료`}
+                                      onChange={(event) =>
+                                        void patchChecklistItem(task.id, item.id, {
+                                          done: event.currentTarget.checked,
+                                        })
+                                      }
+                                    />
+                                    <input
+                                      defaultValue={item.title}
+                                      aria-label={`${item.title} checklist title`}
+                                      onBlur={(event) =>
+                                        void patchChecklistItem(task.id, item.id, {
+                                          title: event.currentTarget.value,
+                                        })
+                                      }
+                                    />
+                                    <button
+                                      type="button"
+                                      aria-label={`${item.title} 삭제`}
+                                      onClick={() => void deleteChecklistItem(task.id, item.id)}
+                                    >
+                                      <span className="material-symbols-outlined">close</span>
+                                    </button>
+                                  </ChecklistRow>
+                                ))}
+                                <ChecklistForm onSubmit={(event) => void createChecklistItem(task.id, event)}>
+                                  <input name="title" placeholder="Add checklist item" />
+                                  <button type="submit">
+                                    <span className="material-symbols-outlined">add</span>
+                                  </button>
+                                </ChecklistForm>
+                              </ChecklistBlock>
                               <ProgressBar>
                                 <span style={{ width: `${task.progress}%` }} />
                               </ProgressBar>
@@ -2410,6 +2551,92 @@ const TaskNotesInput = styled.textarea`
   font: inherit;
   font-size: 12px;
   line-height: 1.45;
+`;
+
+const ChecklistBlock = styled.div`
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+`;
+
+const ChecklistRow = styled.div`
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+
+  > input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #00b5ff;
+  }
+
+  > input[type="text"],
+  > input:not([type]) {
+    min-width: 0;
+    height: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.045);
+    color: rgba(255, 255, 255, 0.68);
+    font: inherit;
+    font-size: 12px;
+    padding: 0 8px;
+  }
+
+  &[data-done] > input:not([type]) {
+    color: rgba(255, 255, 255, 0.38);
+    text-decoration: line-through;
+  }
+
+  button {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  span {
+    font-size: 16px;
+  }
+`;
+
+const ChecklistForm = styled.form`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 7px;
+
+  input {
+    min-width: 0;
+    height: 32px;
+    padding: 0 9px;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.18);
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+  }
+
+  button {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 32px;
+    border: 0;
+    border-radius: 9px;
+    background: rgba(0, 181, 255, 0.16);
+    color: #b7f0ff;
+  }
+
+  span {
+    font-size: 18px;
+  }
 `;
 
 const ProgressBar = styled.div`

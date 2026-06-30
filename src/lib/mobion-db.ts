@@ -7,7 +7,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 2;
+const MOBION_SCHEMA_VERSION = 3;
 
 export const pool =
   globalThis.mobionPool ??
@@ -126,6 +126,17 @@ export async function ensureMobionSchema() {
           target_date DATE,
           status TEXT NOT NULL DEFAULT 'planned',
           summary TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_task_checklist (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          task_id UUID NOT NULL REFERENCES mobion_tasks(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          done BOOLEAN NOT NULL DEFAULT false,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
