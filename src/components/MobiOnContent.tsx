@@ -16,7 +16,14 @@ import type { MobionUser } from "@/lib/mobion-auth";
 
 gsap.registerPlugin(ScrollTrigger);
 
-type ViewKey = "dashboard" | "tasks" | "timeline" | "docs" | "links" | "room";
+type ViewKey =
+  | "dashboard"
+  | "tasks"
+  | "timeline"
+  | "docs"
+  | "links"
+  | "room"
+  | "settings";
 type AuthMode = "login" | "register";
 type TaskScope = "all" | "open" | "due" | "done";
 type DueState = "open" | "soon" | "late";
@@ -43,6 +50,7 @@ const VIEWS: Array<{ key: ViewKey; label: string; icon: string }> = [
   { key: "docs", label: "Docs", icon: "article" },
   { key: "links", label: "Links", icon: "link" },
   { key: "room", label: "Room", icon: "forum" },
+  { key: "settings", label: "Settings", icon: "settings" },
 ];
 
 const STATUSES: MobionTask["status"][] = ["now", "next", "review", "done"];
@@ -784,6 +792,46 @@ export default function MobiOnContent() {
       formElement.reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : "메시지 전송 실패");
+    }
+  }
+
+  async function updateProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setSaving(true);
+    setError("");
+    try {
+      const data = await requestJson<{ user: MobionUser }>("/api/mobion/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ name: form.get("name") }),
+      });
+      setUser(data.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "프로필 수정 실패");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updatePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setSaving(true);
+    setError("");
+    try {
+      await requestJson<{ user: MobionUser }>("/api/mobion/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          currentPassword: form.get("currentPassword"),
+          newPassword: form.get("newPassword"),
+        }),
+      });
+      formElement.reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "비밀번호 변경 실패");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -1619,6 +1667,65 @@ export default function MobiOnContent() {
                   </MessageForm>
                 </>
               )}
+
+              {active === "settings" && user && (
+                <>
+                  <PanelTop>
+                    <PanelTitle>Settings</PanelTitle>
+                    <LiveBadge>Account</LiveBadge>
+                  </PanelTop>
+                  <SettingsGrid>
+                    <SettingsPanel onSubmit={updateProfile}>
+                      <SectionHead>
+                        <h3>Profile</h3>
+                        <span>{user.email}</span>
+                      </SectionHead>
+                      <Field>
+                        <label htmlFor="settings-name">Display name</label>
+                        <input
+                          id="settings-name"
+                          name="name"
+                          defaultValue={user.name}
+                          minLength={2}
+                          required
+                        />
+                      </Field>
+                      <Primary type="submit" disabled={saving}>
+                        Save profile
+                      </Primary>
+                    </SettingsPanel>
+
+                    <SettingsPanel onSubmit={updatePassword}>
+                      <SectionHead>
+                        <h3>Password</h3>
+                        <span>Session remains active</span>
+                      </SectionHead>
+                      <Field>
+                        <label htmlFor="settings-current-password">Current password</label>
+                        <input
+                          id="settings-current-password"
+                          name="currentPassword"
+                          type="password"
+                          required
+                        />
+                      </Field>
+                      <Field>
+                        <label htmlFor="settings-new-password">New password</label>
+                        <input
+                          id="settings-new-password"
+                          name="newPassword"
+                          type="password"
+                          minLength={8}
+                          required
+                        />
+                      </Field>
+                      <Primary type="submit" disabled={saving}>
+                        Change password
+                      </Primary>
+                    </SettingsPanel>
+                  </SettingsGrid>
+                </>
+              )}
             </MainPanel>
           </Workspace>
         )}
@@ -1950,6 +2057,11 @@ const Sidebar = styled.aside`
   padding: 20px;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.34);
+
+  @media (max-width: 820px) {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
 `;
 
 const Brand = styled.div`
@@ -2190,17 +2302,23 @@ const SectionHead = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   margin-bottom: 12px;
 
   h3 {
+    min-width: 0;
     color: #fff;
     font-size: 18px;
   }
 
   span {
+    min-width: 0;
+    overflow: hidden;
     color: rgba(255, 255, 255, 0.5);
     font-size: 12px;
     font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `;
 
@@ -3047,5 +3165,31 @@ const MessageForm = styled.form`
     background: rgba(0, 0, 0, 0.46);
     color: #fff;
     font: inherit;
+  }
+`;
+
+const SettingsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+
+  @media (max-width: 820px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const SettingsPanel = styled.form`
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.045);
+
+  > button {
+    width: 100%;
   }
 `;
