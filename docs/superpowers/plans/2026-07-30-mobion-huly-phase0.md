@@ -162,7 +162,7 @@ git commit -m "feat: add AES-256-GCM credential encryption helper"
 - Modify: `src/lib/mobion-db.ts`
 
 **Interfaces:**
-- Produces: tables `mobion_invites` (id, email, token_hash, invited_by, expires_at, used_at, created_at) and `mobion_huly_link` (user_id, huly_account_email, huly_credential_encrypted, huly_workspace, created_at, updated_at). Consumed by Task 4 (invites) and Task 6 (activation).
+- Produces: tables `mobion_invites` (id, email, token_hash, invited_by, expires_at, used_at, created_at) and `mobion_huly_link` (user_id, huly_account_email, huly_credential_encrypted, huly_workspace, created_at, updated_at); an `is_admin BOOLEAN NOT NULL DEFAULT false` column on `mobion_users`. Consumed by Task 4 (invites, admin gate) and Task 6 (activation).
 - Removes: tables `mobion_tasks`, `mobion_task_checklist`, `mobion_docs`, `mobion_messages`, `mobion_links`, `mobion_milestones` (superseded by Huly, per design spec).
 
 - [ ] **Step 1: Bump the schema version and replace the table definitions**
@@ -207,9 +207,18 @@ Then replace everything from the `mobion_tasks` table creation through the end o
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
+      await pool.query(
+        `ALTER TABLE mobion_users
+         ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`,
+      );
 ```
 
-The `mobion_users` and `mobion_sessions` table blocks above this point are unchanged.
+Add the `ALTER TABLE mobion_users ADD COLUMN IF NOT EXISTS is_admin ...` statement
+directly after the `mobion_users` table's own `CREATE TABLE IF NOT EXISTS` block (the
+one already earlier in the file, unchanged) — not inside the block being replaced above.
+Only the `mobion_huly_link` creation and everything after it in this task's snippet is
+new; the `mobion_users` and `mobion_sessions` `CREATE TABLE` blocks are otherwise
+unchanged.
 
 - [ ] **Step 2: Verify types compile**
 
@@ -232,6 +241,9 @@ Expected: `{"user":null}` (this hits `getCurrentUser()`, which calls `ensureMobi
 Run: `psql "$DATABASE_URL" -c "\dt mobion_*"`
 Expected: the table list includes `mobion_users`, `mobion_sessions`, `mobion_invites`, `mobion_huly_link`, and does **not** include `mobion_tasks`, `mobion_docs`, `mobion_messages`, `mobion_links`, `mobion_milestones`, `mobion_task_checklist`.
 
+Also run: `psql "$DATABASE_URL" -c "\d mobion_users"`
+Expected: the column list includes `is_admin` (type `boolean`, default `false`).
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -241,17 +253,61 @@ git commit -m "feat: drop legacy Mobi:ON feature tables, add Huly link + invite 
 
 ---
 
-### Task 4: Invite issuing
+### Task 4: Invite issuing, gated to admins
 
 **Files:**
+- Modify: `src/lib/mobion-auth.ts` (add `is_admin` to `MobionUser` and to `getCurrentUser()`'s query)
 - Create: `src/lib/mobion-invites.ts`
 - Create: `src/app/api/mobion/invites/route.ts`
 
 **Interfaces:**
-- Consumes: `requireCurrentUser()` from `src/lib/mobion-auth.ts` (returns `MobionUser`); `query()` from `src/lib/mobion-db.ts`; `checkRateLimit()` from `src/lib/mobion-rate-limit.ts`; `mobionApiError()` from `src/lib/mobion-api.ts`.
-- Produces: `createInvite(email: string, invitedBy: string): Promise<{ token: string; expiresAt: Date }>`, `findValidInvite(token: string): Promise<{ id: string; email: string } | null>`, `consumeInvite(inviteId: string): Promise<void>` — consumed by Task 6 (activation route).
+- Consumes: `requireCurrentUser()` from `src/lib/mobion-auth.ts` (returns the updated `MobionUser`, now including `is_admin: boolean`); `query()` from `src/lib/mobion-db.ts`; `checkRateLimit()` from `src/lib/mobion-rate-limit.ts`; `mobionApiError()` from `src/lib/mobion-api.ts`; the `is_admin` column added in Task 3.
+- Produces: `createInvite(email: string, invitedBy: string): Promise<{ token: string; expiresAt: Date }>`, `findValidInvite(token: string): Promise<{ id: string; email: string } | null>`, `consumeInvite(inviteId: string): Promise<void>` — consumed by Task 6 (activation route). `MobionUser.is_admin` is also consumed by Task 6/7 in later phases wherever an admin-only view needs the same check.
 
-- [ ] **Step 1: Write the invite module**
+- [ ] **Step 1: Add `is_admin` to the current-user type and query**
+
+In `src/lib/mobion-auth.ts`, change:
+```typescript
+export type MobionUser = {
+  id: string;
+  name: string;
+  email: string;
+};
+```
+to:
+```typescript
+export type MobionUser = {
+  id: string;
+  name: string;
+  email: string;
+  is_admin: boolean;
+};
+```
+
+And in `getCurrentUser()`, change the query from:
+```typescript
+  const result = await query<MobionUser>(
+    `SELECT u.id, u.name, u.email
+     FROM mobion_sessions s
+     JOIN mobion_users u ON u.id = s.user_id
+     WHERE s.token_hash = $1 AND s.expires_at > now()
+     LIMIT 1`,
+    [sha256(token)],
+  );
+```
+to:
+```typescript
+  const result = await query<MobionUser>(
+    `SELECT u.id, u.name, u.email, u.is_admin
+     FROM mobion_sessions s
+     JOIN mobion_users u ON u.id = s.user_id
+     WHERE s.token_hash = $1 AND s.expires_at > now()
+     LIMIT 1`,
+    [sha256(token)],
+  );
+```
+
+- [ ] **Step 2: Write the invite module**
 
 ```typescript
 // src/lib/mobion-invites.ts
@@ -295,7 +351,7 @@ export async function consumeInvite(inviteId: string) {
 }
 ```
 
-- [ ] **Step 2: Write the invite-creation API route**
+- [ ] **Step 3: Write the invite-creation API route, gated to admins**
 
 ```typescript
 // src/app/api/mobion/invites/route.ts
@@ -308,6 +364,13 @@ import { checkRateLimit } from "@/lib/mobion-rate-limit";
 export async function POST(request: Request) {
   try {
     const user = await requireCurrentUser();
+    if (!user.is_admin) {
+      return NextResponse.json(
+        { error: "초대 권한이 없습니다." },
+        { status: 403 },
+      );
+    }
+
     const body = await request.json();
     const email = String(body.email ?? "").trim().toLowerCase();
 
@@ -334,24 +397,33 @@ export async function POST(request: Request) {
 }
 ```
 
-Note: any logged-in user can invite in this phase — there is no role system yet. Restricting who can invite is a Phase 1+ concern once there's a UI to enforce it against.
+This is the whole role system for Phase 0: one boolean, checked in the one route that
+needs it. A full role model (multiple levels, per-resource permissions) is a Phase 1+
+concern once there's a UI to manage it — this is deliberately not that.
 
-- [ ] **Step 3: Verify types compile**
+- [ ] **Step 4: Verify types compile**
 
 Run: `npx tsc --noEmit -p tsconfig.json`
 Expected: no errors.
 
-- [ ] **Step 4: Verify end-to-end against the dev server**
+- [ ] **Step 5: Verify end-to-end against the dev server**
+
+Register still exists until Task 8 removes it, but it always creates `is_admin = false`
+users — there is no self-serve way to become an admin. For this local verification,
+register a user normally, then flip that one row to admin directly in Postgres (this is
+exactly what Task 9 documents doing once, for real, against the production database).
 
 Run:
 ```bash
 npm run dev &
 sleep 3
-# Register a user through the existing login flow first isn't needed yet since
-# register still exists until Task 8 removes it — use it to get a session cookie:
 curl -s -c /tmp/mobion-cookies.txt -X POST http://localhost:3000/api/mobion/auth/register \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Admin","email":"test-admin@example.com","password":"testpassword123"}'
+psql "$DATABASE_URL" -c "UPDATE mobion_users SET is_admin = true WHERE email = 'test-admin@example.com'"
+# The existing session cookie is still valid, but it was minted with the pre-update
+# is_admin value baked into nothing (MobionUser is re-read from the DB on every
+# request), so no re-login is needed:
 curl -s -b /tmp/mobion-cookies.txt -X POST http://localhost:3000/api/mobion/invites \
   -H "Content-Type: application/json" \
   -d '{"email":"new-member@example.com"}'
@@ -359,11 +431,11 @@ kill %1
 ```
 Expected: the second curl returns `{"token":"...","expiresAt":"..."}`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/lib/mobion-invites.ts src/app/api/mobion/invites/route.ts
-git commit -m "feat: add invite creation for Mobi:ON onboarding"
+git add src/lib/mobion-auth.ts src/lib/mobion-invites.ts src/app/api/mobion/invites/route.ts
+git commit -m "feat: add admin-gated invite creation for Mobi:ON onboarding"
 ```
 
 ---
@@ -486,15 +558,28 @@ git commit -m "feat: add Huly account provisioning and per-user ping wrapper"
 - Create: `src/app/api/mobion/auth/activate/route.ts`
 
 **Interfaces:**
-- Consumes: `findValidInvite`, `consumeInvite` (Task 4); `provisionHulyAccount` (Task 5); `hashPassword`, `createSession` (existing `src/lib/mobion-auth.ts`); `query` (existing `src/lib/mobion-db.ts`).
+- Consumes: `findValidInvite`, `consumeInvite` (Task 4); `provisionHulyAccount` (Task 5); `hashPassword`, `verifyPassword`, `createSession`, `findUserByEmail` (existing `src/lib/mobion-auth.ts`); `query` (existing `src/lib/mobion-db.ts`).
 - Produces: `POST /api/mobion/auth/activate` — the only way to create a `mobion_users` row going forward (replaces open self-registration; Task 8 removes the old `/register` route).
 
-- [ ] **Step 1: Write the route**
+- [ ] **Step 1: Write the route, with a retry-safe path for partial provisioning failure**
+
+If `provisionHulyAccount` throws after the `mobion_users` row exists but before the
+`mobion_huly_link` row is written, a naive retry would fail on a duplicate-email insert.
+This version checks for that exact state first: a `mobion_users` row for this email with
+no matching `mobion_huly_link` row means a previous attempt got partway through —
+reuse that row (after verifying the submitted password matches it, via the existing
+`findUserByEmail`/`verifyPassword`) and retry provisioning, instead of trying to insert a
+new user.
 
 ```typescript
 // src/app/api/mobion/auth/activate/route.ts
 import { NextResponse } from "next/server";
-import { hashPassword, createSession } from "@/lib/mobion-auth";
+import {
+  hashPassword,
+  verifyPassword,
+  createSession,
+  findUserByEmail,
+} from "@/lib/mobion-auth";
 import { findValidInvite, consumeInvite } from "@/lib/mobion-invites";
 import { provisionHulyAccount } from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
@@ -531,14 +616,38 @@ export async function POST(request: Request) {
       );
     }
 
-    const passwordHash = await hashPassword(password);
-    const userResult = await query<{ id: string; name: string; email: string }>(
-      `INSERT INTO mobion_users (name, email, password_hash)
-       VALUES ($1, $2, $3)
-       RETURNING id, name, email`,
-      [name, invite.email, passwordHash],
-    );
-    const user = userResult.rows[0];
+    const existing = await findUserByEmail(invite.email);
+
+    let user: { id: string; name: string; email: string };
+
+    if (existing) {
+      const linkResult = await query<{ user_id: string }>(
+        `SELECT user_id FROM mobion_huly_link WHERE user_id = $1 LIMIT 1`,
+        [existing.id],
+      );
+      if (linkResult.rows[0]) {
+        return NextResponse.json(
+          { error: "이미 가입된 이메일입니다." },
+          { status: 409 },
+        );
+      }
+      if (!(await verifyPassword(password, existing.password_hash))) {
+        return NextResponse.json(
+          { error: "이메일 또는 비밀번호를 확인해 주세요." },
+          { status: 401 },
+        );
+      }
+      user = existing;
+    } else {
+      const passwordHash = await hashPassword(password);
+      const inserted = await query<{ id: string; name: string; email: string }>(
+        `INSERT INTO mobion_users (name, email, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING id, name, email`,
+        [name, invite.email, passwordHash],
+      );
+      user = inserted.rows[0];
+    }
 
     const hulyLink = await provisionHulyAccount(invite.email, name);
     await query(
@@ -562,8 +671,6 @@ export async function POST(request: Request) {
   }
 }
 ```
-
-Note on partial failure: if `provisionHulyAccount` throws after the `mobion_users` row is inserted, that row has no matching `mobion_huly_link` row and the invite is still unconsumed (the `consumeInvite` call comes after). Per the design spec's error-handling section, this is an accepted retry path for Phase 0 — re-running activation with the same token will find the invite still valid and attempt provisioning again, but will fail on the `mobion_users` insert (duplicate email) first. Fixing that gap (making retry actually work) is explicitly out of scope for Phase 0; note it as a known follow-up rather than solving it here.
 
 - [ ] **Step 2: Verify types compile**
 
