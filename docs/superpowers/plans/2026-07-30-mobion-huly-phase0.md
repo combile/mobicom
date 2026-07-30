@@ -878,6 +878,23 @@ In this Next.js app's `.env` (not `.env.example`), set:
 - `HULY_ADMIN_EMAIL` / `HULY_ADMIN_PASSWORD` — the owner account credentials from Step 5.
 - `MOBION_HULY_ENCRYPTION_KEY` — generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
 
-- [ ] **Step 7: Run Task 7's acceptance check against the real server**
+- [ ] **Step 7: Bootstrap the first admin in our own system**
+
+This is a separate admin from Step 5 — Step 5's admin/owner account is Huly's own
+workspace owner (used server-side by `provisionHulyAccount`); this step creates the
+first `mobion_users` row with `is_admin = true` in **our** Postgres, since Task 8 removes
+open self-registration and Task 4 gates invite creation to admins, so there is otherwise
+no way to create the very first invite. Register normally through the app once
+(register still works until Task 8's deploy replaces it — do this bootstrap before
+deploying Task 8's changes, or insert the row directly), then:
+
+```bash
+psql "$DATABASE_URL" -c "UPDATE mobion_users SET is_admin = true WHERE email = '<the first real admin's email>'"
+```
+
+From here on, that person can invite every other lab member through the app; nobody
+else needs direct database access.
+
+- [ ] **Step 8: Run Task 7's acceptance check against the real server**
 
 Re-run Task 7 Step 3's curl sequence with the real `.env` loaded. `{"ok":true}` from `/api/mobion/huly/ping` is the sign-off for all of Phase 0.
