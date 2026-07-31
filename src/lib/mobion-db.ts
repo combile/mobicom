@@ -58,6 +58,8 @@ export async function ensureMobionSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
+      // One-time Phase 0 migration cleanup — safe to remove once this has run against
+      // every deployed environment.
       await pool.query(`DROP TABLE IF EXISTS mobion_task_checklist`);
       await pool.query(`DROP TABLE IF EXISTS mobion_tasks`);
       await pool.query(`DROP TABLE IF EXISTS mobion_docs`);

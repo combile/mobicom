@@ -13,6 +13,7 @@
     "@gsap/react": "^2.1.2",
     "@hcengineering/account-client": "^0.7.423",
     "@hcengineering/api-client": "^0.7.423",
+    "@hcengineering/core": "^0.7.423",
     "@types/pg": "^8.20.0",
     "gsap": "^3.15.0",
     "next": "16.2.9",

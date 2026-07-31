@@ -883,17 +883,23 @@ In this Next.js app's `.env` (not `.env.example`), set:
 This is a separate admin from Step 5 — Step 5's admin/owner account is Huly's own
 workspace owner (used server-side by `provisionHulyAccount`); this step creates the
 first `mobion_users` row with `is_admin = true` in **our** Postgres, since Task 8 removes
-open self-registration and Task 4 gates invite creation to admins, so there is otherwise
-no way to create the very first invite. Register normally through the app once
-(register still works until Task 8's deploy replaces it — do this bootstrap before
-deploying Task 8's changes, or insert the row directly), then:
+self-registration entirely and Task 4 gates invite creation to admins, so there is
+otherwise no way to create the very first invite.
+
+Hit any route once to run the schema migration (e.g. `GET /api/mobion/auth/me`), then
+insert the row directly using the same scrypt password format `mobion-auth.ts` expects:
 
 ```bash
-psql "$DATABASE_URL" -c "UPDATE mobion_users SET is_admin = true WHERE email = '<the first real admin's email>'"
+curl -s https://<your-deployed-host>/api/mobion/auth/me   # triggers ensureMobionSchema()
+HASH=$(node -e "const{randomBytes,scryptSync}=require('crypto');\
+const s=randomBytes(16).toString('hex');\
+console.log(s+':'+scryptSync(process.argv[1],s,64).toString('hex'))" 'REAL_PASSWORD_HERE')
+psql "$DATABASE_URL" -c "INSERT INTO mobion_users (name,email,password_hash,is_admin) \
+  VALUES ('Lab Admin','admin@lab.example','$HASH',true)"
 ```
 
-From here on, that person can invite every other lab member through the app; nobody
-else needs direct database access.
+From here on, that person logs in normally and can invite every other lab member
+through the app; nobody else needs direct database access.
 
 - [ ] **Step 8: Run Task 7's acceptance check against the real server**
 

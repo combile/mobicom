@@ -57,6 +57,8 @@ declare module "@hcengineering/api-client" {
     email: string;
     password: string;
     workspace: string;
+    /** How long to wait for the connection before timing out, in milliseconds. */
+    connectionTimeout?: number;
   }
 
   export interface PlatformClient {

@@ -10,6 +10,10 @@ function env(name: string): string {
   return value;
 }
 
+// NOTE: HULY_ACCOUNTS_URL is a separate env var from HULY_URL; connect() (used by
+// pingAsUser) derives its own accounts URL from HULY_URL/config.json internally. If
+// these ever point at different account services, provisioning and pinging will
+// silently target different backends. Keep them in sync at deploy time.
 async function getAdminClient() {
   const accountsUrl = env("HULY_ACCOUNTS_URL");
   const anon = getAccountClient(accountsUrl);
@@ -63,15 +67,19 @@ type HulyLink = {
 /** Connects as the linked user and runs a trivial read, to prove the bridge works. */
 export async function pingAsUser(link: HulyLink): Promise<boolean> {
   const password = decryptSecret(link.huly_credential_encrypted);
-  const client = await connect(env("HULY_URL"), {
-    email: link.huly_account_email,
-    password,
-    workspace: link.huly_workspace,
-  });
+  let client;
   try {
+    client = await connect(env("HULY_URL"), {
+      email: link.huly_account_email,
+      password,
+      workspace: link.huly_workspace,
+      connectionTimeout: 10_000,
+    });
     await client.getAccount();
     return true;
+  } catch {
+    return false;
   } finally {
-    await client.close();
+    await client?.close();
   }
 }

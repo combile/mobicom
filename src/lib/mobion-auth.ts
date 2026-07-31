@@ -98,7 +98,7 @@ export async function requireCurrentUser() {
 
 export async function findUserByEmail(email: string) {
   const result = await query<UserRow>(
-    `SELECT id, name, email, password_hash
+    `SELECT id, name, email, is_admin, password_hash
      FROM mobion_users
      WHERE email = $1
      LIMIT 1`,
