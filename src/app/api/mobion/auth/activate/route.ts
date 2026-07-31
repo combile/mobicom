@@ -62,7 +62,7 @@ export async function POST(request: Request) {
           { status: 401 },
         );
       }
-      user = existing;
+      user = { id: existing.id, name: existing.name, email: existing.email };
     } else {
       const passwordHash = await hashPassword(password);
       const inserted = await query<{ id: string; name: string; email: string }>(
