@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createSession, findUserByEmail, verifyPassword } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { checkRateLimit } from "@/lib/mobion-rate-limit";
-import { seedWorkspace } from "@/lib/mobion-data";
 
 export async function POST(request: Request) {
   try {
@@ -26,7 +25,6 @@ export async function POST(request: Request) {
       );
     }
 
-    await seedWorkspace(user.id, user.name);
     await createSession(user.id);
 
     return NextResponse.json({
