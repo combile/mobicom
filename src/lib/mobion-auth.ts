@@ -11,6 +11,7 @@ export type MobionUser = {
   id: string;
   name: string;
   email: string;
+  is_admin: boolean;
 };
 
 type UserRow = MobionUser & {
@@ -76,7 +77,7 @@ export async function getCurrentUser(): Promise<MobionUser | null> {
   if (!token) return null;
 
   const result = await query<MobionUser>(
-    `SELECT u.id, u.name, u.email
+    `SELECT u.id, u.name, u.email, u.is_admin
      FROM mobion_sessions s
      JOIN mobion_users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > now()
