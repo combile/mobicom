@@ -128,6 +128,10 @@ export async function getWorkspaceClient(link: HulyLink): Promise<HulyWorkspaceC
   if (cached) return cached;
   const built = buildWorkspaceClient(link);
   workspaceClients.set(link.huly_account_email, built);
+  // Evict on failure so a transient login/network blip doesn't permanently poison
+  // the cache — every later call for this email would otherwise keep returning the
+  // same dead rejected promise for the life of the process.
+  built.catch(() => workspaceClients.delete(link.huly_account_email));
   return built;
 }
 
