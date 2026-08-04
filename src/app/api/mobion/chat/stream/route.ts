@@ -43,8 +43,8 @@ function isNewChatMessage(tx: RawTx) {
   );
 }
 
-function canSeeChannel(channel: { private: boolean; members: string[] }, mySocialId: string) {
-  return !channel.private || channel.members.includes(mySocialId);
+function canSeeChannel(channel: { private: boolean; members: string[] }, myAccountUuid: string) {
+  return !channel.private || channel.members.includes(myAccountUuid);
 }
 
 // A channel-creation tx: same TxCreateDoc shape as a chat message (see
@@ -118,8 +118,12 @@ export async function GET() {
           controller.close();
           return;
         }
-        const mySocialId = client.account.primarySocialId;
-        const visibleChannels = channels.filter((c) => canSeeChannel(c, mySocialId));
+        // Channel.members (unlike ChatMessage.createdBy below, which stays
+        // PersonId/primarySocialId throughout) is keyed by AccountUuid — Huly's
+        // own server-side space-membership scoping matches on it, confirmed
+        // against the live server. See mobion-huly.ts's accountUuid comment.
+        const myAccountUuid = client.account.accountUuid;
+        const visibleChannels = channels.filter((c) => canSeeChannel(c, myAccountUuid));
         // Tracked for the lifetime of this connection so a later ChatMessage delta
         // can be checked against the channel it belongs to without a re-query —
         // a channel's own privacy doesn't change after creation in this app (no
@@ -159,7 +163,7 @@ export async function GET() {
               const isPrivate = tx.attributes?.private ?? false;
               const members = tx.attributes?.members ?? [];
               channelPrivacy.set(tx.objectId, { private: isPrivate, members });
-              if (!canSeeChannel({ private: isPrivate, members }, mySocialId)) continue;
+              if (!canSeeChannel({ private: isPrivate, members }, myAccountUuid)) continue;
               send("channel_added", {
                 id: tx.objectId,
                 name: tx.attributes?.name ?? "",
@@ -172,7 +176,7 @@ export async function GET() {
             // A message in a channel this connection was never told about (created
             // before this connection opened, or a privacy check that somehow
             // missed it) is treated as not visible — fail closed, not open.
-            if (owningChannel && !canSeeChannel(owningChannel, mySocialId)) continue;
+            if (owningChannel && !canSeeChannel(owningChannel, myAccountUuid)) continue;
             send("delta", {
               id: tx.objectId,
               channelId: tx.attachedTo,

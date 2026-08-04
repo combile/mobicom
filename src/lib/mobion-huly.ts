@@ -228,7 +228,14 @@ async function buildWorkspaceClient(link: HulyLink) {
           params.attributes as any,
         ),
       ),
-    account: { primarySocialId: login.socialId },
+    // accountUuid (wsLogin.account) is Huly's own membership-check identity for
+    // Space.members (Channel.members included) — confirmed against the live
+    // server: pre-existing channels' members arrays are AccountUuid-formatted,
+    // and findAll's own server-side space scoping matches on it, not on
+    // primarySocialId. Do NOT use it for TxOperations's `user` param (see the
+    // AccountMismatch comment above) or for ChatMessage.createdBy comparisons
+    // (those are PersonId, i.e. primarySocialId, throughout).
+    account: { primarySocialId: login.socialId, accountUuid: wsLogin.account },
     // Returns an unsubscribe function so each caller (e.g. one SSE
     // connection's cancel()) can remove exactly its own listener instead of
     // clobbering whatever the previous caller registered.
