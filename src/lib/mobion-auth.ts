@@ -54,7 +54,11 @@ export async function createSession(userId: string) {
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // Tied to an explicit env var rather than NODE_ENV: `npm run build`/`start`
+    // always set NODE_ENV=production even when the deploy has no TLS in front
+    // of it (e.g. served over plain http://ip:port), and a Secure cookie is
+    // silently dropped by the browser on a non-HTTPS origin.
+    secure: process.env.COOKIE_SECURE === "true",
     path: "/",
     expires: expiresAt,
   });
