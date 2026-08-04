@@ -129,9 +129,12 @@ export default function MobiOnContent() {
     setNewChannelProfessor(false);
     setShowCreateChannel(true);
     fetch("/api/mobion/users")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("failed");
+        return res.json();
+      })
       .then((data) => setAllUsers(data.users ?? []))
-      .catch(() => setAllUsers([]));
+      .catch(() => setCreateChannelError("사용자 목록을 불러오지 못했습니다."));
   }
 
   async function handleCreateChannel() {
