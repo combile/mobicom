@@ -7,7 +7,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 5;
+const MOBION_SCHEMA_VERSION = 6;
 
 export const pool =
   globalThis.mobionPool ??
@@ -95,6 +95,20 @@ export async function ensureMobionSchema() {
       await pool.query(
         `ALTER TABLE mobion_huly_link
          ADD COLUMN IF NOT EXISTS huly_social_id TEXT`,
+      );
+      // Exactly one account in the lab is the professor — set directly via SQL on
+      // that account, the same one-time-bootstrap pattern already used for is_admin.
+      // Used by channel creation to auto-add the professor when a private channel's
+      // creator toggles "교수님에게 공개".
+      await pool.query(
+        `ALTER TABLE mobion_users
+         ADD COLUMN IF NOT EXISTS is_professor BOOLEAN NOT NULL DEFAULT false`,
+      );
+      // Relative path under public/ (e.g. /uploads/avatars/<userId>.png), NULL until
+      // the user uploads one. See mobion-avatar.ts.
+      await pool.query(
+        `ALTER TABLE mobion_users
+         ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
       );
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
