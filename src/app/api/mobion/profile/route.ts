@@ -6,6 +6,7 @@ import {
   verifyPassword,
 } from "@/lib/mobion-auth";
 import { query } from "@/lib/mobion-db";
+import { saveAvatar } from "@/lib/mobion-avatar";
 
 export async function PATCH(request: Request) {
   try {
@@ -14,6 +15,7 @@ export async function PATCH(request: Request) {
     const name = body.name == null ? null : String(body.name).trim();
     const currentPassword = String(body.currentPassword ?? "");
     const newPassword = String(body.newPassword ?? "");
+    const avatarBase64 = body.avatarBase64 == null ? null : String(body.avatarBase64);
 
     if (name !== null && name.length < 2) {
       return NextResponse.json(
@@ -45,16 +47,30 @@ export async function PATCH(request: Request) {
       passwordHash = await hashPassword(newPassword);
     }
 
-    const result = await query<{ id: string; name: string; email: string }>(
+    let avatarUrl: string | null = null;
+    if (avatarBase64) {
+      try {
+        avatarUrl = await saveAvatar(user.id, avatarBase64);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.";
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+    }
+
+    const result = await query<{ id: string; name: string; email: string; avatar_url: string | null }>(
       `UPDATE mobion_users
        SET name = COALESCE($2, name),
-           password_hash = COALESCE($3, password_hash)
+           password_hash = COALESCE($3, password_hash),
+           avatar_url = COALESCE($4, avatar_url)
        WHERE id = $1
-       RETURNING id, name, email`,
-      [user.id, name, passwordHash],
+       RETURNING id, name, email, avatar_url`,
+      [user.id, name, passwordHash, avatarUrl],
     );
 
-    return NextResponse.json({ user: result.rows[0] });
+    const updated = result.rows[0];
+    return NextResponse.json({
+      user: { id: updated.id, name: updated.name, email: updated.email, avatarUrl: updated.avatar_url },
+    });
   } catch (error) {
     return mobionApiError(error, "프로필 수정 실패");
   }
