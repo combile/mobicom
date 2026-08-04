@@ -30,6 +30,14 @@ export default function MobiOnContent() {
   const [reconnecting, setReconnecting] = useState(false);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
+  const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
+  const [newChannelName, setNewChannelName] = useState("");
+  const [newChannelPrivate, setNewChannelPrivate] = useState(false);
+  const [newChannelMemberIds, setNewChannelMemberIds] = useState<string[]>([]);
+  const [newChannelProfessor, setNewChannelProfessor] = useState(false);
+  const [createChannelError, setCreateChannelError] = useState<string | null>(null);
+  const [creatingChannel, setCreatingChannel] = useState(false);
   const retryDelay = useRef(1000);
 
   useEffect(() => {
@@ -53,6 +61,11 @@ export default function MobiOnContent() {
       es.addEventListener("delta", (e) => {
         const msg = JSON.parse((e as MessageEvent).data) as Message;
         setMessages((prev) => [...prev, msg]);
+      });
+
+      es.addEventListener("channel_added", (e) => {
+        const channel = JSON.parse((e as MessageEvent).data) as Channel;
+        setChannels((prev) => (prev.some((c) => c.id === channel.id) ? prev : [...prev, channel]));
       });
 
       es.addEventListener("error", (e) => {
@@ -108,6 +121,52 @@ export default function MobiOnContent() {
     setDraft("");
   }
 
+  function openCreateChannel() {
+    setCreateChannelError(null);
+    setNewChannelName("");
+    setNewChannelPrivate(false);
+    setNewChannelMemberIds([]);
+    setNewChannelProfessor(false);
+    setShowCreateChannel(true);
+    fetch("/api/mobion/users")
+      .then((res) => res.json())
+      .then((data) => setAllUsers(data.users ?? []))
+      .catch(() => setAllUsers([]));
+  }
+
+  async function handleCreateChannel() {
+    setCreateChannelError(null);
+    setCreatingChannel(true);
+    try {
+      const res = await fetch("/api/mobion/chat/channels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newChannelName.trim(),
+          isPrivate: newChannelPrivate,
+          memberIds: newChannelMemberIds,
+          visibleToProfessor: newChannelProfessor,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCreateChannelError(data.error ?? "요청에 실패했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      setShowCreateChannel(false);
+    } catch {
+      setCreateChannelError("요청에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      setCreatingChannel(false);
+    }
+  }
+
+  function toggleMember(id: string) {
+    setNewChannelMemberIds((prev) =>
+      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id],
+    );
+  }
+
   const messageListRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = messageListRef.current;
@@ -131,6 +190,9 @@ export default function MobiOnContent() {
       {reconnecting && <ReconnectBanner>재연결 중...</ReconnectBanner>}
       <Layout>
         <Sidebar>
+          <AddChannelButton type="button" onClick={openCreateChannel}>
+            + 채널 추가
+          </AddChannelButton>
           {channels.map((c) => (
             <ChannelItem
               key={c.id}
@@ -165,6 +227,72 @@ export default function MobiOnContent() {
           {sendError && <SendErrorText>{sendError}</SendErrorText>}
         </Main>
       </Layout>
+      {showCreateChannel && (
+        <ModalOverlay onClick={() => setShowCreateChannel(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalTitle>새 채널 만들기</ModalTitle>
+            <Field>
+              <label htmlFor="new-channel-name">채널 이름</label>
+              <input
+                id="new-channel-name"
+                value={newChannelName}
+                onChange={(e) => setNewChannelName(e.target.value)}
+              />
+            </Field>
+            <RadioRow>
+              <label>
+                <input
+                  type="radio"
+                  checked={!newChannelPrivate}
+                  onChange={() => setNewChannelPrivate(false)}
+                />
+                공개
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  checked={newChannelPrivate}
+                  onChange={() => setNewChannelPrivate(true)}
+                />
+                비공개
+              </label>
+            </RadioRow>
+            {newChannelPrivate && (
+              <>
+                <MemberList>
+                  {allUsers.map((u) => (
+                    <label key={u.id}>
+                      <input
+                        type="checkbox"
+                        checked={newChannelMemberIds.includes(u.id)}
+                        onChange={() => toggleMember(u.id)}
+                      />
+                      {u.name}
+                    </label>
+                  ))}
+                </MemberList>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={newChannelProfessor}
+                    onChange={(e) => setNewChannelProfessor(e.target.checked)}
+                  />
+                  교수님에게 공개
+                </label>
+              </>
+            )}
+            {createChannelError && <SendErrorText>{createChannelError}</SendErrorText>}
+            <ModalActions>
+              <button type="button" onClick={() => setShowCreateChannel(false)}>
+                취소
+              </button>
+              <button type="button" onClick={handleCreateChannel} disabled={creatingChannel}>
+                {creatingChannel ? "만드는 중..." : "만들기"}
+              </button>
+            </ModalActions>
+          </ModalCard>
+        </ModalOverlay>
+      )}
     </Root>
   );
 }
@@ -305,4 +433,136 @@ const SendErrorText = styled.p`
   padding: 0 12px 12px;
   color: #ff6767;
   font-size: 12px;
+`;
+
+const AddChannelButton = styled.button`
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.24);
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    color: #00b5ff;
+    border-color: #00b5ff;
+  }
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+`;
+
+const ModalCard = styled.div`
+  width: min(360px, calc(100% - 48px));
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px;
+  border-radius: 16px;
+  background: rgba(37, 37, 37, 0.95);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+`;
+
+const ModalTitle = styled.h2`
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+`;
+
+const Field = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  label {
+    font-size: 13px;
+    color: #9a9a9a;
+  }
+
+  input {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(0, 0, 0, 0.25);
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+  }
+`;
+
+const RadioRow = styled.div`
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  color: #d4d4d4;
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+`;
+
+const MemberList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 14px;
+  color: #d4d4d4;
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+
+  button {
+    padding: 8px 16px;
+    border-radius: 10px;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  button:first-of-type {
+    background: transparent;
+    color: #9a9a9a;
+  }
+
+  button:last-of-type {
+    background: #00b5ff;
+    color: #061018;
+    font-weight: 700;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  }
 `;
