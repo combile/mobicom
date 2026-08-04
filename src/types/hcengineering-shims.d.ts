@@ -13,6 +13,25 @@ declare module "@hcengineering/core" {
     Owner = "OWNER",
     Admin = "ADMIN",
   }
+
+  // Minimal surface of the real class (node_modules/@hcengineering/core/src/operations.ts) —
+  // only the constructor + addCollection overload getWorkspaceClient uses. Params are
+  // loosely typed (unknown/string) because mobion-huly.ts casts through `as any` at the
+  // call site rather than importing the full Doc/Ref/Class/Space generic machinery.
+  export class TxOperations {
+    constructor(client: unknown, user: unknown, isDerived?: boolean);
+    addCollection: (
+      _class: unknown,
+      space: unknown,
+      attachedTo: unknown,
+      attachedToClass: unknown,
+      collection: string,
+      attributes: Record<string, unknown>,
+      id?: unknown,
+      modifiedOn?: number,
+      modifiedBy?: unknown,
+    ) => Promise<string>;
+  }
 }
 
 declare module "@hcengineering/account-client" {
@@ -21,11 +40,20 @@ declare module "@hcengineering/account-client" {
   export interface LoginInfo {
     account: string;
     token?: string;
+    // PersonId — the `user` TxOperations expects, distinct from `account` (an
+    // AccountUuid). Only present on the plain login() response, not on
+    // selectWorkspace's WorkspaceLoginInfo despite the type extending LoginInfo;
+    // callers must capture it here. See getWorkspaceClient in mobion-huly.ts.
+    socialId?: string;
   }
 
   export interface WorkspaceLoginInfo extends LoginInfo {
     workspace: string;
     token: string;
+    // Transactor URL to hand to client-resources' GetClient(token, endpoint) —
+    // present on the real response (account-client/src/types.ts) but omitted
+    // from the original shim, which only covered pingAsUser's needs.
+    endpoint: string;
   }
 
   export interface AccountClient {
@@ -72,4 +100,22 @@ declare module "@hcengineering/api-client" {
   }
 
   export function connect(url: string, options: ConnectOptions): Promise<PlatformClient>;
+}
+
+declare module "@hcengineering/client-resources" {
+  export interface RawClient {
+    findAll: <T>(_class: string, query: Record<string, unknown>) => Promise<T[]>;
+    findOne: <T>(_class: string, query: Record<string, unknown>) => Promise<T | undefined>;
+    close: () => Promise<void>;
+    notify?: (...tx: unknown[]) => void;
+  }
+  export interface ClientFactoryOptions {
+    onUpgrade?: () => void;
+  }
+  const clientResources: () => Promise<{
+    function: {
+      GetClient: (token: string, endpoint: string, opt?: ClientFactoryOptions) => Promise<RawClient>;
+    };
+  }>;
+  export default clientResources;
 }

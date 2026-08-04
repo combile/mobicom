@@ -1,8 +1,21 @@
 import { randomBytes } from "crypto";
 import { getClient as getAccountClient } from "@hcengineering/account-client";
 import { connect } from "@hcengineering/api-client";
-import { AccountRole } from "@hcengineering/core";
+import getClientResources from "@hcengineering/client-resources";
+import { AccountRole, TxOperations } from "@hcengineering/core";
 import { encryptSecret, decryptSecret } from "./mobion-crypto";
+
+// Hand-picked chunter class IDs instead of depending on @hcengineering/chunter,
+// which pulls in @hcengineering/ui + @hcengineering/workbench (Huly's own
+// Svelte frontend) for three string constants. Huly's plugin() helper
+// (node_modules/@hcengineering/platform/lib/platform.js) generates IDs as
+// `${pluginId}:${category}:${Key}`, so these are exact and stable as long as
+// chunter's plugin id ('chunter') and class key names don't change upstream.
+export const CHUNTER_CLASS = {
+  Channel: "chunter:class:Channel",
+  DirectMessage: "chunter:class:DirectMessage",
+  ChatMessage: "chunter:class:ChatMessage",
+} as const;
 
 function env(name: string): string {
   const value = process.env[name];
@@ -96,4 +109,70 @@ export async function pingAsUser(link: HulyLink): Promise<boolean> {
   } finally {
     await client?.close();
   }
+}
+
+const workspaceClients = new Map<string, ReturnType<typeof buildWorkspaceClient>>();
+
+export type HulyWorkspaceClient = Awaited<ReturnType<typeof buildWorkspaceClient>>;
+
+/**
+ * Connects as the linked user via the low-level client-resources Client
+ * (not api-client's connect()), because only this layer exposes a settable
+ * `notify` hook for live tx updates — api-client's PlatformClient wraps it
+ * privately and doesn't re-expose it. Cached per email: repeated calls (one
+ * per SSE connection, one per send-message request) reuse the same live
+ * connection instead of opening a new one each time.
+ */
+export async function getWorkspaceClient(link: HulyLink): Promise<HulyWorkspaceClient> {
+  const cached = workspaceClients.get(link.huly_account_email);
+  if (cached) return cached;
+  const built = buildWorkspaceClient(link);
+  workspaceClients.set(link.huly_account_email, built);
+  return built;
+}
+
+async function buildWorkspaceClient(link: HulyLink) {
+  const password = decryptSecret(link.huly_credential_encrypted);
+  const accountsUrl = env("HULY_ACCOUNTS_URL");
+  const anon = getAccountClient(accountsUrl);
+  const login = await anon.login(link.huly_account_email, password);
+  if (!login.token) throw new Error("Huly login did not return a token");
+  // login.socialId (a PersonId, e.g. "1198526728507326465") is what TxOperations needs
+  // as its `user` — NOT wsLogin.account (an AccountUuid). Verified against the live
+  // server: passing wsLogin.account throws platform:status:AccountMismatch on the
+  // first tx. selectWorkspace's response doesn't carry socialId even though its type
+  // extends LoginInfo, so it must be captured from this earlier plain login() call.
+  if (!login.socialId) throw new Error("Huly login did not return a socialId");
+  const wsClient = getAccountClient(accountsUrl, login.token);
+  const wsLogin = await wsClient.selectWorkspace(link.huly_workspace);
+
+  const resources = await getClientResources();
+  const raw = await resources.function.GetClient(wsLogin.token, wsLogin.endpoint);
+  const tx = new TxOperations(raw as any, login.socialId as any);
+
+  return {
+    findAll: <T,>(_class: string, query: Record<string, unknown>) =>
+      raw.findAll<T>(_class as any, query as any),
+    addCollection: (params: {
+      _class: string;
+      space: string;
+      attachedTo: string;
+      attachedToClass: string;
+      collection: string;
+      attributes: Record<string, unknown>;
+    }) =>
+      tx.addCollection(
+        params._class as any,
+        params.space as any,
+        params.attachedTo as any,
+        params.attachedToClass as any,
+        params.collection,
+        params.attributes as any,
+      ),
+    account: { primarySocialId: login.socialId },
+    setNotifyHandler: (fn: (txes: unknown[]) => void) => {
+      raw.notify = (...txes: unknown[]) => fn(txes);
+    },
+    close: () => raw.close(),
+  };
 }
