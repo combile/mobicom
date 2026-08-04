@@ -7,7 +7,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 6;
+const MOBION_SCHEMA_VERSION = 7;
 
 export const pool =
   globalThis.mobionPool ??
@@ -95,6 +95,16 @@ export async function ensureMobionSchema() {
       await pool.query(
         `ALTER TABLE mobion_huly_link
          ADD COLUMN IF NOT EXISTS huly_social_id TEXT`,
+      );
+      // AccountUuid for this Huly link — distinct from huly_social_id (a PersonId).
+      // Huly's own Channel.members field is AccountUuid-keyed (confirmed empirically
+      // in Task 3 while fixing SSE membership filtering), so channel creation's
+      // members array must be built from this column, not huly_social_id.
+      // Backfilled the same way as huly_social_id, in mobion-huly.ts's
+      // buildWorkspaceClient, once wsLogin (which carries the AccountUuid) is available.
+      await pool.query(
+        `ALTER TABLE mobion_huly_link
+         ADD COLUMN IF NOT EXISTS huly_account_uuid TEXT`,
       );
       // Exactly one account in the lab is the professor — set directly via SQL on
       // that account, the same one-time-bootstrap pattern already used for is_admin.

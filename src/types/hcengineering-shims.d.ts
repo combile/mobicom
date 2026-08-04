@@ -15,8 +15,8 @@ declare module "@hcengineering/core" {
   }
 
   // Minimal surface of the real class (node_modules/@hcengineering/core/src/operations.ts) —
-  // only the constructor + addCollection overload getWorkspaceClient uses. Params are
-  // loosely typed (unknown/string) because mobion-huly.ts casts through `as any` at the
+  // only the constructor + addCollection/createDoc overloads getWorkspaceClient uses. Params
+  // are loosely typed (unknown/string) because mobion-huly.ts casts through `as any` at the
   // call site rather than importing the full Doc/Ref/Class/Space generic machinery.
   export class TxOperations {
     constructor(client: unknown, user: unknown, isDerived?: boolean);
@@ -26,6 +26,14 @@ declare module "@hcengineering/core" {
       attachedTo: unknown,
       attachedToClass: unknown,
       collection: string,
+      attributes: Record<string, unknown>,
+      id?: unknown,
+      modifiedOn?: number,
+      modifiedBy?: unknown,
+    ) => Promise<string>;
+    createDoc: (
+      _class: unknown,
+      space: unknown,
       attributes: Record<string, unknown>,
       id?: unknown,
       modifiedOn?: number,

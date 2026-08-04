@@ -168,6 +168,12 @@ async function buildWorkspaceClient(link: HulyLink) {
   const wsClient = getAccountClient(accountsUrl, login.token);
   const wsLogin = await wsClient.selectWorkspace(link.huly_workspace);
 
+  void query(
+    `UPDATE mobion_huly_link SET huly_account_uuid = $1
+     WHERE huly_account_email = $2 AND huly_account_uuid IS DISTINCT FROM $1`,
+    [wsLogin.account, link.huly_account_email],
+  ).catch(() => {});
+
   const resources = await getClientResources();
   const raw = await resources.function.GetClient(wsLogin.token, wsLogin.endpoint);
   const tx = new TxOperations(raw as any, login.socialId as any);
@@ -227,6 +233,14 @@ async function buildWorkspaceClient(link: HulyLink) {
           params.collection,
           params.attributes as any,
         ),
+      ),
+    createDoc: (params: {
+      _class: string;
+      space: string;
+      attributes: Record<string, unknown>;
+    }) =>
+      evictOnFailure(
+        tx.createDoc(params._class as any, params.space as any, params.attributes as any),
       ),
     // accountUuid (wsLogin.account) is Huly's own membership-check identity for
     // Space.members (Channel.members included) — confirmed against the live
