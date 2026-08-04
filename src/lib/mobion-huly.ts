@@ -19,7 +19,12 @@ async function getAdminClient() {
   const anon = getAccountClient(accountsUrl);
   const admin = await anon.login(env("HULY_ADMIN_EMAIL"), env("HULY_ADMIN_PASSWORD"));
   if (!admin.token) throw new Error("Huly admin login did not return a token");
-  return getAccountClient(accountsUrl, admin.token);
+  // createInviteLink is workspace-scoped: it operates on whatever workspace the
+  // caller's token is bound to. The plain account-level login token above has no
+  // workspace selected, so it must be exchanged for a workspace-scoped token first.
+  const workspaceClient = getAccountClient(accountsUrl, admin.token);
+  const workspaceLogin = await workspaceClient.selectWorkspace(env("HULY_WORKSPACE_URL"));
+  return getAccountClient(accountsUrl, workspaceLogin.token);
 }
 
 /**
@@ -39,13 +44,22 @@ export async function provisionHulyAccount(email: string, name: string) {
   const [firstName, ...rest] = name.trim().split(/\s+/);
   const lastName = rest.join(" ") || firstName;
 
-  const inviteId = await admin.createInviteLink(
+  // autoJoin must stay false: the server only honors autoJoin for requests
+  // carrying a service-level "schedule" token (server/account/src/operations.ts,
+  // createInviteLink -> verifyAllowedServices(['schedule'], extra)), which a normal
+  // admin/owner login never has. signUpJoin below works the same either way since we
+  // pass firstName/lastName to it directly.
+  const inviteLink = await admin.createInviteLink(
     email,
     AccountRole.User,
-    true, // autoJoin
+    false, // autoJoin
     firstName,
     lastName,
   );
+  // createInviteLink returns a full navigable URL (/login/join?inviteId=...), not
+  // the bare id signUpJoin expects.
+  const inviteId = new URL(inviteLink, env("HULY_URL")).searchParams.get("inviteId");
+  if (!inviteId) throw new Error("Huly invite link did not contain an inviteId");
 
   const password = randomBytes(24).toString("base64url");
   const anon = getAccountClient(env("HULY_ACCOUNTS_URL"));

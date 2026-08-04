@@ -30,6 +30,11 @@ declare module "@hcengineering/account-client" {
 
   export interface AccountClient {
     login: (email: string, password: string) => Promise<LoginInfo>;
+    selectWorkspace: (
+      workspaceUrl: string,
+      kind?: "external" | "internal" | "byregion",
+      externalRegions?: string[],
+    ) => Promise<WorkspaceLoginInfo>;
     createInviteLink: (
       email: string,
       role: AccountRole,
