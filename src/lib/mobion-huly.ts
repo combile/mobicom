@@ -4,6 +4,7 @@ import { connect } from "@hcengineering/api-client";
 import getClientResources from "@hcengineering/client-resources";
 import { AccountRole, TxOperations } from "@hcengineering/core";
 import { encryptSecret, decryptSecret } from "./mobion-crypto";
+import { query } from "./mobion-db";
 
 // Hand-picked chunter class IDs instead of depending on @hcengineering/chunter,
 // which pulls in @hcengineering/ui + @hcengineering/workbench (Huly's own
@@ -155,6 +156,15 @@ async function buildWorkspaceClient(link: HulyLink) {
   // first tx. selectWorkspace's response doesn't carry socialId even though its type
   // extends LoginInfo, so it must be captured from this earlier plain login() call.
   if (!login.socialId) throw new Error("Huly login did not return a socialId");
+  // Best-effort backfill: only known once we've actually logged into Huly, so it
+  // can't be captured at provisioning time. Lets the chat UI resolve a message's
+  // Huly-side author id back to a mobion_users.name. Not awaited-critical — a
+  // failure here shouldn't break the connection itself.
+  void query(
+    `UPDATE mobion_huly_link SET huly_social_id = $1
+     WHERE huly_account_email = $2 AND huly_social_id IS DISTINCT FROM $1`,
+    [login.socialId, link.huly_account_email],
+  ).catch(() => {});
   const wsClient = getAccountClient(accountsUrl, login.token);
   const wsLogin = await wsClient.selectWorkspace(link.huly_workspace);
 
@@ -170,12 +180,36 @@ async function buildWorkspaceClient(link: HulyLink) {
   // register/unsubscribe pair without affecting the others.
   const listeners = new Set<(txes: unknown[]) => void>();
   raw.notify = (...txes: unknown[]) => {
-    for (const fn of listeners) fn(txes);
+    // notify() is invoked from inside an un-awaited internal promise
+    // (core/client.ts's updateFromRemote, called fire-and-forget). A listener
+    // that throws synchronously here becomes an unhandled rejection, which
+    // exits the Node process by default — one bad SSE write (e.g. a closed
+    // controller) would take the whole server down for every user. Isolate
+    // each listener so one failing tab can't do that.
+    for (const fn of listeners) {
+      try {
+        fn(txes);
+      } catch {
+        // swallow — a single listener's failure must not break the others
+        // or crash the process.
+      }
+    }
   };
+
+  function evictOnFailure<T>(promise: Promise<T>): Promise<T> {
+    // A Huly restart or expired session leaves this cached client resolved
+    // but dead — every call would otherwise fail forever until the Next.js
+    // process itself restarts. Evict on the first real-operation failure so
+    // the next getWorkspaceClient call rebuilds a fresh connection.
+    return promise.catch((error) => {
+      workspaceClients.delete(link.huly_account_email);
+      throw error;
+    });
+  }
 
   return {
     findAll: <T,>(_class: string, query: Record<string, unknown>) =>
-      raw.findAll<T>(_class as any, query as any),
+      evictOnFailure(raw.findAll<T>(_class as any, query as any)),
     addCollection: (params: {
       _class: string;
       space: string;
@@ -184,13 +218,15 @@ async function buildWorkspaceClient(link: HulyLink) {
       collection: string;
       attributes: Record<string, unknown>;
     }) =>
-      tx.addCollection(
-        params._class as any,
-        params.space as any,
-        params.attachedTo as any,
-        params.attachedToClass as any,
-        params.collection,
-        params.attributes as any,
+      evictOnFailure(
+        tx.addCollection(
+          params._class as any,
+          params.space as any,
+          params.attachedTo as any,
+          params.attachedToClass as any,
+          params.collection,
+          params.attributes as any,
+        ),
       ),
     account: { primarySocialId: login.socialId },
     // Returns an unsubscribe function so each caller (e.g. one SSE

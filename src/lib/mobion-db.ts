@@ -7,7 +7,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 4;
+const MOBION_SCHEMA_VERSION = 5;
 
 export const pool =
   globalThis.mobionPool ??
@@ -88,6 +88,14 @@ export async function ensureMobionSchema() {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
+      // Huly's per-workspace PersonId for this account (the id chunter tx's createdBy
+      // carries) — filled in on first successful Huly connection, not at provisioning
+      // time, since it's only known once we've actually logged into Huly. Lets us
+      // resolve chat message authors back to mobion_users.name without asking Huly.
+      await pool.query(
+        `ALTER TABLE mobion_huly_link
+         ADD COLUMN IF NOT EXISTS huly_social_id TEXT`,
+      );
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
       globalThis.mobionSchemaVersion = undefined;

@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { getWorkspaceClient, CHUNTER_CLASS } from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
@@ -28,7 +27,8 @@ type RawTx = {
   objectClass: string;
   attachedTo: string;
   createdBy: string;
-  createdOn: number;
+  createdOn?: number;
+  modifiedOn: number;
   attributes?: { message?: string };
 };
 
@@ -43,21 +43,11 @@ function isNewChatMessage(tx: RawTx) {
   );
 }
 
+type AuthorRow = { huly_social_id: string | null; name: string };
+
 export async function GET() {
   try {
     const user = await requireCurrentUser();
-    const result = await query<HulyLinkRow>(
-      `SELECT huly_account_email, huly_credential_encrypted, huly_workspace
-       FROM mobion_huly_link WHERE user_id = $1 LIMIT 1`,
-      [user.id],
-    );
-    const link = result.rows[0];
-    if (!link) {
-      return NextResponse.json(
-        { error: "Huly 계정이 연결되어 있지 않습니다." },
-        { status: 404 },
-      );
-    }
 
     const encoder = new TextEncoder();
     let closed = false;
@@ -72,6 +62,24 @@ export async function GET() {
           );
         }
 
+        // Reported as an in-stream event on a normal 200 response, not a 404 —
+        // a non-200 here would make EventSource treat it as a transient
+        // connection failure and retry forever with backoff, never showing
+        // the user why. See mobion-huly.ts's huly_social_id comment: only the
+        // admin-bootstrapped account (created directly in Postgres, bypassing
+        // the invite/activate flow) can hit this in practice.
+        const linkResult = await query<HulyLinkRow>(
+          `SELECT huly_account_email, huly_credential_encrypted, huly_workspace
+           FROM mobion_huly_link WHERE user_id = $1 LIMIT 1`,
+          [user.id],
+        );
+        const link = linkResult.rows[0];
+        if (!link) {
+          send("error", { message: "not_linked" });
+          controller.close();
+          return;
+        }
+
         let client;
         try {
           client = await getWorkspaceClient(link);
@@ -84,6 +92,7 @@ export async function GET() {
         let channels: ChunterSpace[];
         let dms: ChunterSpace[];
         let messages: ChatMessage[];
+        let authorRows: AuthorRow[];
         try {
           [channels, dms] = await Promise.all([
             client.findAll<ChunterSpace>(CHUNTER_CLASS.Channel, {}),
@@ -95,6 +104,14 @@ export async function GET() {
           controller.close();
           return;
         }
+        // Best-effort: an author name we can't resolve just falls back to the
+        // raw Huly id client-side, it never blocks the stream from opening.
+        authorRows = await query<AuthorRow>(
+          `SELECT l.huly_social_id, u.name
+           FROM mobion_huly_link l JOIN mobion_users u ON u.id = l.user_id
+           WHERE l.huly_social_id IS NOT NULL`,
+        ).then((r) => r.rows).catch(() => []);
+        const authorNames = new Map(authorRows.map((r) => [r.huly_social_id, r.name]));
 
         const spaces = [
           ...channels.map((c) => ({ id: c._id, name: c.name, kind: "channel" as const })),
@@ -108,6 +125,7 @@ export async function GET() {
             channelId: m.attachedTo,
             text: m.message,
             authorId: m.createdBy,
+            authorName: authorNames.get(m.createdBy) ?? null,
             createdOn: m.createdOn,
           })),
         });
@@ -120,7 +138,11 @@ export async function GET() {
               channelId: tx.attachedTo,
               text: tx.attributes?.message ?? "",
               authorId: tx.createdBy,
-              createdOn: tx.createdOn,
+              authorName: authorNames.get(tx.createdBy) ?? null,
+              // Huly's Doc.createdOn is documented as optional ("filled by
+              // platform") — createTxCreateDoc only guarantees modifiedOn.
+              // Fall back so message ordering never compares against undefined.
+              createdOn: tx.createdOn ?? tx.modifiedOn,
             });
           }
         });

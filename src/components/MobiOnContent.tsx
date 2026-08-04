@@ -4,7 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 
 type Channel = { id: string; name: string; kind: "channel" | "dm" };
-type Message = { id: string; channelId: string; text: string; authorId: string; createdOn: number };
+type Message = {
+  id: string;
+  channelId: string;
+  text: string;
+  authorId: string;
+  authorName: string | null;
+  createdOn: number;
+};
+
+function formatTime(ms: number) {
+  return new Date(ms).toLocaleString("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function MobiOnContent() {
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -43,7 +59,11 @@ export default function MobiOnContent() {
         const raw = (e as MessageEvent).data;
         if (raw) {
           const data = JSON.parse(raw);
-          setConnectionError(data.message === "huly_unavailable" ? "Huly 연결 실패, 잠시 후 다시 시도해 주세요." : data.message);
+          const knownMessages: Record<string, string> = {
+            huly_unavailable: "Huly 연결 실패, 잠시 후 다시 시도해 주세요.",
+            not_linked: "Huly 계정이 연결되어 있지 않습니다. 관리자에게 문의해 주세요.",
+          };
+          setConnectionError(knownMessages[data.message] ?? data.message);
           es?.close();
           return;
         }
@@ -88,6 +108,12 @@ export default function MobiOnContent() {
     setDraft("");
   }
 
+  const messageListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = messageListRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, activeChannelId]);
+
   if (connectionError) {
     return (
       <Root>
@@ -116,9 +142,15 @@ export default function MobiOnContent() {
           ))}
         </Sidebar>
         <Main>
-          <MessageList>
+          <MessageList ref={messageListRef}>
             {activeMessages.map((m) => (
-              <MessageRow key={m.id}>{m.text}</MessageRow>
+              <MessageRow key={m.id}>
+                <MessageMeta>
+                  <MessageAuthor>{m.authorName ?? "알 수 없음"}</MessageAuthor>
+                  <MessageTime>{formatTime(m.createdOn)}</MessageTime>
+                </MessageMeta>
+                <MessageText>{m.text}</MessageText>
+              </MessageRow>
             ))}
           </MessageList>
           <Composer>
@@ -141,7 +173,10 @@ const Root = styled.div`
   position: relative;
   z-index: 1;
   min-height: 100vh;
-  padding: 100px 24px 24px;
+  /* Header.tsx's Bar is position: absolute, top: 54px, height: 75px — its
+     bottom edge sits at 129px. Match the top padding About/Members/Blog
+     already use so the fixed header never overlaps page content. */
+  padding: clamp(135px, 14.4vh, 189px) 24px 24px;
 `;
 
 const ErrorBanner = styled.div`
@@ -159,7 +194,7 @@ const ReconnectBanner = styled.div`
 
 const Layout = styled.div`
   display: flex;
-  height: calc(100vh - 160px);
+  height: calc(100vh - clamp(159px, 17.4vh, 213px));
   max-width: 1100px;
   margin: 0 auto;
   border-radius: 16px;
@@ -212,6 +247,29 @@ const MessageList = styled.div`
 `;
 
 const MessageRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const MessageMeta = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+`;
+
+const MessageAuthor = styled.span`
+  font-weight: 700;
+  font-size: 13px;
+  color: #00b5ff;
+`;
+
+const MessageTime = styled.span`
+  font-size: 11px;
+  color: #767676;
+`;
+
+const MessageText = styled.div`
   color: #e4e4e4;
   font-size: 14px;
 `;
