@@ -176,7 +176,7 @@ export async function GET() {
             // A message in a channel this connection was never told about (created
             // before this connection opened, or a privacy check that somehow
             // missed it) is treated as not visible — fail closed, not open.
-            if (owningChannel && !canSeeChannel(owningChannel, myAccountUuid)) continue;
+            if (!owningChannel || !canSeeChannel(owningChannel, myAccountUuid)) continue;
             send("delta", {
               id: tx.objectId,
               channelId: tx.attachedTo,
