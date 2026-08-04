@@ -17,6 +17,14 @@ export const CHUNTER_CLASS = {
   ChatMessage: "chunter:class:ChatMessage",
 } as const;
 
+// Not a chunter-specific value — this is core's own top-level container id that every
+// ChunterSpace-derived doc (Channel, DirectMessage) lives under, verified against the
+// live server via `findAll` on a real Channel doc. Distinct from `attachedTo`, which is
+// the actual channel/DM id a message belongs to (what Task 2's SSE route filters by).
+// Using the channel's own id here instead breaks live delta delivery to other users —
+// verified during Task 2 review.
+export const HULY_CORE_SPACE = "core:space:Space";
+
 function env(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required`);
