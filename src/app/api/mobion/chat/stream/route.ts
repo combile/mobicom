@@ -9,7 +9,7 @@ type HulyLinkRow = {
   huly_workspace: string;
 };
 
-type ChunterSpace = { _id: string; name: string };
+type ChunterSpace = { _id: string; name: string; private: boolean; members: string[] };
 type ChatMessage = {
   _id: string;
   attachedTo: string;
@@ -29,7 +29,7 @@ type RawTx = {
   createdBy: string;
   createdOn?: number;
   modifiedOn: number;
-  attributes?: { message?: string };
+  attributes?: { message?: string; name?: string; private?: boolean; members?: string[] };
 };
 
 // A single message post fires TxCreateDoc (the message) + TxUpdateDoc (channel
@@ -40,6 +40,20 @@ function isNewChatMessage(tx: RawTx) {
   return (
     tx._class === "core:class:TxCreateDoc" &&
     tx.objectClass === CHUNTER_CLASS.ChatMessage
+  );
+}
+
+function canSeeChannel(channel: { private: boolean; members: string[] }, mySocialId: string) {
+  return !channel.private || channel.members.includes(mySocialId);
+}
+
+// A channel-creation tx: same TxCreateDoc shape as a chat message (see
+// isNewChatMessage above), but for the Channel class itself, with the full
+// Channel doc's fields as attributes instead of just a message string.
+function isNewChannel(tx: RawTx) {
+  return (
+    tx._class === "core:class:TxCreateDoc" &&
+    tx.objectClass === CHUNTER_CLASS.Channel
   );
 }
 
@@ -104,6 +118,15 @@ export async function GET() {
           controller.close();
           return;
         }
+        const mySocialId = client.account.primarySocialId;
+        const visibleChannels = channels.filter((c) => canSeeChannel(c, mySocialId));
+        // Tracked for the lifetime of this connection so a later ChatMessage delta
+        // can be checked against the channel it belongs to without a re-query —
+        // a channel's own privacy doesn't change after creation in this app (no
+        // edit-channel feature), so a snapshot-time map stays accurate.
+        const channelPrivacy = new Map(
+          channels.map((c) => [c._id, { private: c.private, members: c.members }]),
+        );
         // Best-effort: an author name we can't resolve just falls back to the
         // raw Huly id client-side, it never blocks the stream from opening.
         authorRows = await query<AuthorRow>(
@@ -114,7 +137,7 @@ export async function GET() {
         const authorNames = new Map(authorRows.map((r) => [r.huly_social_id, r.name]));
 
         const spaces = [
-          ...channels.map((c) => ({ id: c._id, name: c.name, kind: "channel" as const })),
+          ...visibleChannels.map((c) => ({ id: c._id, name: c.name, kind: "channel" as const })),
           ...dms.map((d) => ({ id: d._id, name: d.name, kind: "dm" as const })),
         ];
 
@@ -132,7 +155,24 @@ export async function GET() {
 
         unsubscribe = client.setNotifyHandler((txes) => {
           for (const tx of txes as RawTx[]) {
+            if (isNewChannel(tx)) {
+              const isPrivate = tx.attributes?.private ?? false;
+              const members = tx.attributes?.members ?? [];
+              channelPrivacy.set(tx.objectId, { private: isPrivate, members });
+              if (!canSeeChannel({ private: isPrivate, members }, mySocialId)) continue;
+              send("channel_added", {
+                id: tx.objectId,
+                name: tx.attributes?.name ?? "",
+                kind: "channel" as const,
+              });
+              continue;
+            }
             if (!isNewChatMessage(tx)) continue;
+            const owningChannel = channelPrivacy.get(tx.attachedTo);
+            // A message in a channel this connection was never told about (created
+            // before this connection opened, or a privacy check that somehow
+            // missed it) is treated as not visible — fail closed, not open.
+            if (owningChannel && !canSeeChannel(owningChannel, mySocialId)) continue;
             send("delta", {
               id: tx.objectId,
               channelId: tx.attachedTo,
