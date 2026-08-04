@@ -8,7 +8,6 @@ type HulyLinkRow = {
   huly_account_email: string;
   huly_credential_encrypted: string;
   huly_workspace: string;
-  huly_account_uuid: string | null;
 };
 
 export async function POST(request: Request) {
@@ -25,12 +24,12 @@ export async function POST(request: Request) {
     }
 
     const linkResult = await query<HulyLinkRow>(
-      `SELECT huly_account_email, huly_credential_encrypted, huly_workspace, huly_account_uuid
+      `SELECT huly_account_email, huly_credential_encrypted, huly_workspace
        FROM mobion_huly_link WHERE user_id = $1 LIMIT 1`,
       [user.id],
     );
     const link = linkResult.rows[0];
-    if (!link || !link.huly_account_uuid) {
+    if (!link) {
       return NextResponse.json({ error: "Huly 계정이 연결되어 있지 않습니다." }, { status: 404 });
     }
 
@@ -41,7 +40,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "중복된 채널 이름입니다." }, { status: 409 });
     }
 
-    let members: string[] = [link.huly_account_uuid];
+    // Use the live connection's own identity, not link.huly_account_uuid — that DB
+    // column is only backfilled as a side effect of getWorkspaceClient's first-ever
+    // call for this account (see mobion-huly.ts), so a freshly-linked account that's
+    // never hit a Huly-touching endpoint before would still have it NULL here even
+    // though the client connection above just succeeded. The column stays correct
+    // for resolving OTHER users below, since they aren't connected in this request.
+    let members: string[] = [client.account.accountUuid];
     if (isPrivate) {
       if (memberIds.length > 0) {
         const memberRows = await query<{ huly_account_uuid: string | null }>(
@@ -60,8 +65,8 @@ export async function POST(request: Request) {
            WHERE u.is_professor = true AND l.huly_account_uuid IS NOT NULL
            LIMIT 1`,
         );
-        const professorSocialId = professorRow.rows[0]?.huly_account_uuid;
-        if (professorSocialId) members.push(professorSocialId);
+        const professorAccountUuid = professorRow.rows[0]?.huly_account_uuid;
+        if (professorAccountUuid) members.push(professorAccountUuid);
       }
       members = [...new Set(members)];
     } else {
