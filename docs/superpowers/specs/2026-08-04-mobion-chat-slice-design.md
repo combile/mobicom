@@ -26,7 +26,7 @@ Rejected alternative: browser connects directly to Huly via `@hcengineering/api-
 
 ## Components
 
-1. **`src/lib/mobion-huly-workspace.ts`** (new) — `getWorkspaceClient(hulyLink): Promise<PlatformClient>`. Connects using the user's stored encrypted Huly credentials (reuses `decryptSecret` from `mobion-crypto.ts`), caches the live connection per `mobion_users.id` in a process-global `Map` so repeated requests/reconnects for the same user reuse one Huly session instead of opening a new one per request. Callers use it to run `findAll`/`tx` against chunter's `Channel`, `DirectMessage`, `ChatMessage` classes.
+1. **`src/lib/mobion-huly.ts`** (modify, existing file from Phase 0) — add `getWorkspaceClient(hulyLink): Promise<HulyWorkspaceClient>` alongside the existing `provisionHulyAccount`/`pingAsUser`. Connects using the user's stored encrypted Huly credentials (reuses `decryptSecret` from `mobion-crypto.ts`), caches the live connection per Huly account email in a process-global `Map` so repeated requests/reconnects for the same user reuse one Huly session instead of opening a new one per request. Callers use it to run `findAll`/`addCollection` against chunter's `Channel`, `DirectMessage`, `ChatMessage` classes.
 
 2. **`GET /api/mobion/chat/stream`** (new) — SSE endpoint, requires an authenticated mobion session (`requireCurrentUser()`). On open: fetches the user's channels/DMs and their most recent messages via `getWorkspaceClient`, writes an initial `snapshot` event. Then registers a Huly tx listener scoped to this workspace client; whenever a relevant `ChatMessage`/`Channel` tx arrives, writes a `delta` event. Cleans up the tx listener when the client disconnects (SSE `request.signal` abort).
 
