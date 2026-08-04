@@ -6,6 +6,8 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import type { Post, BlogAuthor } from "@/lib/blog";
 import { AUTHORS } from "@/lib/blog";
+import { useSpotlight } from "@/lib/useSpotlight";
+import { spotlightGlow } from "@/lib/spotlightGlow";
 
 const AUTHOR_COLOR: Record<BlogAuthor, string> = {
   yxxunseo: "#00b5ff",
@@ -152,37 +154,45 @@ export default function BlogContent({ posts }: { posts: Post[] }) {
         ) : (
           <List>
             {filtered.map((p) => (
-              <CardLink
-                key={p.id}
-                href={p.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="blog-card"
-                data-cursor="hover"
-              >
-                <CardTop>
-                  <AuthorChip style={{ color: AUTHOR_COLOR[p.author] }}>
-                    <Dot style={{ background: AUTHOR_COLOR[p.author] }} />
-                    {p.authorLabel}
-                  </AuthorChip>
-                  <DateText>{formatDate(p.date)}</DateText>
-                </CardTop>
-                <CardTitle>{p.title}</CardTitle>
-                {p.excerpt && <Excerpt>{p.excerpt}</Excerpt>}
-                {p.tags.length > 0 && (
-                  <Tags>
-                    {p.tags.map((t) => (
-                      <Tag key={t}>#{t}</Tag>
-                    ))}
-                  </Tags>
-                )}
-                <Arrow className="material-symbols-outlined">arrow_outward</Arrow>
-              </CardLink>
+              <BlogCard key={p.id} post={p} />
             ))}
           </List>
         )}
       </Container>
     </Root>
+  );
+}
+
+function BlogCard({ post: p }: { post: Post }) {
+  const spotlightRef = useSpotlight<HTMLAnchorElement>();
+
+  return (
+    <CardLink
+      ref={spotlightRef}
+      href={p.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="blog-card"
+      data-cursor="hover"
+    >
+      <CardTop>
+        <AuthorChip style={{ color: AUTHOR_COLOR[p.author] }}>
+          <Dot style={{ background: AUTHOR_COLOR[p.author] }} />
+          {p.authorLabel}
+        </AuthorChip>
+        <DateText>{formatDate(p.date)}</DateText>
+      </CardTop>
+      <CardTitle>{p.title}</CardTitle>
+      {p.excerpt && <Excerpt>{p.excerpt}</Excerpt>}
+      {p.tags.length > 0 && (
+        <Tags>
+          {p.tags.map((t) => (
+            <Tag key={t}>#{t}</Tag>
+          ))}
+        </Tags>
+      )}
+      <Arrow className="material-symbols-outlined">arrow_outward</Arrow>
+    </CardLink>
   );
 }
 
@@ -356,6 +366,8 @@ const CardLink = styled.a`
     border-color: rgba(0, 181, 255, 0.5);
     box-shadow: 0 13px 30px rgba(0, 0, 0, 0.5);
   }
+
+  ${spotlightGlow("rgba(0, 181, 255, 0.5)", 240)}
 `;
 
 const CardTop = styled.div`

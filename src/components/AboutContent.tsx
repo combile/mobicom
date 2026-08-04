@@ -5,6 +5,9 @@ import styled from "@emotion/styled";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useSpotlight } from "@/lib/useSpotlight";
+import { useTilt3D } from "@/lib/useTilt3D";
+import { spotlightGlow } from "@/lib/spotlightGlow";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -94,26 +97,42 @@ export default function AboutContent() {
 
           <Cards className="about-cards">
             {CARDS.map((card) => (
-              <Card key={card.ko[0]} className="about-card" data-cursor="hover">
-                <CardBg style={{ backgroundImage: `url("${card.img}")` }} />
-                <CardBody>
-                  <CardTitle>
-                    {card.ko.map((l) => (
-                      <span key={l}>{l}</span>
-                    ))}
-                  </CardTitle>
-                  <CardEn>
-                    {card.en.map((l) => (
-                      <span key={l}>{l}</span>
-                    ))}
-                  </CardEn>
-                </CardBody>
-              </Card>
+              <ResearchCard key={card.ko[0]} card={card} />
             ))}
           </Cards>
         </Section>
       </Container>
     </Root>
+  );
+}
+
+function ResearchCard({ card }: { card: (typeof CARDS)[number] }) {
+  const tiltRef = useTilt3D<HTMLDivElement>();
+  const spotlightRef = useSpotlight<HTMLDivElement>();
+
+  return (
+    <Card
+      ref={(node: HTMLDivElement | null) => {
+        tiltRef.current = node;
+        spotlightRef.current = node;
+      }}
+      className="about-card"
+      data-cursor="hover"
+    >
+      <CardBg style={{ backgroundImage: `url("${card.img}")` }} />
+      <CardBody>
+        <CardTitle>
+          {card.ko.map((l) => (
+            <span key={l}>{l}</span>
+          ))}
+        </CardTitle>
+        <CardEn>
+          {card.en.map((l) => (
+            <span key={l}>{l}</span>
+          ))}
+        </CardEn>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -272,13 +291,14 @@ const Card = styled.div`
   overflow: hidden;
   background: #000;
   box-shadow: 0 2px 2px rgba(145, 145, 145, 0.25);
-  transition: transform 0.35s ease, box-shadow 0.35s ease;
+  transition: box-shadow 0.35s ease;
 
   &:hover {
-    transform: translateY(-5px);
     box-shadow: 0 22px 45px rgba(0, 0, 0, 0.55),
       0 0 0 1px rgba(0, 181, 255, 0.3);
   }
+
+  ${spotlightGlow("rgba(0, 181, 255, 0.55)", 260)}
 `;
 
 const CardBg = styled.div`

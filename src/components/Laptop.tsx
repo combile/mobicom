@@ -40,10 +40,9 @@ const Lid = styled.div`
   position: relative;
   width: 100%;
   aspect-ratio: 730 / 504;
-  background: #d6d6d6;
-  border: 1px solid #cccccc;
-  border-radius: 18px 18px 5px 5px;
-  padding: 0.1%;
+  background: linear-gradient(155deg, #e9e9ec 0%, #d3d3d7 45%, #b9b9be 100%);
+  border-radius: 22px 22px 8px 8px;
+  padding: 0.45%;
   transform-origin: bottom center;
   transform-style: preserve-3d;
   will-change: transform;
@@ -54,8 +53,8 @@ const Bezel = styled.div`
   width: 100%;
   height: 100%;
   background: #050505;
-  border-radius: 14px 14px 3px 3px;
-  padding: 0.1%;
+  border-radius: 19px 19px 7px 7px;
+  padding: 0.15%;
   box-shadow: inset 0 0 4px 2px rgba(0, 0, 0, 0.6);
 `;
 
@@ -69,7 +68,7 @@ const Screen = styled.div`
     rgba(10, 10, 10, 0.9) 45%,
     #000 100%
   );
-  border-radius: 10px 10px 2px 2px;
+  border-radius: 18px 18px 6px 6px;
   overflow: hidden;
   box-shadow: inset 0 0 2px 1px rgba(0, 0, 0, 0.5);
 `;
@@ -104,20 +103,20 @@ const BaseWrapper = styled.div`
 
 const Base = styled.div`
   width: 100%;
-  height: clamp(10px, 1.6vw, 18px);
-  border-radius: 0 0 8px 8px;
-  background: linear-gradient(180deg, #efefef 0%, #d4d4d4 60%, #bdbdbd 100%);
-  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.3),
-    inset 0 -2px 1px rgba(255, 255, 255, 0.7), 0 6px 10px rgba(0, 0, 0, 0.5);
+  height: clamp(5px, 0.7vw, 8px);
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(180deg, #e2e2e5 0%, #c7c7cc 55%, #adadb2 100%);
+  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 4px 8px rgba(0, 0, 0, 0.45);
 `;
 
 const Notch = styled.div`
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 16%;
-  height: clamp(4px, 0.6vw, 7px);
-  border-radius: 0 0 8px 8px;
-  background: linear-gradient(180deg, #c8c8c8 0%, #b0b0b0 100%);
+  width: 10%;
+  height: 55%;
+  border-radius: 3px 3px 0 0;
+  background: rgba(0, 0, 0, 0.18);
 `;

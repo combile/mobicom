@@ -57,8 +57,12 @@ export default function Hero() {
       });
 
       tl
-        // 헤더 슬라이드 다운
-        .from(".mobi-header", { y: -40, autoAlpha: 0, duration: 0.8 })
+        // 헤더 슬라이드 다운 (Hero 스코프 밖에 있어 DOM 엘리먼트로 직접 지정)
+        .from(document.querySelector(".mobi-header"), {
+          y: -40,
+          autoAlpha: 0,
+          duration: 0.8,
+        })
         // 노트북 본체 등장
         .from(
           ".mobi-laptop",
@@ -179,7 +183,8 @@ const LaptopHolder = styled.div`
 const Line = styled.div`
   position: absolute;
   top: 50%;
-  left: 50%;
+  /* Mobile/Computing 글자 수 차이로 인해 중앙보다 살짝 왼쪽(Mobile 쪽)으로 이동 */
+  left: calc(50% - 4.8vw);
   transform: translateX(-50%) translateY(-50%);
   width: min(853px, 63vw);
   height: 1px;
@@ -194,7 +199,7 @@ const Word = styled.div`
   font-family: "Pretendard Variable", Pretendard, sans-serif;
   font-weight: 100;
   font-size: clamp(40px, 6.5vw, 96px);
-  line-height: 1;
+  line-height: 1.25;
   white-space: nowrap;
   background: linear-gradient(180deg, #ffffff 0%, #8f8f8f 100%);
   -webkit-background-clip: text;

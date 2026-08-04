@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import styled from "@emotion/styled";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -18,6 +18,22 @@ const NAV_ITEMS = [
 export default function Header() {
   const barRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/mobion/auth/me")
+      .then((res) => res.json())
+      .then((data) => setUserName(data.user?.name ?? null))
+      .catch(() => setUserName(null));
+  }, [pathname]);
+
+  async function handleLogout() {
+    await fetch("/api/mobion/auth/logout", { method: "POST" });
+    setUserName(null);
+    router.push("/");
+    router.refresh();
+  }
 
   // 마그네틱 인터랙션: 요소가 커서 쪽으로 부드럽게 끌림
   useGSAP(
@@ -36,13 +52,14 @@ export default function Header() {
       const STRENGTH = 0.4;
 
       els.forEach((el) => {
+        const strength = Number(el.dataset.magnetic) || STRENGTH;
         const xTo = gsap.quickTo(el, "x", { duration: 0.5, ease: "power3" });
         const yTo = gsap.quickTo(el, "y", { duration: 0.5, ease: "power3" });
 
         const move = (e: MouseEvent) => {
           const r = el.getBoundingClientRect();
-          xTo((e.clientX - (r.left + r.width / 2)) * STRENGTH);
-          yTo((e.clientY - (r.top + r.height / 2)) * STRENGTH);
+          xTo((e.clientX - (r.left + r.width / 2)) * strength);
+          yTo((e.clientY - (r.top + r.height / 2)) * strength);
         };
         const reset = () => {
           xTo(0);
@@ -65,7 +82,7 @@ export default function Header() {
   return (
     <Bar className="mobi-header" ref={barRef}>
       <Link href="/" style={{ textDecoration: "none" }}>
-        <Logo data-magnetic>MOBICOM</Logo>
+        <Logo data-magnetic="0.18">MOBICOM</Logo>
       </Link>
       <Nav>
         {NAV_ITEMS.map((item) => {
@@ -82,10 +99,19 @@ export default function Header() {
           );
         })}
       </Nav>
-      <LoginButton type="button" data-magnetic>
-        <span className="material-symbols-outlined">person</span>
-        Login
-      </LoginButton>
+      {userName ? (
+        <LoginButton type="button" data-magnetic onClick={handleLogout}>
+          <span className="material-symbols-outlined">person</span>
+          {userName}
+        </LoginButton>
+      ) : (
+        <Link href="/login" style={{ textDecoration: "none" }}>
+          <LoginButton type="button" data-magnetic>
+            <span className="material-symbols-outlined">person</span>
+            Login
+          </LoginButton>
+        </Link>
+      )}
     </Bar>
   );
 }
@@ -210,31 +236,36 @@ const LoginButton = styled.button`
   z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  background: transparent;
-  border: none;
-  font-size: 22px;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 90px;
+  border: 1px solid #00b5ff;
+  background: linear-gradient(90deg, #004460 0%, #000000 100%);
+  font-size: 16px;
   font-weight: 600;
-  color: #fff;
-  transition: color 0.2s ease;
+  color: #00b5ff;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 
   .material-symbols-outlined {
-    font-size: 22px;
+    font-size: 18px;
   }
 
   &:hover {
-    color: #00b5ff;
+    transform: translateY(-2px);
+    box-shadow: 0 7px 25px rgba(0, 181, 255, 0.35);
   }
 
   @media (max-width: 760px) {
-    font-size: 18px;
+    padding: 8px 16px;
+    font-size: 14px;
 
     .material-symbols-outlined {
-      font-size: 20px;
+      font-size: 16px;
     }
   }
 
   @media (max-width: 430px) {
-    font-size: 16px;
+    padding: 7px 14px;
+    font-size: 13px;
   }
 `;

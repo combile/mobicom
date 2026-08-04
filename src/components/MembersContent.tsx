@@ -14,7 +14,6 @@ type Member = {
   year?: string;
   img?: string;
   leader?: boolean;
-  waiting?: boolean;
 };
 
 const MEMBERS: Member[] = [
@@ -22,8 +21,6 @@ const MEMBERS: Member[] = [
   { first: "Eunsik", last: "Woo", year: "Junior", img: "/members/eunsik.png" },
   { first: "Daeun", last: "Ye", year: "Junior" },
   { first: "Hajin", last: "Oh", year: "Sophomore", img: "/members/hajin.webp" },
-  { first: "Waiting", last: "For You", waiting: true },
-  { first: "Waiting", last: "For You", waiting: true },
 ];
 
 export default function MembersContent() {
@@ -64,35 +61,19 @@ export default function MembersContent() {
           </Title>
           <Divider />
         </Head>
-        <Lead className="mem-rise">
-          모비콤과 함께 모바일 컴퓨팅을 연구하는 사람들입니다.
-        </Lead>
-
         <Grid className="mem-grid">
-          {MEMBERS.map((m, i) =>
-            m.waiting ? (
-              <WaitingCard key={i} className="mem-card" data-cursor="hover">
-                <Plus>+</Plus>
-                <WaitName>
-                  {m.first} {m.last}
-                </WaitName>
-                <WaitDesc>새로운 부원을 기다립니다</WaitDesc>
-              </WaitingCard>
-            ) : (
-              <Card key={i} className="mem-card" data-cursor="hover">
-                {m.img && (
-                  <CardImg style={{ backgroundImage: `url("${m.img}")` }} />
-                )}
-                <Overlay data-has-img={m.img ? "" : undefined} />
-                <Name>
-                  <span>{m.first}</span>
-                  <span>{m.last}</span>
-                </Name>
-                {m.year && <YearTag>{m.year}</YearTag>}
-                {m.leader && <LeaderBar>Laboratory Leader</LeaderBar>}
-              </Card>
-            ),
-          )}
+          {MEMBERS.map((m, i) => (
+            <Card key={i} className="mem-card" data-cursor="hover">
+              {m.img && <CardImg style={{ backgroundImage: `url("${m.img}")` }} />}
+              <Overlay data-has-img={m.img ? "" : undefined} />
+              <Name>
+                <span>{m.first}</span>
+                <span>{m.last}</span>
+              </Name>
+              {m.year && <YearTag>{m.year}</YearTag>}
+              {m.leader && <LeaderBar>Laboratory Leader</LeaderBar>}
+            </Card>
+          ))}
         </Grid>
       </Container>
     </Root>
@@ -135,13 +116,6 @@ const Divider = styled.div`
     rgba(255, 255, 255, 0.4),
     rgba(255, 255, 255, 0.06)
   );
-`;
-
-const Lead = styled.p`
-  margin-top: 17px;
-  font-weight: 300;
-  font-size: clamp(13px, 1.38vw, 20px);
-  color: #b0b0b0;
 `;
 
 const Grid = styled.div`
@@ -216,12 +190,16 @@ const Name = styled.div`
 const YearTag = styled.div`
   position: absolute;
   top: clamp(16px, 1.55vw, 24px);
-  right: 0;
-  padding: 6px 15px;
-  background: #827859;
+  right: clamp(16px, 1.55vw, 24px);
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: #fff;
-  font-weight: 900;
-  font-size: clamp(13px, 1.45vw, 22px);
+  font-weight: 600;
+  font-size: clamp(12px, 1.15vw, 17px);
   white-space: nowrap;
 `;
 
@@ -236,46 +214,4 @@ const LeaderBar = styled.div`
   font-weight: 200;
   font-size: clamp(16px, 1.95vw, 30px);
   white-space: nowrap;
-`;
-
-const WaitingCard = styled.div`
-  ${cardBase}
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 11px;
-  background: rgba(43, 35, 0, 0.55);
-  border: 1.3px dashed rgba(255, 255, 255, 0.18);
-  text-align: center;
-  padding: 19px;
-
-  &:hover {
-    transform: translateY(-4px);
-    border-color: rgba(0, 181, 255, 0.5);
-    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.45);
-  }
-`;
-
-const Plus = styled.div`
-  font-weight: 200;
-  font-size: clamp(38px, 4.8vw, 68px);
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.5);
-
-  ${WaitingCard}:hover & {
-    color: #00b5ff;
-  }
-`;
-
-const WaitName = styled.div`
-  font-weight: 700;
-  font-size: clamp(20px, 2.4vw, 36px);
-  color: #fff;
-`;
-
-const WaitDesc = styled.div`
-  font-weight: 300;
-  font-size: clamp(12px, 1.12vw, 16px);
-  color: #9a9a9a;
 `;
