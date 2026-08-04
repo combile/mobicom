@@ -169,7 +169,9 @@ const Layout = styled.div`
 
 const Sidebar = styled.div`
   width: 220px;
-  background: rgba(20, 20, 20, 0.6);
+  background: rgba(37, 37, 37, 0.35);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
   padding: 12px;
   overflow-y: auto;
 `;
@@ -195,7 +197,9 @@ const Main = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: rgba(10, 10, 10, 0.5);
+  background: rgba(37, 37, 37, 0.35);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
 `;
 
 const MessageList = styled.div`
