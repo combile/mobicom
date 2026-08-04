@@ -154,6 +154,17 @@ async function buildWorkspaceClient(link: HulyLink) {
   const raw = await resources.function.GetClient(wsLogin.token, wsLogin.endpoint);
   const tx = new TxOperations(raw as any, login.socialId as any);
 
+  // raw.notify is a single mutable slot, not a subscriber list — the client
+  // is cached per email (see getWorkspaceClient above), so two simultaneous
+  // callers for the same user (two browser tabs, or a reconnect racing an
+  // old connection's teardown) would otherwise stomp on each other's handler.
+  // Fan out to a listener set instead, so each caller gets its own
+  // register/unsubscribe pair without affecting the others.
+  const listeners = new Set<(txes: unknown[]) => void>();
+  raw.notify = (...txes: unknown[]) => {
+    for (const fn of listeners) fn(txes);
+  };
+
   return {
     findAll: <T,>(_class: string, query: Record<string, unknown>) =>
       raw.findAll<T>(_class as any, query as any),
@@ -174,8 +185,12 @@ async function buildWorkspaceClient(link: HulyLink) {
         params.attributes as any,
       ),
     account: { primarySocialId: login.socialId },
+    // Returns an unsubscribe function so each caller (e.g. one SSE
+    // connection's cancel()) can remove exactly its own listener instead of
+    // clobbering whatever the previous caller registered.
     setNotifyHandler: (fn: (txes: unknown[]) => void) => {
-      raw.notify = (...txes: unknown[]) => fn(txes);
+      listeners.add(fn);
+      return () => listeners.delete(fn);
     },
     close: () => raw.close(),
   };

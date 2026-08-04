@@ -61,6 +61,7 @@ export async function GET() {
 
     const encoder = new TextEncoder();
     let closed = false;
+    let unsubscribe: (() => void) | undefined;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -80,15 +81,25 @@ export async function GET() {
           return;
         }
 
-        const [channels, dms] = await Promise.all([
-          client.findAll<ChunterSpace>(CHUNTER_CLASS.Channel, {}),
-          client.findAll<ChunterSpace>(CHUNTER_CLASS.DirectMessage, {}),
-        ]);
+        let channels: ChunterSpace[];
+        let dms: ChunterSpace[];
+        let messages: ChatMessage[];
+        try {
+          [channels, dms] = await Promise.all([
+            client.findAll<ChunterSpace>(CHUNTER_CLASS.Channel, {}),
+            client.findAll<ChunterSpace>(CHUNTER_CLASS.DirectMessage, {}),
+          ]);
+          messages = await client.findAll<ChatMessage>(CHUNTER_CLASS.ChatMessage, {});
+        } catch {
+          send("error", { message: "huly_unavailable" });
+          controller.close();
+          return;
+        }
+
         const spaces = [
           ...channels.map((c) => ({ id: c._id, name: c.name, kind: "channel" as const })),
           ...dms.map((d) => ({ id: d._id, name: d.name, kind: "dm" as const })),
         ];
-        const messages = await client.findAll<ChatMessage>(CHUNTER_CLASS.ChatMessage, {});
 
         send("snapshot", {
           channels: spaces,
@@ -101,7 +112,7 @@ export async function GET() {
           })),
         });
 
-        client.setNotifyHandler((txes) => {
+        unsubscribe = client.setNotifyHandler((txes) => {
           for (const tx of txes as RawTx[]) {
             if (!isNewChatMessage(tx)) continue;
             send("delta", {
@@ -116,6 +127,7 @@ export async function GET() {
       },
       cancel() {
         closed = true;
+        unsubscribe?.();
       },
     });
 
