@@ -7,7 +7,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 8;
+const MOBION_SCHEMA_VERSION = 9;
 
 export const pool =
   globalThis.mobionPool ??
@@ -129,6 +129,48 @@ export async function ensureMobionSchema() {
           channel_id TEXT NOT NULL,
           tag TEXT NOT NULL,
           PRIMARY KEY (channel_id, tag)
+        )
+      `);
+      // Native task/milestone tracking — deliberately NOT built on Huly's Tracker
+      // plugin (tracker:class:Project/Issue/Milestone). That plugin's Issue.status
+      // is a per-project dynamically-created IssueStatus class (not a fixed enum),
+      // plus priority/time-tracking/sub-issue fields this lab doesn't need. See
+      // docs/superpowers/specs/2026-08-05-mobion-tasks-milestones-design.md's
+      // "Architecture Decision" section. These table names reuse ones an earlier,
+      // unrelated Phase 0 iteration used and already dropped above (see the
+      // "One-time Phase 0 migration cleanup" block) — safe, since Postgres has no
+      // memory of a dropped table's old shape.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_projects (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          created_by UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_milestones (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          project_id UUID NOT NULL REFERENCES mobion_projects(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          target_date DATE,
+          status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'in_progress', 'done')),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_tasks (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          project_id UUID NOT NULL REFERENCES mobion_projects(id) ON DELETE CASCADE,
+          milestone_id UUID REFERENCES mobion_milestones(id) ON DELETE SET NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          assignee_id UUID REFERENCES mobion_users(id) ON DELETE SET NULL,
+          status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
+          due_date DATE,
+          created_by UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
     })().catch((error) => {
