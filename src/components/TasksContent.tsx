@@ -12,6 +12,16 @@ type Project = {
 };
 
 type Milestone = { id: string; title: string; targetDate: string | null; status: string };
+type Task = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  dueDate: string | null;
+  milestoneId: string | null;
+  assigneeId: string | null;
+  assigneeName: string | null;
+};
 
 export default function TasksContent() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -29,6 +39,19 @@ export default function TasksContent() {
   const [newMilestoneTargetDate, setNewMilestoneTargetDate] = useState("");
   const [createMilestoneError, setCreateMilestoneError] = useState<string | null>(null);
   const [creatingMilestone, setCreatingMilestone] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [milestoneFilter, setMilestoneFilter] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState("");
+  const [showCreateTask, setShowCreateTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDescription, setNewTaskDescription] = useState("");
+  const [newTaskAssigneeId, setNewTaskAssigneeId] = useState("");
+  const [newTaskMilestoneId, setNewTaskMilestoneId] = useState("");
+  const [newTaskDueDate, setNewTaskDueDate] = useState("");
+  const [createTaskError, setCreateTaskError] = useState<string | null>(null);
+  const [creatingTask, setCreatingTask] = useState(false);
 
   function loadProjects() {
     fetch("/api/mobion/projects")
@@ -51,6 +74,7 @@ export default function TasksContent() {
       })
       .then((data) => {
         setMilestones(data.milestones ?? []);
+        setTasks(data.tasks ?? []);
         setDetailError(null);
       })
       .catch(() => setDetailError("프로젝트 정보를 불러오지 못했습니다."));
@@ -69,6 +93,13 @@ export default function TasksContent() {
   useEffect(() => {
     if (selectedProjectId) loadProjectDetail(selectedProjectId);
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    fetch("/api/mobion/users/all")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setAllUsers(data.users ?? []))
+      .catch(() => {});
+  }, []);
 
   function openCreateProject() {
     setCreateProjectError(null);
@@ -146,6 +177,63 @@ export default function TasksContent() {
     loadProjectDetail(selectedProjectId);
   }
 
+  function openCreateTask() {
+    setCreateTaskError(null);
+    setNewTaskTitle("");
+    setNewTaskDescription("");
+    setNewTaskAssigneeId("");
+    setNewTaskMilestoneId("");
+    setNewTaskDueDate("");
+    setShowCreateTask(true);
+  }
+
+  async function handleCreateTask() {
+    if (!selectedProjectId) return;
+    setCreateTaskError(null);
+    setCreatingTask(true);
+    try {
+      const res = await fetch(`/api/mobion/projects/${selectedProjectId}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTaskTitle,
+          description: newTaskDescription,
+          assigneeId: newTaskAssigneeId || null,
+          milestoneId: newTaskMilestoneId || null,
+          dueDate: newTaskDueDate || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCreateTaskError(data.error ?? "요청에 실패했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      setShowCreateTask(false);
+      loadProjectDetail(selectedProjectId);
+    } catch {
+      setCreateTaskError("요청에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      setCreatingTask(false);
+    }
+  }
+
+  async function updateTaskStatus(taskId: string, status: string) {
+    if (!selectedProjectId) return;
+    await fetch(`/api/mobion/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    loadProjectDetail(selectedProjectId);
+  }
+
+  const visibleTasks = tasks.filter(
+    (t) =>
+      (!statusFilter || t.status === statusFilter) &&
+      (!milestoneFilter || t.milestoneId === milestoneFilter) &&
+      (!assigneeFilter || t.assigneeId === assigneeFilter),
+  );
+
   if (loadError) {
     return (
       <Root>
@@ -200,7 +288,55 @@ export default function TasksContent() {
                   </MilestoneRow>
                 ))}
               </MilestoneList>
-              {/* Task 8 renders the task list here */}
+
+              <DetailSectionHeader>
+                <DetailSectionTitle>태스크</DetailSectionTitle>
+                <AddButton type="button" onClick={openCreateTask}>
+                  + 태스크 추가
+                </AddButton>
+              </DetailSectionHeader>
+              <FilterRow>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="">모든 상태</option>
+                  <option value="todo">할 일</option>
+                  <option value="in_progress">진행중</option>
+                  <option value="done">완료</option>
+                </select>
+                <select value={milestoneFilter} onChange={(e) => setMilestoneFilter(e.target.value)}>
+                  <option value="">모든 마일스톤</option>
+                  {milestones.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.title}
+                    </option>
+                  ))}
+                </select>
+                <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}>
+                  <option value="">모든 담당자</option>
+                  {allUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </FilterRow>
+              <TaskList>
+                {visibleTasks.length === 0 && <EmptyState>조건에 맞는 태스크가 없습니다</EmptyState>}
+                {visibleTasks.map((t) => (
+                  <TaskRow key={t.id}>
+                    <TaskTitle>{t.title}</TaskTitle>
+                    <TaskMeta>{t.assigneeName ?? "미배정"}</TaskMeta>
+                    {t.dueDate && <TaskMeta>{t.dueDate}</TaskMeta>}
+                    <select
+                      value={t.status}
+                      onChange={(e) => updateTaskStatus(t.id, e.target.value)}
+                    >
+                      <option value="todo">할 일</option>
+                      <option value="in_progress">진행중</option>
+                      <option value="done">완료</option>
+                    </select>
+                  </TaskRow>
+                ))}
+              </TaskList>
             </>
           )}
         </Main>
@@ -266,6 +402,78 @@ export default function TasksContent() {
               </button>
               <button type="button" onClick={handleCreateMilestone} disabled={creatingMilestone}>
                 {creatingMilestone ? "만드는 중..." : "만들기"}
+              </button>
+            </ModalActions>
+          </ModalCard>
+        </ModalOverlay>
+      )}
+      {showCreateTask && (
+        <ModalOverlay onClick={() => setShowCreateTask(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalTitle>새 태스크 만들기</ModalTitle>
+            <Field>
+              <label htmlFor="new-task-title">제목</label>
+              <input
+                id="new-task-title"
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <label htmlFor="new-task-description">설명</label>
+              <input
+                id="new-task-description"
+                value={newTaskDescription}
+                onChange={(e) => setNewTaskDescription(e.target.value)}
+                placeholder="태스크 설명 (선택)"
+              />
+            </Field>
+            <Field>
+              <label htmlFor="new-task-assignee">담당자</label>
+              <select
+                id="new-task-assignee"
+                value={newTaskAssigneeId}
+                onChange={(e) => setNewTaskAssigneeId(e.target.value)}
+              >
+                <option value="">미배정</option>
+                {allUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field>
+              <label htmlFor="new-task-milestone">마일스톤</label>
+              <select
+                id="new-task-milestone"
+                value={newTaskMilestoneId}
+                onChange={(e) => setNewTaskMilestoneId(e.target.value)}
+              >
+                <option value="">없음</option>
+                {milestones.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field>
+              <label htmlFor="new-task-due-date">마감일</label>
+              <input
+                id="new-task-due-date"
+                type="date"
+                value={newTaskDueDate}
+                onChange={(e) => setNewTaskDueDate(e.target.value)}
+              />
+            </Field>
+            {createTaskError && <ErrorText>{createTaskError}</ErrorText>}
+            <ModalActions>
+              <button type="button" onClick={() => setShowCreateTask(false)}>
+                취소
+              </button>
+              <button type="button" onClick={handleCreateTask} disabled={creatingTask}>
+                {creatingTask ? "만드는 중..." : "만들기"}
               </button>
             </ModalActions>
           </ModalCard>
@@ -411,6 +619,56 @@ const MilestoneTitle = styled.span`
 `;
 
 const MilestoneDate = styled.span`
+  color: #767676;
+  font-size: 12px;
+`;
+
+const FilterRow = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+
+  select {
+    background: rgba(0, 0, 0, 0.25);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+`;
+
+const TaskList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const TaskRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+
+  select {
+    margin-left: auto;
+    background: rgba(0, 0, 0, 0.25);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+`;
+
+const TaskTitle = styled.span`
+  color: #d4d4d4;
+  font-size: 14px;
+`;
+
+const TaskMeta = styled.span`
   color: #767676;
   font-size: 12px;
 `;
