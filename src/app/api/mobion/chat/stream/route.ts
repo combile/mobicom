@@ -9,7 +9,13 @@ type HulyLinkRow = {
   huly_workspace: string;
 };
 
-type ChunterSpace = { _id: string; name: string; private: boolean; members: string[] };
+type ChunterSpace = {
+  _id: string;
+  name: string;
+  description: string;
+  private: boolean;
+  members: string[];
+};
 type ChatMessage = {
   _id: string;
   attachedTo: string;
@@ -29,7 +35,13 @@ type RawTx = {
   createdBy: string;
   createdOn?: number;
   modifiedOn: number;
-  attributes?: { message?: string; name?: string; private?: boolean; members?: string[] };
+  attributes?: {
+    message?: string;
+    name?: string;
+    description?: string;
+    private?: boolean;
+    members?: string[];
+  };
 };
 
 // A single message post fires TxCreateDoc (the message) + TxUpdateDoc (channel
@@ -141,9 +153,36 @@ export async function GET() {
         const authorNames = new Map(authorRows.map((r) => [r.huly_social_id, r.name]));
         const authorAvatars = new Map(authorRows.map((r) => [r.huly_social_id, r.avatar_url]));
 
+        // Best-effort, same reasoning as authorRows above: a tag lookup failure
+        // must never block the stream from opening, it just means an empty tag
+        // list until the next successful snapshot.
+        const tagRows = await query<{ channel_id: string; tag: string }>(
+          `SELECT channel_id, tag FROM mobion_channel_tags
+           WHERE channel_id = ANY($1::text[])`,
+          [visibleChannels.map((c) => c._id)],
+        ).then((r) => r.rows).catch(() => []);
+        const tagsByChannel = new Map<string, string[]>();
+        for (const row of tagRows) {
+          const list = tagsByChannel.get(row.channel_id) ?? [];
+          list.push(row.tag);
+          tagsByChannel.set(row.channel_id, list);
+        }
+
         const spaces = [
-          ...visibleChannels.map((c) => ({ id: c._id, name: c.name, kind: "channel" as const })),
-          ...dms.map((d) => ({ id: d._id, name: d.name, kind: "dm" as const })),
+          ...visibleChannels.map((c) => ({
+            id: c._id,
+            name: c.name,
+            description: c.description,
+            tags: tagsByChannel.get(c._id) ?? [],
+            kind: "channel" as const,
+          })),
+          ...dms.map((d) => ({
+            id: d._id,
+            name: d.name,
+            description: d.description,
+            tags: [] as string[],
+            kind: "dm" as const,
+          })),
         ];
 
         send("snapshot", {
@@ -166,11 +205,35 @@ export async function GET() {
               const members = tx.attributes?.members ?? [];
               channelPrivacy.set(tx.objectId, { private: isPrivate, members });
               if (!canSeeChannel({ private: isPrivate, members }, myAccountUuid)) continue;
-              send("channel_added", {
-                id: tx.objectId,
-                name: tx.attributes?.name ?? "",
-                kind: "channel" as const,
-              });
+              const channelId = tx.objectId;
+              const name = tx.attributes?.name ?? "";
+              const description = tx.attributes?.description ?? "";
+              // Best-effort, fire-and-forget: a tag lookup here races the creating
+              // request's own tag insert (see the design spec's "accepted race").
+              // Never await this inline — it must not block delivery of other
+              // unrelated tx's in the same notify() batch to this connection.
+              query<{ tag: string }>(
+                `SELECT tag FROM mobion_channel_tags WHERE channel_id = $1`,
+                [channelId],
+              )
+                .then((r) =>
+                  send("channel_added", {
+                    id: channelId,
+                    name,
+                    description,
+                    tags: r.rows.map((row) => row.tag),
+                    kind: "channel" as const,
+                  }),
+                )
+                .catch(() =>
+                  send("channel_added", {
+                    id: channelId,
+                    name,
+                    description,
+                    tags: [],
+                    kind: "channel" as const,
+                  }),
+                );
               continue;
             }
             if (!isNewChatMessage(tx)) continue;
