@@ -1,4 +1,7 @@
 import { Pool, type QueryResultRow } from "pg";
+import pg from "pg";
+
+pg.types.setTypeParser(1082, (value) => value);
 
 declare global {
   var mobionPool: Pool | undefined;
