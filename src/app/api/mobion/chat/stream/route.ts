@@ -45,6 +45,14 @@ type RawTx = {
     online?: boolean;
     user?: string;
   };
+  // Only present on TxUpdateDoc (a DocumentUpdate<T>, i.e. a partial-attribute
+  // patch) — TxCreateDoc carries the full doc on `attributes` instead. A
+  // UserStatus's `online` flip (an existing doc's field changing, not a new
+  // doc being created) arrives here, not on `attributes`. See @hcengineering/core's
+  // TxUpdateDoc<T> (operations: DocumentUpdate<T>) vs TxCreateDoc<T> (attributes: Data<T>).
+  operations?: {
+    online?: boolean;
+  };
 };
 
 // A single message post fires TxCreateDoc (the message) + TxUpdateDoc (channel
@@ -75,9 +83,13 @@ function isNewChannel(tx: RawTx) {
 // A UserStatus doc's `online` flag can change via either TxCreateDoc (the first
 // time this account's status doc is created) or TxUpdateDoc (an existing doc's
 // `online` flipping) — unlike chat messages and channels, which only ever
-// arrive as TxCreateDoc. Unverified against the live server until this task's
-// manual verification step below; if the live shape differs, adjust the
-// attribute reads in the notify handler accordingly and update this comment.
+// arrive as TxCreateDoc. The two tx kinds carry the changed field on different
+// properties (attributes vs. operations — see RawTx's `operations` comment and
+// the notify handler's `online` read below); confirmed against
+// @hcengineering/core/src/tx.ts's TxCreateDoc<T>/TxUpdateDoc<T> definitions,
+// but not re-confirmed against a live TxUpdateDoc for UserStatus specifically
+// (no DM existed between the two test accounts to trigger one — see this
+// task's fix report for what static verification was done instead).
 function isUserStatusTx(tx: RawTx) {
   return (
     (tx._class === "core:class:TxCreateDoc" || tx._class === "core:class:TxUpdateDoc") &&
@@ -287,7 +299,15 @@ export async function GET() {
               if (!accountUuid) continue;
               const dmId = dmByOtherAccount.get(accountUuid);
               if (!dmId) continue; // not a DM partner of this connection
-              const online = tx.attributes?.online;
+              // TxCreateDoc carries the new doc's fields on `attributes`; TxUpdateDoc
+              // (how an existing UserStatus doc's `online` actually flips live)
+              // carries only the changed fields on `operations` instead. Reading
+              // `attributes` for both meant every live flip after the doc's initial
+              // creation was silently dropped by the `undefined` guard below.
+              const online =
+                tx._class === "core:class:TxCreateDoc"
+                  ? tx.attributes?.online
+                  : tx.operations?.online;
               if (online === undefined) continue; // this update didn't touch `online`
               send("presence", { channelId: dmId, online });
               continue;

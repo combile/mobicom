@@ -110,6 +110,7 @@ export default function MentionInput({ value, onChange, onSend, users }: Mention
 
 const Root = styled.div`
   position: relative;
+  display: flex;
   flex: 1;
 `;
 
