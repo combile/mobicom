@@ -473,6 +473,7 @@ export default function MobiOnContent() {
               <CheckRow>
                 <HiddenInput
                   type="radio"
+                  name="channel-visibility"
                   checked={!newChannelPrivate}
                   onChange={() => setNewChannelPrivate(false)}
                 />
@@ -482,6 +483,7 @@ export default function MobiOnContent() {
               <CheckRow>
                 <HiddenInput
                   type="radio"
+                  name="channel-visibility"
                   checked={newChannelPrivate}
                   onChange={() => setNewChannelPrivate(true)}
                 />
@@ -974,6 +976,11 @@ const CheckboxBox = styled.span`
   ${HiddenInput}:checked + &::after {
     opacity: 1;
     transform: scale(1);
+  }
+
+  ${HiddenInput}:focus-visible + & {
+    outline: 2px solid #00b5ff;
+    outline-offset: 2px;
   }
 `;
 

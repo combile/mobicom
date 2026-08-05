@@ -18,9 +18,11 @@ export async function POST(request: Request) {
     const isPrivate = Boolean(body.isPrivate);
     const memberIds: string[] = Array.isArray(body.memberIds) ? body.memberIds.map(String) : [];
     const visibleToProfessor = Boolean(body.visibleToProfessor);
-    const description = String(body.description ?? "").trim();
+    const description = String(body.description ?? "").trim().slice(0, 200);
     const tags: string[] = Array.isArray(body.tags)
       ? [...new Set((body.tags as unknown[]).map((t: unknown) => String(t).trim()).filter(Boolean))]
+          .slice(0, 10)
+          .map((t) => t.slice(0, 30))
       : [];
 
     if (!name) {
