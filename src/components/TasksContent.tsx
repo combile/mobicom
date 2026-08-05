@@ -11,6 +11,8 @@ type Project = {
   createdAt: string;
 };
 
+type Milestone = { id: string; title: string; targetDate: string | null; status: string };
+
 export default function TasksContent() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -20,6 +22,13 @@ export default function TasksContent() {
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [createProjectError, setCreateProjectError] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [showCreateMilestone, setShowCreateMilestone] = useState(false);
+  const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
+  const [newMilestoneTargetDate, setNewMilestoneTargetDate] = useState("");
+  const [createMilestoneError, setCreateMilestoneError] = useState<string | null>(null);
+  const [creatingMilestone, setCreatingMilestone] = useState(false);
 
   function loadProjects() {
     fetch("/api/mobion/projects")
@@ -34,6 +43,19 @@ export default function TasksContent() {
       .catch(() => setLoadError("프로젝트 목록을 불러오지 못했습니다."));
   }
 
+  function loadProjectDetail(projectId: string) {
+    fetch(`/api/mobion/projects/${projectId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("failed");
+        return res.json();
+      })
+      .then((data) => {
+        setMilestones(data.milestones ?? []);
+        setDetailError(null);
+      })
+      .catch(() => setDetailError("프로젝트 정보를 불러오지 못했습니다."));
+  }
+
   useEffect(() => {
     loadProjects();
   }, []);
@@ -43,6 +65,10 @@ export default function TasksContent() {
       setSelectedProjectId(projects[0].id);
     }
   }, [projects, selectedProjectId]);
+
+  useEffect(() => {
+    if (selectedProjectId) loadProjectDetail(selectedProjectId);
+  }, [selectedProjectId]);
 
   function openCreateProject() {
     setCreateProjectError(null);
@@ -76,6 +102,50 @@ export default function TasksContent() {
     }
   }
 
+  function openCreateMilestone() {
+    setCreateMilestoneError(null);
+    setNewMilestoneTitle("");
+    setNewMilestoneTargetDate("");
+    setShowCreateMilestone(true);
+  }
+
+  async function handleCreateMilestone() {
+    if (!selectedProjectId) return;
+    setCreateMilestoneError(null);
+    setCreatingMilestone(true);
+    try {
+      const res = await fetch(`/api/mobion/projects/${selectedProjectId}/milestones`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newMilestoneTitle,
+          targetDate: newMilestoneTargetDate || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCreateMilestoneError(data.error ?? "요청에 실패했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      setShowCreateMilestone(false);
+      loadProjectDetail(selectedProjectId);
+    } catch {
+      setCreateMilestoneError("요청에 실패했습니다. 다시 시도해 주세요.");
+    } finally {
+      setCreatingMilestone(false);
+    }
+  }
+
+  async function updateMilestoneStatus(milestoneId: string, status: string) {
+    if (!selectedProjectId) return;
+    await fetch(`/api/mobion/milestones/${milestoneId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    loadProjectDetail(selectedProjectId);
+  }
+
   if (loadError) {
     return (
       <Root>
@@ -104,7 +174,35 @@ export default function TasksContent() {
         </Sidebar>
         <Main>
           {!selectedProjectId && <EmptyState>프로젝트를 선택하거나 새로 만들어 보세요</EmptyState>}
-          {/* Task 7/8 render milestone + task detail here, keyed on selectedProjectId */}
+          {selectedProjectId && detailError && <ErrorText>{detailError}</ErrorText>}
+          {selectedProjectId && !detailError && (
+            <>
+              <DetailSectionHeader>
+                <DetailSectionTitle>마일스톤</DetailSectionTitle>
+                <AddButton type="button" onClick={openCreateMilestone}>
+                  + 마일스톤 추가
+                </AddButton>
+              </DetailSectionHeader>
+              <MilestoneList>
+                {milestones.length === 0 && <EmptyState>아직 마일스톤이 없습니다</EmptyState>}
+                {milestones.map((m) => (
+                  <MilestoneRow key={m.id}>
+                    <MilestoneTitle>{m.title}</MilestoneTitle>
+                    {m.targetDate && <MilestoneDate>{m.targetDate}</MilestoneDate>}
+                    <select
+                      value={m.status}
+                      onChange={(e) => updateMilestoneStatus(m.id, e.target.value)}
+                    >
+                      <option value="planned">계획</option>
+                      <option value="in_progress">진행중</option>
+                      <option value="done">완료</option>
+                    </select>
+                  </MilestoneRow>
+                ))}
+              </MilestoneList>
+              {/* Task 8 renders the task list here */}
+            </>
+          )}
         </Main>
       </Layout>
       {showCreateProject && (
@@ -135,6 +233,39 @@ export default function TasksContent() {
               </button>
               <button type="button" onClick={handleCreateProject} disabled={creatingProject}>
                 {creatingProject ? "만드는 중..." : "만들기"}
+              </button>
+            </ModalActions>
+          </ModalCard>
+        </ModalOverlay>
+      )}
+      {showCreateMilestone && (
+        <ModalOverlay onClick={() => setShowCreateMilestone(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalTitle>새 마일스톤 만들기</ModalTitle>
+            <Field>
+              <label htmlFor="new-milestone-title">제목</label>
+              <input
+                id="new-milestone-title"
+                value={newMilestoneTitle}
+                onChange={(e) => setNewMilestoneTitle(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <label htmlFor="new-milestone-date">목표 날짜</label>
+              <input
+                id="new-milestone-date"
+                type="date"
+                value={newMilestoneTargetDate}
+                onChange={(e) => setNewMilestoneTargetDate(e.target.value)}
+              />
+            </Field>
+            {createMilestoneError && <ErrorText>{createMilestoneError}</ErrorText>}
+            <ModalActions>
+              <button type="button" onClick={() => setShowCreateMilestone(false)}>
+                취소
+              </button>
+              <button type="button" onClick={handleCreateMilestone} disabled={creatingMilestone}>
+                {creatingMilestone ? "만드는 중..." : "만들기"}
               </button>
             </ModalActions>
           </ModalCard>
@@ -233,6 +364,55 @@ const EmptyState = styled.div`
   margin: auto;
   color: #9a9a9a;
   font-size: 14px;
+`;
+
+const DetailSectionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+`;
+
+const DetailSectionTitle = styled.h2`
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+`;
+
+const MilestoneList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 24px;
+`;
+
+const MilestoneRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+
+  select {
+    margin-left: auto;
+    background: rgba(0, 0, 0, 0.25);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+`;
+
+const MilestoneTitle = styled.span`
+  color: #d4d4d4;
+  font-size: 14px;
+`;
+
+const MilestoneDate = styled.span`
+  color: #767676;
+  font-size: 12px;
 `;
 
 const ModalOverlay = styled.div`
