@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
+import MentionInput from "./MentionInput";
 
 type Channel = {
   id: string;
@@ -48,6 +49,7 @@ export default function MobiOnContent() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
+  const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDescription, setNewChannelDescription] = useState("");
   const [newChannelTags, setNewChannelTags] = useState<string[]>([]);
@@ -68,6 +70,13 @@ export default function MobiOnContent() {
     if (localStorage.getItem("mobion-channels-collapsed") === "true") {
       setChannelsCollapsed(true);
     }
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/mobion/users/all")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setMentionUsers(data.users ?? []))
+      .catch(() => {}); // best-effort — autocomplete just won't open on failure
   }, []);
 
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
@@ -475,11 +484,11 @@ export default function MobiOnContent() {
             ))}
           </MessageList>
           <Composer>
-            <input
+            <MentionInput
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="메시지 입력..."
+              onChange={setDraft}
+              onSend={handleSend}
+              users={mentionUsers}
             />
             <button onClick={handleSend}>보내기</button>
           </Composer>

@@ -1,0 +1,149 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import styled from "@emotion/styled";
+import { detectMentionTrigger } from "@/lib/mobion-mentions";
+
+type MentionUser = { id: string; name: string };
+
+type MentionInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: () => void;
+  users: MentionUser[];
+};
+
+const MAX_CANDIDATES = 8;
+
+export default function MentionInput({ value, onChange, onSend, users }: MentionInputProps) {
+  const [trigger, setTrigger] = useState<{ start: number; query: string } | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const candidates = trigger
+    ? users
+        .filter((u) => u.name.toLowerCase().includes(trigger.query.toLowerCase()))
+        .slice(0, MAX_CANDIDATES)
+    : [];
+
+  useEffect(() => {
+    if (!trigger) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setTrigger(null);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [trigger]);
+
+  function updateTrigger(nextValue: string, caret: number) {
+    setTrigger(detectMentionTrigger(nextValue, caret));
+    setActiveIndex(0);
+  }
+
+  function selectCandidate(user: MentionUser) {
+    if (!trigger) return;
+    const before = value.slice(0, trigger.start);
+    const after = value.slice(trigger.start + 1 + trigger.query.length);
+    onChange(`${before}@[${user.id}:${user.name}] ${after}`);
+    setTrigger(null);
+    inputRef.current?.focus();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (trigger && candidates.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIndex((i) => (i + 1) % candidates.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIndex((i) => (i - 1 + candidates.length) % candidates.length);
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        selectCandidate(candidates[activeIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        setTrigger(null);
+        return;
+      }
+    }
+    if (e.key === "Enter") onSend();
+  }
+
+  return (
+    <Root ref={rootRef}>
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          updateTrigger(e.target.value, e.target.selectionStart ?? e.target.value.length);
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder="메시지 입력... (@로 멘션)"
+      />
+      {trigger && candidates.length > 0 && (
+        <Dropdown role="listbox">
+          {candidates.map((u, i) => (
+            <Candidate
+              key={u.id}
+              type="button"
+              data-active={i === activeIndex || undefined}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                selectCandidate(u);
+              }}
+            >
+              {u.name}
+            </Candidate>
+          ))}
+        </Dropdown>
+      )}
+    </Root>
+  );
+}
+
+const Root = styled.div`
+  position: relative;
+  flex: 1;
+`;
+
+const Dropdown = styled.div`
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(37, 37, 37, 0.95);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+`;
+
+const Candidate = styled.button`
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover,
+  &[data-active] {
+    background: rgba(255, 255, 255, 0.08);
+    color: #00b5ff;
+  }
+`;
