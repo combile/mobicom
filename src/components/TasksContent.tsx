@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
+import CustomSelect from "./CustomSelect";
 
 type Project = {
   id: string;
@@ -22,6 +23,18 @@ type Task = {
   assigneeId: string | null;
   assigneeName: string | null;
 };
+
+const TASK_STATUS_OPTIONS = [
+  { value: "todo", label: "할 일" },
+  { value: "in_progress", label: "진행중" },
+  { value: "done", label: "완료" },
+];
+
+const MILESTONE_STATUS_OPTIONS = [
+  { value: "planned", label: "계획" },
+  { value: "in_progress", label: "진행중" },
+  { value: "done", label: "완료" },
+];
 
 export default function TasksContent() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -275,7 +288,8 @@ export default function TasksContent() {
             </ProjectItem>
           ))}
           <AddButton type="button" onClick={openCreateProject}>
-            + 프로젝트 추가
+            <span className="material-symbols-outlined">add</span>
+            프로젝트 추가
           </AddButton>
         </Sidebar>
         <Main>
@@ -286,7 +300,8 @@ export default function TasksContent() {
               <DetailSectionHeader>
                 <DetailSectionTitle>마일스톤</DetailSectionTitle>
                 <AddButton type="button" onClick={openCreateMilestone}>
-                  + 마일스톤 추가
+                  <span className="material-symbols-outlined">add</span>
+                  마일스톤 추가
                 </AddButton>
               </DetailSectionHeader>
               <MilestoneList>
@@ -301,14 +316,11 @@ export default function TasksContent() {
                         {tasks.filter((t) => t.milestoneId === m.id).length} 완료
                       </MilestoneDate>
                     )}
-                    <select
+                    <RowSelect
                       value={m.status}
-                      onChange={(e) => updateMilestoneStatus(m.id, e.target.value)}
-                    >
-                      <option value="planned">계획</option>
-                      <option value="in_progress">진행중</option>
-                      <option value="done">완료</option>
-                    </select>
+                      onChange={(v) => updateMilestoneStatus(m.id, v)}
+                      options={MILESTONE_STATUS_OPTIONS}
+                    />
                   </MilestoneRow>
                 ))}
               </MilestoneList>
@@ -316,32 +328,32 @@ export default function TasksContent() {
               <DetailSectionHeader>
                 <DetailSectionTitle>태스크</DetailSectionTitle>
                 <AddButton type="button" onClick={openCreateTask}>
-                  + 태스크 추가
+                  <span className="material-symbols-outlined">add</span>
+                  태스크 추가
                 </AddButton>
               </DetailSectionHeader>
               <FilterRow>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="">모든 상태</option>
-                  <option value="todo">할 일</option>
-                  <option value="in_progress">진행중</option>
-                  <option value="done">완료</option>
-                </select>
-                <select value={milestoneFilter} onChange={(e) => setMilestoneFilter(e.target.value)}>
-                  <option value="">모든 마일스톤</option>
-                  {milestones.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.title}
-                    </option>
-                  ))}
-                </select>
-                <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}>
-                  <option value="">모든 담당자</option>
-                  {allUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
+                <CustomSelect
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={[{ value: "", label: "모든 상태" }, ...TASK_STATUS_OPTIONS]}
+                />
+                <CustomSelect
+                  value={milestoneFilter}
+                  onChange={setMilestoneFilter}
+                  options={[
+                    { value: "", label: "모든 마일스톤" },
+                    ...milestones.map((m) => ({ value: m.id, label: m.title })),
+                  ]}
+                />
+                <CustomSelect
+                  value={assigneeFilter}
+                  onChange={setAssigneeFilter}
+                  options={[
+                    { value: "", label: "모든 담당자" },
+                    ...allUsers.map((u) => ({ value: u.id, label: u.name })),
+                  ]}
+                />
               </FilterRow>
               <TaskList>
                 {visibleTasks.length === 0 && <EmptyState>조건에 맞는 태스크가 없습니다</EmptyState>}
@@ -350,14 +362,11 @@ export default function TasksContent() {
                     <TaskTitle>{t.title}</TaskTitle>
                     <TaskMeta>{t.assigneeName ?? "미배정"}</TaskMeta>
                     {t.dueDate && <TaskMeta>{t.dueDate}</TaskMeta>}
-                    <select
+                    <RowSelect
                       value={t.status}
-                      onChange={(e) => updateTaskStatus(t.id, e.target.value)}
-                    >
-                      <option value="todo">할 일</option>
-                      <option value="in_progress">진행중</option>
-                      <option value="done">완료</option>
-                    </select>
+                      onChange={(v) => updateTaskStatus(t.id, v)}
+                      options={TASK_STATUS_OPTIONS}
+                    />
                   </TaskRow>
                 ))}
               </TaskList>
@@ -453,34 +462,28 @@ export default function TasksContent() {
               />
             </Field>
             <Field>
-              <label htmlFor="new-task-assignee">담당자</label>
-              <select
-                id="new-task-assignee"
+              <label>담당자</label>
+              <CustomSelect
+                fullWidth
                 value={newTaskAssigneeId}
-                onChange={(e) => setNewTaskAssigneeId(e.target.value)}
-              >
-                <option value="">미배정</option>
-                {allUsers.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setNewTaskAssigneeId}
+                options={[
+                  { value: "", label: "미배정" },
+                  ...allUsers.map((u) => ({ value: u.id, label: u.name })),
+                ]}
+              />
             </Field>
             <Field>
-              <label htmlFor="new-task-milestone">마일스톤</label>
-              <select
-                id="new-task-milestone"
+              <label>마일스톤</label>
+              <CustomSelect
+                fullWidth
                 value={newTaskMilestoneId}
-                onChange={(e) => setNewTaskMilestoneId(e.target.value)}
-              >
-                <option value="">없음</option>
-                {milestones.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.title}
-                  </option>
-                ))}
-              </select>
+                onChange={setNewTaskMilestoneId}
+                options={[
+                  { value: "", label: "없음" },
+                  ...milestones.map((m) => ({ value: m.id, label: m.title })),
+                ]}
+              />
             </Field>
             <Field>
               <label htmlFor="new-task-due-date">마감일</label>
@@ -564,6 +567,9 @@ const ProjectItem = styled.div`
 `;
 
 const AddButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   padding: 8px 12px;
   margin-top: 8px;
@@ -574,6 +580,10 @@ const AddButton = styled.button`
   font-size: 13px;
   cursor: pointer;
   text-align: left;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
 
   &:hover {
     color: #00b5ff;
@@ -625,16 +635,10 @@ const MilestoneRow = styled.div`
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+`;
 
-  select {
-    margin-left: auto;
-    background: rgba(0, 0, 0, 0.25);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 12px;
-  }
+const RowSelect = styled(CustomSelect)`
+  margin-left: auto;
 `;
 
 const MilestoneTitle = styled.span`
@@ -651,15 +655,6 @@ const FilterRow = styled.div`
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
-
-  select {
-    background: rgba(0, 0, 0, 0.25);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 12px;
-  }
 `;
 
 const TaskList = styled.div`
@@ -675,16 +670,6 @@ const TaskRow = styled.div`
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-
-  select {
-    margin-left: auto;
-    background: rgba(0, 0, 0, 0.25);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 12px;
-  }
 `;
 
 const TaskTitle = styled.span`

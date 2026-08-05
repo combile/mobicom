@@ -299,7 +299,9 @@ export default function MobiOnContent() {
         <Sidebar>
           <SectionHeader ref={channelMenuRef}>
             <SectionTitle type="button" onClick={toggleChannelsCollapsed}>
-              <Chevron data-collapsed={channelsCollapsed || undefined}>▾</Chevron>
+              <Chevron data-collapsed={channelsCollapsed || undefined}>
+                <span className="material-symbols-outlined">expand_more</span>
+              </Chevron>
               채널
             </SectionTitle>
             <SectionActions>
@@ -308,31 +310,41 @@ export default function MobiOnContent() {
                 onClick={() => setShowChannelMenu((v) => !v)}
                 aria-label="채널 메뉴"
               >
-                ⋮
+                <span className="material-symbols-outlined">more_vert</span>
               </IconButton>
               <IconButton type="button" onClick={openCreateChannel} aria-label="채널 추가">
-                +
+                <span className="material-symbols-outlined">add</span>
               </IconButton>
             </SectionActions>
             {showChannelMenu && (
               <ChannelMenu>
                 <ChannelMenuItem
                   type="button"
+                  data-active={sortMode === "name" || undefined}
                   onClick={() => {
                     setSortMode("name");
                     setShowChannelMenu(false);
                   }}
                 >
-                  {sortMode === "name" ? "✓ " : ""}이름순
+                  <span className="material-symbols-outlined">sort_by_alpha</span>
+                  이름순
+                  {sortMode === "name" && (
+                    <ActiveCheck className="material-symbols-outlined">check</ActiveCheck>
+                  )}
                 </ChannelMenuItem>
                 <ChannelMenuItem
                   type="button"
+                  data-active={sortMode === "recent" || undefined}
                   onClick={() => {
                     setSortMode("recent");
                     setShowChannelMenu(false);
                   }}
                 >
-                  {sortMode === "recent" ? "✓ " : ""}최근 활동순
+                  <span className="material-symbols-outlined">history</span>
+                  최근 활동순
+                  {sortMode === "recent" && (
+                    <ActiveCheck className="material-symbols-outlined">check</ActiveCheck>
+                  )}
                 </ChannelMenuItem>
                 <ChannelMenuDivider />
                 <ChannelMenuItem
@@ -342,6 +354,7 @@ export default function MobiOnContent() {
                     setShowChannelMenu(false);
                   }}
                 >
+                  <span className="material-symbols-outlined">refresh</span>
                   새로고침
                 </ChannelMenuItem>
               </ChannelMenu>
@@ -770,8 +783,12 @@ const SectionTitle = styled.button`
 `;
 
 const Chevron = styled.span`
-  display: inline-block;
+  display: inline-flex;
   transition: transform 0.15s ease;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
 
   &[data-collapsed] {
     transform: rotate(-90deg);
@@ -784,8 +801,8 @@ const SectionActions = styled.div`
 `;
 
 const IconButton = styled.button`
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -794,7 +811,10 @@ const IconButton = styled.button`
   color: #9a9a9a;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
 
   &:hover {
     color: #00b5ff;
@@ -809,7 +829,7 @@ const ChannelMenu = styled.div`
   z-index: 10;
   display: flex;
   flex-direction: column;
-  min-width: 140px;
+  min-width: 170px;
   padding: 6px;
   border-radius: 10px;
   background: rgba(37, 37, 37, 0.95);
@@ -819,8 +839,11 @@ const ChannelMenu = styled.div`
 `;
 
 const ChannelMenuItem = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-align: left;
-  padding: 6px 8px;
+  padding: 7px 8px;
   border: none;
   background: transparent;
   color: #d4d4d4;
@@ -828,10 +851,28 @@ const ChannelMenuItem = styled.button`
   border-radius: 6px;
   cursor: pointer;
 
+  > .material-symbols-outlined {
+    font-size: 17px;
+    color: #767676;
+  }
+
   &:hover {
     background: rgba(255, 255, 255, 0.08);
     color: #00b5ff;
   }
+
+  &:hover > .material-symbols-outlined {
+    color: #00b5ff;
+  }
+
+  &[data-active] {
+    color: #00b5ff;
+  }
+`;
+
+const ActiveCheck = styled.span`
+  margin-left: auto;
+  color: #00b5ff !important;
 `;
 
 const ChannelMenuDivider = styled.div`
