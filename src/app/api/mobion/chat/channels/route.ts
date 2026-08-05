@@ -18,6 +18,10 @@ export async function POST(request: Request) {
     const isPrivate = Boolean(body.isPrivate);
     const memberIds: string[] = Array.isArray(body.memberIds) ? body.memberIds.map(String) : [];
     const visibleToProfessor = Boolean(body.visibleToProfessor);
+    const description = String(body.description ?? "").trim();
+    const tags: string[] = Array.isArray(body.tags)
+      ? [...new Set((body.tags as unknown[]).map((t: unknown) => String(t).trim()).filter(Boolean))]
+      : [];
 
     if (!name) {
       return NextResponse.json({ error: "채널 이름을 입력해 주세요." }, { status: 400 });
@@ -73,18 +77,27 @@ export async function POST(request: Request) {
       members = [];
     }
 
-    await client.createDoc({
+    const channelId = await client.createDoc({
       _class: CHUNTER_CLASS.Channel,
       space: HULY_CORE_SPACE,
       attributes: {
         name,
-        description: "",
+        description,
         private: isPrivate,
         members,
         archived: false,
         topic: "",
       },
     });
+
+    if (tags.length > 0) {
+      await query(
+        `INSERT INTO mobion_channel_tags (channel_id, tag)
+         SELECT $1, tag FROM unnest($2::text[]) AS tag
+         ON CONFLICT DO NOTHING`,
+        [channelId, tags],
+      );
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
