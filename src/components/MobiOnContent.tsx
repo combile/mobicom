@@ -9,6 +9,7 @@ type Channel = {
   description: string;
   tags: string[];
   kind: "channel" | "dm";
+  online?: boolean;
 };
 type Message = {
   id: string;
@@ -69,6 +70,14 @@ export default function MobiOnContent() {
     }
   }, []);
 
+  const [dmsCollapsed, setDmsCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem("mobion-dms-collapsed") === "true") {
+      setDmsCollapsed(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (!showChannelMenu) return;
     function handleClickOutside(e: MouseEvent) {
@@ -84,6 +93,14 @@ export default function MobiOnContent() {
     setChannelsCollapsed((prev) => {
       const next = !prev;
       localStorage.setItem("mobion-channels-collapsed", String(next));
+      return next;
+    });
+  }
+
+  function toggleDmsCollapsed() {
+    setDmsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("mobion-dms-collapsed", String(next));
       return next;
     });
   }
@@ -114,6 +131,11 @@ export default function MobiOnContent() {
       es.addEventListener("channel_added", (e) => {
         const channel = JSON.parse((e as MessageEvent).data) as Channel;
         setChannels((prev) => (prev.some((c) => c.id === channel.id) ? prev : [...prev, channel]));
+      });
+
+      es.addEventListener("presence", (e) => {
+        const { channelId, online } = JSON.parse((e as MessageEvent).data);
+        setChannels((prev) => prev.map((c) => (c.id === channelId ? { ...c, online } : c)));
       });
 
       es.addEventListener("error", (e) => {
@@ -196,10 +218,20 @@ export default function MobiOnContent() {
     return [...set].sort((a, b) => a.localeCompare(b, "ko"));
   }, [channels]);
 
-  const visibleChannels = useMemo(
+  const visibleChannelsOnly = useMemo(
     () =>
-      sortedChannels.filter((c) => activeTagFilters.every((t) => c.tags.includes(t))),
+      sortedChannels.filter(
+        (c) => c.kind === "channel" && activeTagFilters.every((t) => c.tags.includes(t)),
+      ),
     [sortedChannels, activeTagFilters],
+  );
+  // DMs are never affected by the channel tag filter (DMs carry no tags) —
+  // filtering them through the same .every() would hide every DM whenever any
+  // tag filter is active, since an empty tags array never satisfies a
+  // non-empty filter list.
+  const visibleDms = useMemo(
+    () => sortedChannels.filter((c) => c.kind === "dm"),
+    [sortedChannels],
   );
 
   function toggleTagFilter(tag: string) {
@@ -375,13 +407,33 @@ export default function MobiOnContent() {
             </TagFilterRow>
           )}
           {!channelsCollapsed &&
-            visibleChannels.map((c) => (
+            visibleChannelsOnly.map((c) => (
               <ChannelItem
                 key={c.id}
                 data-active={c.id === activeChannelId || undefined}
                 onClick={() => setActiveChannelId(c.id)}
               >
-                {c.kind === "dm" ? "@" : "#"} {c.name}
+                # {c.name}
+              </ChannelItem>
+            ))}
+
+          <SectionHeader>
+            <SectionTitle type="button" onClick={toggleDmsCollapsed}>
+              <Chevron data-collapsed={dmsCollapsed || undefined}>
+                <span className="material-symbols-outlined">expand_more</span>
+              </Chevron>
+              직접 메시지
+            </SectionTitle>
+          </SectionHeader>
+          {!dmsCollapsed &&
+            visibleDms.map((c) => (
+              <ChannelItem
+                key={c.id}
+                data-active={c.id === activeChannelId || undefined}
+                onClick={() => setActiveChannelId(c.id)}
+              >
+                <PresenceDot data-online={c.online || undefined} />
+                {c.name}
               </ChannelItem>
             ))}
         </Sidebar>
@@ -602,6 +654,20 @@ const ChannelItem = styled.div`
   &[data-active] {
     background: rgba(0, 181, 255, 0.15);
     color: #00b5ff;
+  }
+`;
+
+const PresenceDot = styled.span`
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: #767676;
+
+  &[data-online] {
+    background: #4ade80;
+    box-shadow: 0 0 4px rgba(74, 222, 128, 0.6);
   }
 `;
 
