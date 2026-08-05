@@ -290,6 +290,7 @@ export default function MobiOnContent() {
   const activeMessages = messages
     .filter((m) => m.channelId === activeChannelId)
     .sort((a, b) => a.createdOn - b.createdOn);
+  const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
 
   return (
     <Root>
@@ -372,6 +373,22 @@ export default function MobiOnContent() {
             ))}
         </Sidebar>
         <Main>
+          <ChannelHeader>
+            {activeChannel ? (
+              <>
+                <ChannelHeaderTitle>
+                  {activeChannel.kind === "dm" ? "@" : "#"} {activeChannel.name}
+                </ChannelHeaderTitle>
+                {activeChannel.description && (
+                  <ChannelHeaderDescription>
+                    {activeChannel.description}
+                  </ChannelHeaderDescription>
+                )}
+              </>
+            ) : (
+              <ChannelHeaderTitle>채널을 선택하거나 새로 만들어 보세요</ChannelHeaderTitle>
+            )}
+          </ChannelHeader>
           <MessageList ref={messageListRef}>
             {activeMessages.map((m) => (
               <MessageRow key={m.id}>
@@ -608,6 +625,23 @@ const Main = styled.div`
   background: rgba(37, 37, 37, 0.35);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
+`;
+
+const ChannelHeader = styled.div`
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+`;
+
+const ChannelHeaderTitle = styled.div`
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+`;
+
+const ChannelHeaderDescription = styled.div`
+  margin-top: 2px;
+  font-size: 12px;
+  color: #9a9a9a;
 `;
 
 const MessageList = styled.div`
