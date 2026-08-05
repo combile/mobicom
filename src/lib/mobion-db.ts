@@ -7,7 +7,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 7;
+const MOBION_SCHEMA_VERSION = 8;
 
 export const pool =
   globalThis.mobionPool ??
@@ -120,6 +120,17 @@ export async function ensureMobionSchema() {
         `ALTER TABLE mobion_users
          ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
       );
+      // Huly's Channel type has no tags field and we can't extend the installed
+      // @hcengineering/* package schema, so channel tags live here instead, keyed
+      // by the Huly channel id (chunter:class:Channel's _id — a plain string, not
+      // a foreign key into any table we own).
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_channel_tags (
+          channel_id TEXT NOT NULL,
+          tag TEXT NOT NULL,
+          PRIMARY KEY (channel_id, tag)
+        )
+      `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
       globalThis.mobionSchemaVersion = undefined;
