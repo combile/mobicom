@@ -55,12 +55,24 @@ export default function MobiOnContent() {
   const [showChannelMenu, setShowChannelMenu] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const retryDelay = useRef(1000);
+  const channelMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (localStorage.getItem("mobion-channels-collapsed") === "true") {
       setChannelsCollapsed(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!showChannelMenu) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (!channelMenuRef.current?.contains(e.target as Node)) {
+        setShowChannelMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showChannelMenu]);
 
   function toggleChannelsCollapsed() {
     setChannelsCollapsed((prev) => {
@@ -258,7 +270,7 @@ export default function MobiOnContent() {
       {reconnecting && <ReconnectBanner>재연결 중...</ReconnectBanner>}
       <Layout>
         <Sidebar>
-          <SectionHeader>
+          <SectionHeader ref={channelMenuRef}>
             <SectionTitle type="button" onClick={toggleChannelsCollapsed}>
               <Chevron data-collapsed={channelsCollapsed || undefined}>▾</Chevron>
               채널
