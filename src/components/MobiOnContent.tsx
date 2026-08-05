@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 
-type Channel = { id: string; name: string; kind: "channel" | "dm" };
+type Channel = {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  kind: "channel" | "dm";
+};
 type Message = {
   id: string;
   channelId: string;
@@ -182,6 +188,26 @@ export default function MobiOnContent() {
     return copy;
   }, [channels, sortMode, lastActivity]);
 
+  const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of channels) for (const t of c.tags) set.add(t);
+    return [...set].sort((a, b) => a.localeCompare(b, "ko"));
+  }, [channels]);
+
+  const visibleChannels = useMemo(
+    () =>
+      sortedChannels.filter((c) => activeTagFilters.every((t) => c.tags.includes(t))),
+    [sortedChannels, activeTagFilters],
+  );
+
+  function toggleTagFilter(tag: string) {
+    setActiveTagFilters((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  }
+
   function openCreateChannel() {
     setCreateChannelError(null);
     setNewChannelName("");
@@ -320,8 +346,22 @@ export default function MobiOnContent() {
               </ChannelMenu>
             )}
           </SectionHeader>
+          {!channelsCollapsed && allTags.length > 0 && (
+            <TagFilterRow>
+              {allTags.map((tag) => (
+                <TagFilterChip
+                  key={tag}
+                  type="button"
+                  data-active={activeTagFilters.includes(tag) || undefined}
+                  onClick={() => toggleTagFilter(tag)}
+                >
+                  {tag}
+                </TagFilterChip>
+              ))}
+            </TagFilterRow>
+          )}
           {!channelsCollapsed &&
-            sortedChannels.map((c) => (
+            visibleChannels.map((c) => (
               <ChannelItem
                 key={c.id}
                 data-active={c.id === activeChannelId || undefined}
@@ -529,6 +569,34 @@ const ChannelItem = styled.div`
 
   &[data-active] {
     background: rgba(0, 181, 255, 0.15);
+    color: #00b5ff;
+  }
+`;
+
+const TagFilterRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+`;
+
+const TagFilterChip = styled.button`
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #00b5ff;
+    color: #00b5ff;
+  }
+
+  &[data-active] {
+    background: rgba(0, 181, 255, 0.2);
+    border-color: #00b5ff;
     color: #00b5ff;
   }
 `;
