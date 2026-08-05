@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 
 type Channel = { id: string; name: string; kind: "channel" | "dm" };
@@ -50,7 +50,25 @@ export default function MobiOnContent() {
   const [newChannelProfessor, setNewChannelProfessor] = useState(false);
   const [createChannelError, setCreateChannelError] = useState<string | null>(null);
   const [creatingChannel, setCreatingChannel] = useState(false);
+  const [channelsCollapsed, setChannelsCollapsed] = useState(false);
+  const [sortMode, setSortMode] = useState<"name" | "recent">("name");
+  const [showChannelMenu, setShowChannelMenu] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
   const retryDelay = useRef(1000);
+
+  useEffect(() => {
+    if (localStorage.getItem("mobion-channels-collapsed") === "true") {
+      setChannelsCollapsed(true);
+    }
+  }, []);
+
+  function toggleChannelsCollapsed() {
+    setChannelsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("mobion-channels-collapsed", String(next));
+      return next;
+    });
+  }
 
   useEffect(() => {
     let es: EventSource | null = null;
@@ -109,7 +127,7 @@ export default function MobiOnContent() {
       es?.close();
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, []);
+  }, [refreshToken]);
 
   async function handleSend() {
     const text = draft.trim();
@@ -132,6 +150,25 @@ export default function MobiOnContent() {
     }
     setDraft("");
   }
+
+  const lastActivity = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of messages) {
+      const prev = map.get(m.channelId) ?? 0;
+      if (m.createdOn > prev) map.set(m.channelId, m.createdOn);
+    }
+    return map;
+  }, [messages]);
+
+  const sortedChannels = useMemo(() => {
+    const copy = [...channels];
+    if (sortMode === "name") {
+      copy.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    } else {
+      copy.sort((a, b) => (lastActivity.get(b.id) ?? 0) - (lastActivity.get(a.id) ?? 0));
+    }
+    return copy;
+  }, [channels, sortMode, lastActivity]);
 
   function openCreateChannel() {
     setCreateChannelError(null);
@@ -221,18 +258,66 @@ export default function MobiOnContent() {
       {reconnecting && <ReconnectBanner>재연결 중...</ReconnectBanner>}
       <Layout>
         <Sidebar>
-          <AddChannelButton type="button" onClick={openCreateChannel}>
-            + 채널 추가
-          </AddChannelButton>
-          {channels.map((c) => (
-            <ChannelItem
-              key={c.id}
-              data-active={c.id === activeChannelId || undefined}
-              onClick={() => setActiveChannelId(c.id)}
-            >
-              {c.kind === "dm" ? "@" : "#"} {c.name}
-            </ChannelItem>
-          ))}
+          <SectionHeader>
+            <SectionTitle type="button" onClick={toggleChannelsCollapsed}>
+              <Chevron data-collapsed={channelsCollapsed || undefined}>▾</Chevron>
+              채널
+            </SectionTitle>
+            <SectionActions>
+              <IconButton
+                type="button"
+                onClick={() => setShowChannelMenu((v) => !v)}
+                aria-label="채널 메뉴"
+              >
+                ⋮
+              </IconButton>
+              <IconButton type="button" onClick={openCreateChannel} aria-label="채널 추가">
+                +
+              </IconButton>
+            </SectionActions>
+            {showChannelMenu && (
+              <ChannelMenu>
+                <ChannelMenuItem
+                  type="button"
+                  onClick={() => {
+                    setSortMode("name");
+                    setShowChannelMenu(false);
+                  }}
+                >
+                  {sortMode === "name" ? "✓ " : ""}이름순
+                </ChannelMenuItem>
+                <ChannelMenuItem
+                  type="button"
+                  onClick={() => {
+                    setSortMode("recent");
+                    setShowChannelMenu(false);
+                  }}
+                >
+                  {sortMode === "recent" ? "✓ " : ""}최근 활동순
+                </ChannelMenuItem>
+                <ChannelMenuDivider />
+                <ChannelMenuItem
+                  type="button"
+                  onClick={() => {
+                    setRefreshToken((n) => n + 1);
+                    setShowChannelMenu(false);
+                  }}
+                >
+                  새로고침
+                </ChannelMenuItem>
+              </ChannelMenu>
+            )}
+          </SectionHeader>
+          {!channelsCollapsed &&
+            sortedChannels.map((c) => (
+              <ChannelItem
+                key={c.id}
+                data-active={c.id === activeChannelId || undefined}
+                onClick={() => setActiveChannelId(c.id)}
+              >
+                {c.kind === "dm" ? "@" : "#"} {c.name}
+              </ChannelItem>
+            ))}
         </Sidebar>
         <Main>
           <MessageList ref={messageListRef}>
@@ -543,22 +628,100 @@ const SendErrorText = styled.p`
   font-size: 12px;
 `;
 
-const AddChannelButton = styled.button`
-  width: 100%;
-  padding: 8px 12px;
+const SectionHeader = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 8px;
-  border-radius: 8px;
-  border: 1px dashed rgba(255, 255, 255, 0.24);
+`;
+
+const SectionTitle = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
   background: transparent;
   color: #9a9a9a;
   font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  text-align: left;
+  padding: 4px 0;
+
+  &:hover {
+    color: #d4d4d4;
+  }
+`;
+
+const Chevron = styled.span`
+  display: inline-block;
+  transition: transform 0.15s ease;
+
+  &[data-collapsed] {
+    transform: rotate(-90deg);
+  }
+`;
+
+const SectionActions = styled.div`
+  display: flex;
+  gap: 4px;
+`;
+
+const IconButton = styled.button`
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #9a9a9a;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
 
   &:hover {
     color: #00b5ff;
-    border-color: #00b5ff;
+    background: rgba(255, 255, 255, 0.06);
   }
+`;
+
+const ChannelMenu = styled.div`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(37, 37, 37, 0.95);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+`;
+
+const ChannelMenuItem = styled.button`
+  text-align: left;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #00b5ff;
+  }
+`;
+
+const ChannelMenuDivider = styled.div`
+  height: 1px;
+  margin: 4px 0;
+  background: rgba(255, 255, 255, 0.14);
 `;
 
 const ModalOverlay = styled.div`
