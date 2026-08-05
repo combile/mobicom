@@ -18,6 +18,15 @@ export const CHUNTER_CLASS = {
   ChatMessage: "chunter:class:ChatMessage",
 } as const;
 
+// core plugin's own top-level class (not chunter-specific) for presence status,
+// confirmed by reading @hcengineering/core/src/classes.ts (`UserStatus extends Doc
+// { online: boolean; user: AccountUuid }`) and component.ts (`coreId = 'core'`,
+// `UserStatus` inside the `core` plugin's class map) — same `${pluginId}:${category}:${Key}`
+// id pattern as CHUNTER_CLASS above.
+export const CORE_CLASS = {
+  UserStatus: "core:class:UserStatus",
+} as const;
+
 // Not a chunter-specific value — this is core's own top-level container id that every
 // ChunterSpace-derived doc (Channel, DirectMessage) lives under, verified against the
 // live server via `findAll` on a real Channel doc. Distinct from `attachedTo`, which is
