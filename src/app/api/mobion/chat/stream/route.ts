@@ -57,7 +57,7 @@ function isNewChannel(tx: RawTx) {
   );
 }
 
-type AuthorRow = { huly_social_id: string | null; name: string };
+type AuthorRow = { huly_social_id: string | null; name: string; avatar_url: string | null };
 
 export async function GET() {
   try {
@@ -134,11 +134,12 @@ export async function GET() {
         // Best-effort: an author name we can't resolve just falls back to the
         // raw Huly id client-side, it never blocks the stream from opening.
         authorRows = await query<AuthorRow>(
-          `SELECT l.huly_social_id, u.name
+          `SELECT l.huly_social_id, u.name, u.avatar_url
            FROM mobion_huly_link l JOIN mobion_users u ON u.id = l.user_id
            WHERE l.huly_social_id IS NOT NULL`,
         ).then((r) => r.rows).catch(() => []);
         const authorNames = new Map(authorRows.map((r) => [r.huly_social_id, r.name]));
+        const authorAvatars = new Map(authorRows.map((r) => [r.huly_social_id, r.avatar_url]));
 
         const spaces = [
           ...visibleChannels.map((c) => ({ id: c._id, name: c.name, kind: "channel" as const })),
@@ -153,6 +154,7 @@ export async function GET() {
             text: m.message,
             authorId: m.createdBy,
             authorName: authorNames.get(m.createdBy) ?? null,
+            authorAvatarUrl: authorAvatars.get(m.createdBy) ?? null,
             createdOn: m.createdOn,
           })),
         });
@@ -183,6 +185,7 @@ export async function GET() {
               text: tx.attributes?.message ?? "",
               authorId: tx.createdBy,
               authorName: authorNames.get(tx.createdBy) ?? null,
+              authorAvatarUrl: authorAvatars.get(tx.createdBy) ?? null,
               // Huly's Doc.createdOn is documented as optional ("filled by
               // platform") — createTxCreateDoc only guarantees modifiedOn.
               // Fall back so message ordering never compares against undefined.

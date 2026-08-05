@@ -10,6 +10,7 @@ type Message = {
   text: string;
   authorId: string;
   authorName: string | null;
+  authorAvatarUrl: string | null;
   createdOn: number;
 };
 
@@ -20,6 +21,14 @@ function formatTime(ms: number) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+const AVATAR_COLORS = ["#00b5ff", "#ff9d5c", "#8b7cf6", "#4ade80", "#ff6767", "#e5c76b"];
+
+function avatarColor(authorId: string) {
+  let hash = 0;
+  for (let i = 0; i < authorId.length; i++) hash = (hash * 31 + authorId.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
 export default function MobiOnContent() {
@@ -210,11 +219,20 @@ export default function MobiOnContent() {
           <MessageList ref={messageListRef}>
             {activeMessages.map((m) => (
               <MessageRow key={m.id}>
-                <MessageMeta>
-                  <MessageAuthor>{m.authorName ?? "알 수 없음"}</MessageAuthor>
-                  <MessageTime>{formatTime(m.createdOn)}</MessageTime>
-                </MessageMeta>
-                <MessageText>{m.text}</MessageText>
+                {m.authorAvatarUrl ? (
+                  <Avatar src={m.authorAvatarUrl} alt="" />
+                ) : (
+                  <AvatarFallback style={{ background: avatarColor(m.authorId) }}>
+                    {(m.authorName ?? "?").charAt(0)}
+                  </AvatarFallback>
+                )}
+                <MessageBody>
+                  <MessageMeta>
+                    <MessageAuthor>{m.authorName ?? "알 수 없음"}</MessageAuthor>
+                    <MessageTime>{formatTime(m.createdOn)}</MessageTime>
+                  </MessageMeta>
+                  <MessageText>{m.text}</MessageText>
+                </MessageBody>
               </MessageRow>
             ))}
           </MessageList>
@@ -379,8 +397,36 @@ const MessageList = styled.div`
 
 const MessageRow = styled.div`
   display: flex;
+  align-items: flex-start;
+  gap: 10px;
+`;
+
+const MessageBody = styled.div`
+  display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+`;
+
+const Avatar = styled.img`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+`;
+
+const AvatarFallback = styled.div`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #061018;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
 `;
 
 const MessageMeta = styled.div`
