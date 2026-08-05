@@ -18,7 +18,7 @@ export async function PATCH(
       return NextResponse.json({ error: "올바르지 않은 상태 값입니다." }, { status: 400 });
     }
 
-    const title = body.title !== undefined ? String(body.title).trim().slice(0, 150) : undefined;
+    const title = body.title != null ? String(body.title).trim().slice(0, 150) : undefined;
     if (title !== undefined && !title) {
       return NextResponse.json({ error: "마일스톤 제목을 입력해 주세요." }, { status: 400 });
     }

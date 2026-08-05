@@ -169,11 +169,20 @@ export default function TasksContent() {
 
   async function updateMilestoneStatus(milestoneId: string, status: string) {
     if (!selectedProjectId) return;
-    await fetch(`/api/mobion/milestones/${milestoneId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+    try {
+      const res = await fetch(`/api/mobion/milestones/${milestoneId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        setDetailError("상태를 변경하지 못했습니다.");
+        return;
+      }
+    } catch {
+      setDetailError("요청에 실패했습니다. 다시 시도해 주세요.");
+      return;
+    }
     loadProjectDetail(selectedProjectId);
   }
 
@@ -219,11 +228,20 @@ export default function TasksContent() {
 
   async function updateTaskStatus(taskId: string, status: string) {
     if (!selectedProjectId) return;
-    await fetch(`/api/mobion/tasks/${taskId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+    try {
+      const res = await fetch(`/api/mobion/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        setDetailError("상태를 변경하지 못했습니다.");
+        return;
+      }
+    } catch {
+      setDetailError("요청에 실패했습니다. 다시 시도해 주세요.");
+      return;
+    }
     loadProjectDetail(selectedProjectId);
   }
 
@@ -277,6 +295,12 @@ export default function TasksContent() {
                   <MilestoneRow key={m.id}>
                     <MilestoneTitle>{m.title}</MilestoneTitle>
                     {m.targetDate && <MilestoneDate>{m.targetDate}</MilestoneDate>}
+                    {tasks.some((t) => t.milestoneId === m.id) && (
+                      <MilestoneDate>
+                        {tasks.filter((t) => t.milestoneId === m.id && t.status === "done").length}/
+                        {tasks.filter((t) => t.milestoneId === m.id).length} 완료
+                      </MilestoneDate>
+                    )}
                     <select
                       value={m.status}
                       onChange={(e) => updateMilestoneStatus(m.id, e.target.value)}

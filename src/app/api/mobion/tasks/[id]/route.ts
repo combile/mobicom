@@ -18,12 +18,12 @@ export async function PATCH(
       return NextResponse.json({ error: "올바르지 않은 상태 값입니다." }, { status: 400 });
     }
 
-    const title = body.title !== undefined ? String(body.title).trim().slice(0, 150) : undefined;
+    const title = body.title != null ? String(body.title).trim().slice(0, 150) : undefined;
     if (title !== undefined && !title) {
       return NextResponse.json({ error: "태스크 제목을 입력해 주세요." }, { status: 400 });
     }
     const description =
-      body.description !== undefined ? String(body.description).trim().slice(0, 1000) : undefined;
+      body.description != null ? String(body.description).trim().slice(0, 1000) : undefined;
     // body.assigneeId can be undefined (leave untouched), null (clear), or a string
     // (set). `String(body.assigneeId) || null` looks equivalent but isn't: String(null)
     // is the truthy string "null", not "" — it would send the literal text "null" to a
