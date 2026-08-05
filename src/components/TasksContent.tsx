@@ -299,10 +299,10 @@ export default function TasksContent() {
             <>
               <DetailSectionHeader>
                 <DetailSectionTitle>마일스톤</DetailSectionTitle>
-                <AddButton type="button" onClick={openCreateMilestone}>
+                <DetailAddButton type="button" onClick={openCreateMilestone}>
                   <span className="material-symbols-outlined">add</span>
                   마일스톤 추가
-                </AddButton>
+                </DetailAddButton>
               </DetailSectionHeader>
               <MilestoneList>
                 {milestones.length === 0 && <EmptyState>아직 마일스톤이 없습니다</EmptyState>}
@@ -327,10 +327,10 @@ export default function TasksContent() {
 
               <DetailSectionHeader>
                 <DetailSectionTitle>태스크</DetailSectionTitle>
-                <AddButton type="button" onClick={openCreateTask}>
+                <DetailAddButton type="button" onClick={openCreateTask}>
                   <span className="material-symbols-outlined">add</span>
                   태스크 추가
-                </AddButton>
+                </DetailAddButton>
               </DetailSectionHeader>
               <FilterRow>
                 <CustomSelect
@@ -619,6 +619,13 @@ const DetailSectionTitle = styled.h2`
   font-size: 16px;
   font-weight: 700;
   color: #fff;
+  white-space: nowrap;
+`;
+
+const DetailAddButton = styled(AddButton)`
+  width: auto;
+  margin-top: 0;
+  flex-shrink: 0;
 `;
 
 const MilestoneList = styled.div`

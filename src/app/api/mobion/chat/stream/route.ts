@@ -1,5 +1,5 @@
 import { requireCurrentUser } from "@/lib/mobion-auth";
-import { getWorkspaceClient, CHUNTER_CLASS } from "@/lib/mobion-huly";
+import { getWorkspaceClient, CHUNTER_CLASS, CORE_CLASS } from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 
@@ -23,6 +23,7 @@ type ChatMessage = {
   createdBy: string;
   createdOn: number;
 };
+type UserStatusDoc = { _id: string; user: string; online: boolean };
 
 // Shape verified against the live Huly server by Task 1: client.setNotifyHandler(fn)
 // calls fn(txes) with a flat array of raw tx objects, NOT wrapped in an outer
@@ -41,6 +42,16 @@ type RawTx = {
     description?: string;
     private?: boolean;
     members?: string[];
+    online?: boolean;
+    user?: string;
+  };
+  // Only present on TxUpdateDoc (a DocumentUpdate<T>, i.e. a partial-attribute
+  // patch) — TxCreateDoc carries the full doc on `attributes` instead. A
+  // UserStatus's `online` flip (an existing doc's field changing, not a new
+  // doc being created) arrives here, not on `attributes`. See @hcengineering/core's
+  // TxUpdateDoc<T> (operations: DocumentUpdate<T>) vs TxCreateDoc<T> (attributes: Data<T>).
+  operations?: {
+    online?: boolean;
   };
 };
 
@@ -66,6 +77,23 @@ function isNewChannel(tx: RawTx) {
   return (
     tx._class === "core:class:TxCreateDoc" &&
     tx.objectClass === CHUNTER_CLASS.Channel
+  );
+}
+
+// A UserStatus doc's `online` flag can change via either TxCreateDoc (the first
+// time this account's status doc is created) or TxUpdateDoc (an existing doc's
+// `online` flipping) — unlike chat messages and channels, which only ever
+// arrive as TxCreateDoc. The two tx kinds carry the changed field on different
+// properties (attributes vs. operations — see RawTx's `operations` comment and
+// the notify handler's `online` read below); confirmed against
+// @hcengineering/core/src/tx.ts's TxCreateDoc<T>/TxUpdateDoc<T> definitions,
+// but not re-confirmed against a live TxUpdateDoc for UserStatus specifically
+// (no DM existed between the two test accounts to trigger one — see this
+// task's fix report for what static verification was done instead).
+function isUserStatusTx(tx: RawTx) {
+  return (
+    (tx._class === "core:class:TxCreateDoc" || tx._class === "core:class:TxUpdateDoc") &&
+    tx.objectClass === CORE_CLASS.UserStatus
   );
 }
 
@@ -143,6 +171,26 @@ export async function GET() {
         const channelPrivacy = new Map(
           channels.map((c) => [c._id, { private: c.private, members: c.members }]),
         );
+        // Best-effort, same reasoning as authorRows/tagRows below: a presence
+        // lookup failure must never block the stream from opening — DMs just
+        // render with no online dot until the next successful snapshot.
+        const userStatuses = await client
+          .findAll<UserStatusDoc>(CORE_CLASS.UserStatus, {})
+          .catch(() => [] as UserStatusDoc[]);
+        const onlineByAccountUuid = new Map(userStatuses.map((s) => [s.user, s.online]));
+        // Maps a UserStatus doc's own _id back to the AccountUuid it's about —
+        // needed because a later TxUpdateDoc's objectId is the status doc's id,
+        // not the account it describes. Mutated (via .set) as new UserStatus
+        // docs are created, in the notify handler below.
+        const statusDocToAccount = new Map(userStatuses.map((s) => [s._id, s.user]));
+        // Maps an AccountUuid to the one DM channel (in this connection's own
+        // dms list) it's the "other" participant of — this app's DM model is
+        // strictly 1:1, so there's at most one match per account.
+        const dmByOtherAccount = new Map<string, string>();
+        for (const d of dms) {
+          const other = d.members.find((m) => m !== myAccountUuid);
+          if (other) dmByOtherAccount.set(other, d._id);
+        }
         // Best-effort: an author name we can't resolve just falls back to the
         // raw Huly id client-side, it never blocks the stream from opening.
         authorRows = await query<AuthorRow>(
@@ -176,13 +224,17 @@ export async function GET() {
             tags: tagsByChannel.get(c._id) ?? [],
             kind: "channel" as const,
           })),
-          ...dms.map((d) => ({
-            id: d._id,
-            name: d.name,
-            description: d.description,
-            tags: [] as string[],
-            kind: "dm" as const,
-          })),
+          ...dms.map((d) => {
+            const other = d.members.find((m) => m !== myAccountUuid);
+            return {
+              id: d._id,
+              name: d.name,
+              description: d.description,
+              tags: [] as string[],
+              kind: "dm" as const,
+              online: other ? onlineByAccountUuid.get(other) ?? false : false,
+            };
+          }),
         ];
 
         send("snapshot", {
@@ -234,6 +286,30 @@ export async function GET() {
                     kind: "channel" as const,
                   }),
                 );
+              continue;
+            }
+            if (isUserStatusTx(tx)) {
+              let accountUuid: string | undefined;
+              if (tx._class === "core:class:TxCreateDoc") {
+                accountUuid = tx.attributes?.user;
+                if (accountUuid) statusDocToAccount.set(tx.objectId, accountUuid);
+              } else {
+                accountUuid = statusDocToAccount.get(tx.objectId);
+              }
+              if (!accountUuid) continue;
+              const dmId = dmByOtherAccount.get(accountUuid);
+              if (!dmId) continue; // not a DM partner of this connection
+              // TxCreateDoc carries the new doc's fields on `attributes`; TxUpdateDoc
+              // (how an existing UserStatus doc's `online` actually flips live)
+              // carries only the changed fields on `operations` instead. Reading
+              // `attributes` for both meant every live flip after the doc's initial
+              // creation was silently dropped by the `undefined` guard below.
+              const online =
+                tx._class === "core:class:TxCreateDoc"
+                  ? tx.attributes?.online
+                  : tx.operations?.online;
+              if (online === undefined) continue; // this update didn't touch `online`
+              send("presence", { channelId: dmId, online });
               continue;
             }
             if (!isNewChatMessage(tx)) continue;

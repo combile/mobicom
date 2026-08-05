@@ -18,6 +18,15 @@ export const CHUNTER_CLASS = {
   ChatMessage: "chunter:class:ChatMessage",
 } as const;
 
+// core plugin's own top-level class (not chunter-specific) for presence status,
+// confirmed by reading @hcengineering/core/src/classes.ts (`UserStatus extends Doc
+// { online: boolean; user: AccountUuid }`) and component.ts (`coreId = 'core'`,
+// `UserStatus` inside the `core` plugin's class map) — same `${pluginId}:${category}:${Key}`
+// id pattern as CHUNTER_CLASS above.
+export const CORE_CLASS = {
+  UserStatus: "core:class:UserStatus",
+} as const;
+
 // Not a chunter-specific value — this is core's own top-level container id that every
 // ChunterSpace-derived doc (Channel, DirectMessage) lives under, verified against the
 // live server via `findAll` on a real Channel doc. Distinct from `attachedTo`, which is
@@ -185,6 +194,40 @@ async function buildWorkspaceClient(link: HulyLink) {
   // Fan out to a listener set instead, so each caller gets its own
   // register/unsubscribe pair without affecting the others.
   const listeners = new Set<(txes: unknown[]) => void>();
+
+  // Huly's own UserStatus.online tracks THIS raw connection's liveness, not
+  // any individual SSE tab's — so the connection must actually be closed for
+  // presence to ever flip back to offline. But `listeners` is shared by every
+  // SSE tab for this account (see the fan-out comment above), and `raw` is
+  // also shared with concurrent messages/route.ts and channels/route.ts calls
+  // via the workspaceClients cache — so we only close once the last listener
+  // unsubscribes, and only after a short grace period (cancelled if a new
+  // subscriber shows up first, e.g. a page reload's new EventSource) so a
+  // momentary zero-listener gap doesn't tear down a connection still in use.
+  // ponytail: fixed grace period + identity-checked eviction, not a generic
+  // scheduler — a longer-running concurrent messages/channels request could in
+  // theory still race past the grace window; add per-client refcounting if
+  // that shows up in practice.
+  const CLOSE_GRACE_MS = 5_000;
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleClose() {
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      closeTimer = undefined;
+      // Only evict the cache entry if it still resolves to THIS built client —
+      // a failure-triggered eviction (evictOnFailure) could have already
+      // replaced it with a freshly rebuilt client for the same email by the
+      // time this timer fires, and that newer entry must not be clobbered.
+      const cachedPromise = workspaceClients.get(link.huly_account_email);
+      cachedPromise
+        ?.then((cachedClient) => {
+          if (cachedClient === client) workspaceClients.delete(link.huly_account_email);
+        })
+        .catch(() => {});
+      raw.close();
+    }, CLOSE_GRACE_MS);
+  }
+
   raw.notify = (...txes: unknown[]) => {
     // notify() is invoked from inside an un-awaited internal promise
     // (core/client.ts's updateFromRemote, called fire-and-forget). A listener
@@ -213,7 +256,10 @@ async function buildWorkspaceClient(link: HulyLink) {
     });
   }
 
-  return {
+  // Named (not returned inline) so scheduleClose's identity check above can
+  // reference it directly — see the "still resolves to THIS built client"
+  // comment.
+  const client = {
     findAll: <T,>(_class: string, query: Record<string, unknown>) =>
       evictOnFailure(raw.findAll<T>(_class as any, query as any)),
     addCollection: (params: {
@@ -254,9 +300,19 @@ async function buildWorkspaceClient(link: HulyLink) {
     // connection's cancel()) can remove exactly its own listener instead of
     // clobbering whatever the previous caller registered.
     setNotifyHandler: (fn: (txes: unknown[]) => void) => {
+      // A new subscriber (another tab, or a reload's fresh EventSource)
+      // means this connection is wanted again — cancel any pending close.
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = undefined;
+      }
       listeners.add(fn);
-      return () => listeners.delete(fn);
+      return () => {
+        listeners.delete(fn);
+        if (listeners.size === 0) scheduleClose();
+      };
     },
     close: () => raw.close(),
   };
+  return client;
 }

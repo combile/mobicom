@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
+import MentionInput from "./MentionInput";
+import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
 
 type Channel = {
   id: string;
@@ -9,6 +11,7 @@ type Channel = {
   description: string;
   tags: string[];
   kind: "channel" | "dm";
+  online?: boolean;
 };
 type Message = {
   id: string;
@@ -37,6 +40,47 @@ function avatarColor(authorId: string) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+type MessageGroup = {
+  authorId: string;
+  authorName: string | null;
+  authorAvatarUrl: string | null;
+  messages: Message[];
+};
+
+function renderMessageText(text: string, knownUserIds: Set<string>) {
+  return parseMentionSegments(text).map((seg, i) => {
+    if (seg.type === "text") return <span key={i}>{seg.content}</span>;
+    if (!knownUserIds.has(seg.userId)) return <span key={i}>@{seg.name}</span>;
+    return <Mention key={i}>@{seg.name}</Mention>;
+  });
+}
+
+function groupMessages(list: Message[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
+  for (const m of list) {
+    const last = groups[groups.length - 1];
+    const lastMessage = last?.messages[last.messages.length - 1];
+    if (
+      last &&
+      last.authorId === m.authorId &&
+      lastMessage &&
+      m.createdOn - lastMessage.createdOn < GROUP_WINDOW_MS
+    ) {
+      last.messages.push(m);
+    } else {
+      groups.push({
+        authorId: m.authorId,
+        authorName: m.authorName,
+        authorAvatarUrl: m.authorAvatarUrl,
+        messages: [m],
+      });
+    }
+  }
+  return groups;
+}
+
 export default function MobiOnContent() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -47,6 +91,8 @@ export default function MobiOnContent() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
+  const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDescription, setNewChannelDescription] = useState("");
   const [newChannelTags, setNewChannelTags] = useState<string[]>([]);
@@ -70,6 +116,28 @@ export default function MobiOnContent() {
   }, []);
 
   useEffect(() => {
+    fetch("/api/mobion/users/all")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setMentionUsers(data.users ?? []))
+      .catch(() => {}); // best-effort — autocomplete just won't open on failure
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/mobion/auth/me")
+      .then((res) => res.json())
+      .then((data) => setCurrentUserId(data.user?.id ?? null))
+      .catch(() => {});
+  }, []);
+
+  const [dmsCollapsed, setDmsCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem("mobion-dms-collapsed") === "true") {
+      setDmsCollapsed(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!showChannelMenu) return;
     function handleClickOutside(e: MouseEvent) {
       if (!channelMenuRef.current?.contains(e.target as Node)) {
@@ -84,6 +152,14 @@ export default function MobiOnContent() {
     setChannelsCollapsed((prev) => {
       const next = !prev;
       localStorage.setItem("mobion-channels-collapsed", String(next));
+      return next;
+    });
+  }
+
+  function toggleDmsCollapsed() {
+    setDmsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("mobion-dms-collapsed", String(next));
       return next;
     });
   }
@@ -114,6 +190,11 @@ export default function MobiOnContent() {
       es.addEventListener("channel_added", (e) => {
         const channel = JSON.parse((e as MessageEvent).data) as Channel;
         setChannels((prev) => (prev.some((c) => c.id === channel.id) ? prev : [...prev, channel]));
+      });
+
+      es.addEventListener("presence", (e) => {
+        const { channelId, online } = JSON.parse((e as MessageEvent).data);
+        setChannels((prev) => prev.map((c) => (c.id === channelId ? { ...c, online } : c)));
       });
 
       es.addEventListener("error", (e) => {
@@ -196,10 +277,20 @@ export default function MobiOnContent() {
     return [...set].sort((a, b) => a.localeCompare(b, "ko"));
   }, [channels]);
 
-  const visibleChannels = useMemo(
+  const visibleChannelsOnly = useMemo(
     () =>
-      sortedChannels.filter((c) => activeTagFilters.every((t) => c.tags.includes(t))),
+      sortedChannels.filter(
+        (c) => c.kind === "channel" && activeTagFilters.every((t) => c.tags.includes(t)),
+      ),
     [sortedChannels, activeTagFilters],
+  );
+  // DMs are never affected by the channel tag filter (DMs carry no tags) —
+  // filtering them through the same .every() would hide every DM whenever any
+  // tag filter is active, since an empty tags array never satisfies a
+  // non-empty filter list.
+  const visibleDms = useMemo(
+    () => sortedChannels.filter((c) => c.kind === "dm"),
+    [sortedChannels],
   );
 
   function toggleTagFilter(tag: string) {
@@ -291,6 +382,8 @@ export default function MobiOnContent() {
     .filter((m) => m.channelId === activeChannelId)
     .sort((a, b) => a.createdOn - b.createdOn);
   const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
+  const messageGroups = groupMessages(activeMessages);
+  const knownUserIds = new Set(mentionUsers.map((u) => u.id));
 
   return (
     <Root>
@@ -375,13 +468,33 @@ export default function MobiOnContent() {
             </TagFilterRow>
           )}
           {!channelsCollapsed &&
-            visibleChannels.map((c) => (
+            visibleChannelsOnly.map((c) => (
               <ChannelItem
                 key={c.id}
                 data-active={c.id === activeChannelId || undefined}
                 onClick={() => setActiveChannelId(c.id)}
               >
-                {c.kind === "dm" ? "@" : "#"} {c.name}
+                # {c.name}
+              </ChannelItem>
+            ))}
+
+          <SectionHeader>
+            <SectionTitle type="button" onClick={toggleDmsCollapsed}>
+              <Chevron data-collapsed={dmsCollapsed || undefined}>
+                <span className="material-symbols-outlined">expand_more</span>
+              </Chevron>
+              직접 메시지
+            </SectionTitle>
+          </SectionHeader>
+          {!dmsCollapsed &&
+            visibleDms.map((c) => (
+              <ChannelItem
+                key={c.id}
+                data-active={c.id === activeChannelId || undefined}
+                onClick={() => setActiveChannelId(c.id)}
+              >
+                <PresenceDot data-online={c.online || undefined} />
+                {c.name}
               </ChannelItem>
             ))}
         </Sidebar>
@@ -403,31 +516,42 @@ export default function MobiOnContent() {
             )}
           </ChannelHeader>
           <MessageList ref={messageListRef}>
-            {activeMessages.map((m) => (
-              <MessageRow key={m.id}>
-                {m.authorAvatarUrl ? (
-                  <Avatar src={m.authorAvatarUrl} alt="" />
+            {messageGroups.map((g, gi) => (
+              <MessageGroupBlock key={gi}>
+                {g.authorAvatarUrl ? (
+                  <Avatar src={g.authorAvatarUrl} alt="" />
                 ) : (
-                  <AvatarFallback style={{ background: avatarColor(m.authorId) }}>
-                    {(m.authorName ?? "?").charAt(0)}
+                  <AvatarFallback style={{ background: avatarColor(g.authorId) }}>
+                    {(g.authorName ?? "?").charAt(0)}
                   </AvatarFallback>
                 )}
                 <MessageBody>
                   <MessageMeta>
-                    <MessageAuthor>{m.authorName ?? "알 수 없음"}</MessageAuthor>
-                    <MessageTime>{formatTime(m.createdOn)}</MessageTime>
+                    <MessageAuthor>{g.authorName ?? "알 수 없음"}</MessageAuthor>
+                    <MessageTime>{formatTime(g.messages[0].createdOn)}</MessageTime>
                   </MessageMeta>
-                  <MessageText>{m.text}</MessageText>
+                  {g.messages.map((m, mi) => (
+                    <GroupedMessageRow
+                      key={m.id}
+                      data-mentions-me={
+                        (currentUserId && messageContainsMentionOf(m.text, currentUserId)) ||
+                        undefined
+                      }
+                    >
+                      {mi > 0 && <GroupedTimestamp>{formatTime(m.createdOn)}</GroupedTimestamp>}
+                      <MessageText>{renderMessageText(m.text, knownUserIds)}</MessageText>
+                    </GroupedMessageRow>
+                  ))}
                 </MessageBody>
-              </MessageRow>
+              </MessageGroupBlock>
             ))}
           </MessageList>
           <Composer>
-            <input
+            <MentionInput
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="메시지 입력..."
+              onChange={setDraft}
+              onSend={handleSend}
+              users={mentionUsers}
             />
             <button onClick={handleSend}>보내기</button>
           </Composer>
@@ -605,6 +729,20 @@ const ChannelItem = styled.div`
   }
 `;
 
+const PresenceDot = styled.span`
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: #767676;
+
+  &[data-online] {
+    background: #4ade80;
+    box-shadow: 0 0 4px rgba(74, 222, 128, 0.6);
+  }
+`;
+
 const TagFilterRow = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -668,7 +806,7 @@ const MessageList = styled.div`
   gap: 8px;
 `;
 
-const MessageRow = styled.div`
+const MessageGroupBlock = styled.div`
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -722,6 +860,33 @@ const MessageTime = styled.span`
 const MessageText = styled.div`
   color: #e4e4e4;
   font-size: 14px;
+`;
+
+const Mention = styled.span`
+  color: #00b5ff;
+  font-weight: 700;
+`;
+
+const GroupedMessageRow = styled.div`
+  position: relative;
+
+  &[data-mentions-me] {
+    background: rgba(0, 181, 255, 0.08);
+  }
+`;
+
+const GroupedTimestamp = styled.span`
+  position: absolute;
+  left: -46px;
+  top: 1px;
+  font-size: 10px;
+  color: #767676;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+
+  ${GroupedMessageRow}:hover & {
+    opacity: 1;
+  }
 `;
 
 const Composer = styled.div`
