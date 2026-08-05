@@ -39,6 +39,39 @@ function avatarColor(authorId: string) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+type MessageGroup = {
+  authorId: string;
+  authorName: string | null;
+  authorAvatarUrl: string | null;
+  messages: Message[];
+};
+
+function groupMessages(list: Message[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
+  for (const m of list) {
+    const last = groups[groups.length - 1];
+    const lastMessage = last?.messages[last.messages.length - 1];
+    if (
+      last &&
+      last.authorId === m.authorId &&
+      lastMessage &&
+      m.createdOn - lastMessage.createdOn < GROUP_WINDOW_MS
+    ) {
+      last.messages.push(m);
+    } else {
+      groups.push({
+        authorId: m.authorId,
+        authorName: m.authorName,
+        authorAvatarUrl: m.authorAvatarUrl,
+        messages: [m],
+      });
+    }
+  }
+  return groups;
+}
+
 export default function MobiOnContent() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -332,6 +365,7 @@ export default function MobiOnContent() {
     .filter((m) => m.channelId === activeChannelId)
     .sort((a, b) => a.createdOn - b.createdOn);
   const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
+  const messageGroups = groupMessages(activeMessages);
 
   return (
     <Root>
@@ -464,23 +498,28 @@ export default function MobiOnContent() {
             )}
           </ChannelHeader>
           <MessageList ref={messageListRef}>
-            {activeMessages.map((m) => (
-              <MessageRow key={m.id}>
-                {m.authorAvatarUrl ? (
-                  <Avatar src={m.authorAvatarUrl} alt="" />
+            {messageGroups.map((g, gi) => (
+              <MessageGroupBlock key={gi}>
+                {g.authorAvatarUrl ? (
+                  <Avatar src={g.authorAvatarUrl} alt="" />
                 ) : (
-                  <AvatarFallback style={{ background: avatarColor(m.authorId) }}>
-                    {(m.authorName ?? "?").charAt(0)}
+                  <AvatarFallback style={{ background: avatarColor(g.authorId) }}>
+                    {(g.authorName ?? "?").charAt(0)}
                   </AvatarFallback>
                 )}
                 <MessageBody>
                   <MessageMeta>
-                    <MessageAuthor>{m.authorName ?? "알 수 없음"}</MessageAuthor>
-                    <MessageTime>{formatTime(m.createdOn)}</MessageTime>
+                    <MessageAuthor>{g.authorName ?? "알 수 없음"}</MessageAuthor>
+                    <MessageTime>{formatTime(g.messages[0].createdOn)}</MessageTime>
                   </MessageMeta>
-                  <MessageText>{m.text}</MessageText>
+                  {g.messages.map((m, mi) => (
+                    <GroupedMessageRow key={m.id}>
+                      {mi > 0 && <GroupedTimestamp>{formatTime(m.createdOn)}</GroupedTimestamp>}
+                      <MessageText>{m.text}</MessageText>
+                    </GroupedMessageRow>
+                  ))}
                 </MessageBody>
-              </MessageRow>
+              </MessageGroupBlock>
             ))}
           </MessageList>
           <Composer>
@@ -743,7 +782,7 @@ const MessageList = styled.div`
   gap: 8px;
 `;
 
-const MessageRow = styled.div`
+const MessageGroupBlock = styled.div`
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -797,6 +836,24 @@ const MessageTime = styled.span`
 const MessageText = styled.div`
   color: #e4e4e4;
   font-size: 14px;
+`;
+
+const GroupedMessageRow = styled.div`
+  position: relative;
+`;
+
+const GroupedTimestamp = styled.span`
+  position: absolute;
+  left: -46px;
+  top: 1px;
+  font-size: 10px;
+  color: #767676;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+
+  ${GroupedMessageRow}:hover & {
+    opacity: 1;
+  }
 `;
 
 const Composer = styled.div`
