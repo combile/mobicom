@@ -53,7 +53,7 @@ export function detectMentionTrigger(
 // client components and bundled for the browser, where `process` may be
 // absent or a stub with no `argv` — the check must stay false there, never throw.
 if (typeof process !== "undefined" && process.argv?.[1] && import.meta.url === `file://${process.argv[1]}`) {
-  const assert: typeof import("node:assert").strict = (await import("node:assert")).strict;
+  const assert = (await import("node:assert")).default as any;
   assert.deepStrictEqual(parseMentionSegments("no mentions here"), [
     { type: "text", content: "no mentions here" },
   ]);
