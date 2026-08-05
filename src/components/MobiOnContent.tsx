@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import MentionInput from "./MentionInput";
+import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
 
 type Channel = {
   id: string;
@@ -48,6 +49,14 @@ type MessageGroup = {
   messages: Message[];
 };
 
+function renderMessageText(text: string, knownUserIds: Set<string>) {
+  return parseMentionSegments(text).map((seg, i) => {
+    if (seg.type === "text") return <span key={i}>{seg.content}</span>;
+    if (!knownUserIds.has(seg.userId)) return <span key={i}>@{seg.name}</span>;
+    return <Mention key={i}>@{seg.name}</Mention>;
+  });
+}
+
 function groupMessages(list: Message[]): MessageGroup[] {
   const groups: MessageGroup[] = [];
   for (const m of list) {
@@ -83,6 +92,7 @@ export default function MobiOnContent() {
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
   const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDescription, setNewChannelDescription] = useState("");
   const [newChannelTags, setNewChannelTags] = useState<string[]>([]);
@@ -110,6 +120,13 @@ export default function MobiOnContent() {
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => setMentionUsers(data.users ?? []))
       .catch(() => {}); // best-effort — autocomplete just won't open on failure
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/mobion/auth/me")
+      .then((res) => res.json())
+      .then((data) => setCurrentUserId(data.user?.id ?? null))
+      .catch(() => {});
   }, []);
 
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
@@ -366,6 +383,7 @@ export default function MobiOnContent() {
     .sort((a, b) => a.createdOn - b.createdOn);
   const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
   const messageGroups = groupMessages(activeMessages);
+  const knownUserIds = new Set(mentionUsers.map((u) => u.id));
 
   return (
     <Root>
@@ -513,9 +531,15 @@ export default function MobiOnContent() {
                     <MessageTime>{formatTime(g.messages[0].createdOn)}</MessageTime>
                   </MessageMeta>
                   {g.messages.map((m, mi) => (
-                    <GroupedMessageRow key={m.id}>
+                    <GroupedMessageRow
+                      key={m.id}
+                      data-mentions-me={
+                        (currentUserId && messageContainsMentionOf(m.text, currentUserId)) ||
+                        undefined
+                      }
+                    >
                       {mi > 0 && <GroupedTimestamp>{formatTime(m.createdOn)}</GroupedTimestamp>}
-                      <MessageText>{m.text}</MessageText>
+                      <MessageText>{renderMessageText(m.text, knownUserIds)}</MessageText>
                     </GroupedMessageRow>
                   ))}
                 </MessageBody>
@@ -838,8 +862,17 @@ const MessageText = styled.div`
   font-size: 14px;
 `;
 
+const Mention = styled.span`
+  color: #00b5ff;
+  font-weight: 700;
+`;
+
 const GroupedMessageRow = styled.div`
   position: relative;
+
+  &[data-mentions-me] {
+    background: rgba(0, 181, 255, 0.08);
+  }
 `;
 
 const GroupedTimestamp = styled.span`
