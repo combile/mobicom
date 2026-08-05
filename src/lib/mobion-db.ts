@@ -61,15 +61,6 @@ export async function ensureMobionSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
-      // One-time Phase 0 migration cleanup — safe to remove once this has run against
-      // every deployed environment.
-      await pool.query(`DROP TABLE IF EXISTS mobion_task_checklist`);
-      await pool.query(`DROP TABLE IF EXISTS mobion_tasks`);
-      await pool.query(`DROP TABLE IF EXISTS mobion_docs`);
-      await pool.query(`DROP TABLE IF EXISTS mobion_messages`);
-      await pool.query(`DROP TABLE IF EXISTS mobion_links`);
-      await pool.query(`DROP TABLE IF EXISTS mobion_milestones`);
-
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_invites (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -140,9 +131,10 @@ export async function ensureMobionSchema() {
       // plus priority/time-tracking/sub-issue fields this lab doesn't need. See
       // docs/superpowers/specs/2026-08-05-mobion-tasks-milestones-design.md's
       // "Architecture Decision" section. These table names reuse ones an earlier,
-      // unrelated Phase 0 iteration used and already dropped above (see the
-      // "One-time Phase 0 migration cleanup" block) — safe, since Postgres has no
-      // memory of a dropped table's old shape.
+      // unrelated Phase 0 iteration used (that iteration's tables were dropped in
+      // a one-time migration, since removed from this file once it had run against
+      // every deployed environment) — safe, since Postgres has no memory of a
+      // dropped table's old shape.
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_projects (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
