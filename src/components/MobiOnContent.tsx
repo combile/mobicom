@@ -42,6 +42,9 @@ export default function MobiOnContent() {
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
   const [newChannelName, setNewChannelName] = useState("");
+  const [newChannelDescription, setNewChannelDescription] = useState("");
+  const [newChannelTags, setNewChannelTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState("");
   const [newChannelPrivate, setNewChannelPrivate] = useState(false);
   const [newChannelMemberIds, setNewChannelMemberIds] = useState<string[]>([]);
   const [newChannelProfessor, setNewChannelProfessor] = useState(false);
@@ -133,6 +136,9 @@ export default function MobiOnContent() {
   function openCreateChannel() {
     setCreateChannelError(null);
     setNewChannelName("");
+    setNewChannelDescription("");
+    setNewChannelTags([]);
+    setNewTagInput("");
     setNewChannelPrivate(false);
     setNewChannelMemberIds([]);
     setNewChannelProfessor(false);
@@ -158,6 +164,8 @@ export default function MobiOnContent() {
           isPrivate: newChannelPrivate,
           memberIds: newChannelMemberIds,
           visibleToProfessor: newChannelProfessor,
+          description: newChannelDescription.trim(),
+          tags: newChannelTags,
         }),
       });
       if (!res.ok) {
@@ -177,6 +185,17 @@ export default function MobiOnContent() {
     setNewChannelMemberIds((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id],
     );
+  }
+
+  function addTag() {
+    const tag = newTagInput.trim();
+    setNewTagInput("");
+    if (!tag || newChannelTags.includes(tag)) return;
+    setNewChannelTags((prev) => [...prev, tag]);
+  }
+
+  function removeTag(tag: string) {
+    setNewChannelTags((prev) => prev.filter((t) => t !== tag));
   }
 
   const messageListRef = useRef<HTMLDivElement>(null);
@@ -260,46 +279,86 @@ export default function MobiOnContent() {
                 onChange={(e) => setNewChannelName(e.target.value)}
               />
             </Field>
+            <Field>
+              <label htmlFor="new-channel-description">설명</label>
+              <input
+                id="new-channel-description"
+                value={newChannelDescription}
+                onChange={(e) => setNewChannelDescription(e.target.value)}
+                placeholder="채널 설명 (선택)"
+              />
+            </Field>
+            <Field>
+              <label htmlFor="new-channel-tags">태그</label>
+              <input
+                id="new-channel-tags"
+                value={newTagInput}
+                onChange={(e) => setNewTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTag();
+                  }
+                }}
+                placeholder="태그 입력 후 Enter"
+              />
+              {newChannelTags.length > 0 && (
+                <TagChipRow>
+                  {newChannelTags.map((tag) => (
+                    <TagChip key={tag}>
+                      {tag}
+                      <TagChipRemove type="button" onClick={() => removeTag(tag)}>
+                        ×
+                      </TagChipRemove>
+                    </TagChip>
+                  ))}
+                </TagChipRow>
+              )}
+            </Field>
             <RadioRow>
-              <label>
-                <input
+              <CheckRow>
+                <HiddenInput
                   type="radio"
                   checked={!newChannelPrivate}
                   onChange={() => setNewChannelPrivate(false)}
                 />
+                <RadioBox />
                 공개
-              </label>
-              <label>
-                <input
+              </CheckRow>
+              <CheckRow>
+                <HiddenInput
                   type="radio"
                   checked={newChannelPrivate}
                   onChange={() => setNewChannelPrivate(true)}
                 />
+                <RadioBox />
                 비공개
-              </label>
+              </CheckRow>
             </RadioRow>
             {newChannelPrivate && (
               <>
                 <MemberList>
                   {allUsers.map((u) => (
-                    <label key={u.id}>
-                      <input
+                    <CheckRow key={u.id}>
+                      <HiddenInput
                         type="checkbox"
                         checked={newChannelMemberIds.includes(u.id)}
                         onChange={() => toggleMember(u.id)}
                       />
+                      <CheckboxBox />
                       {u.name}
-                    </label>
+                    </CheckRow>
                   ))}
                 </MemberList>
-                <label>
-                  <input
+                <CheckRow>
+                  <HiddenInput
                     type="checkbox"
                     checked={newChannelProfessor}
                     onChange={(e) => setNewChannelProfessor(e.target.checked)}
                   />
+                  <CheckboxBox />
                   교수님에게 공개
-                </label>
+                </CheckRow>
               </>
             )}
             {createChannelError && <SendErrorText>{createChannelError}</SendErrorText>}
@@ -584,6 +643,97 @@ const MemberList = styled.div`
     align-items: center;
     gap: 8px;
   }
+`;
+
+const CheckRow = styled.label`
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #d4d4d4;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+`;
+
+const HiddenInput = styled.input`
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+`;
+
+const CheckboxBox = styled.span`
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  &::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: #061018;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  ${HiddenInput}:checked + & {
+    background: #00b5ff;
+    border-color: #00b5ff;
+  }
+
+  ${HiddenInput}:checked + &::after {
+    opacity: 1;
+    transform: scale(1);
+  }
+`;
+
+const RadioBox = styled(CheckboxBox)`
+  border-radius: 50%;
+
+  &::after {
+    border-radius: 50%;
+  }
+`;
+
+const TagChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+`;
+
+const TagChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 181, 255, 0.15);
+  color: #00b5ff;
+  font-size: 12px;
+`;
+
+const TagChipRemove = styled.button`
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
 `;
 
 const ModalActions = styled.div`
