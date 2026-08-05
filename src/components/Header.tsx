@@ -100,10 +100,17 @@ export default function Header() {
         })}
       </Nav>
       {userName ? (
-        <LoginButton type="button" data-magnetic onClick={handleLogout}>
-          <span className="material-symbols-outlined">person</span>
-          {userName}
-        </LoginButton>
+        <UserActions>
+          <Link href="/profile" style={{ textDecoration: "none" }}>
+            <LoginButton type="button" data-magnetic>
+              <span className="material-symbols-outlined">person</span>
+              {userName}
+            </LoginButton>
+          </Link>
+          <LogoutButton type="button" onClick={handleLogout} aria-label="로그아웃">
+            <span className="material-symbols-outlined">logout</span>
+          </LogoutButton>
+        </UserActions>
       ) : (
         <Link href="/login" style={{ textDecoration: "none" }}>
           <LoginButton type="button" data-magnetic>
@@ -267,5 +274,36 @@ const LoginButton = styled.button`
   @media (max-width: 430px) {
     padding: 7px 14px;
     font-size: 13px;
+  }
+`;
+
+const UserActions = styled.div`
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const LogoutButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  &:hover {
+    color: #ff6767;
+    border-color: #ff6767;
   }
 `;
