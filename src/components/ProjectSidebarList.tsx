@@ -24,7 +24,17 @@ export default function ProjectSidebarList({ data }: { data: TasksData }) {
           data-active={p.id === data.selectedProjectId || undefined}
           onClick={() => data.setSelectedProjectId(p.id)}
         >
-          {p.name}
+          <ProjectItemName>{p.name}</ProjectItemName>
+          {p.taskTotal > 0 && (
+            <ProjectItemMeta>
+              <span>
+                {p.taskDone}/{p.taskTotal}
+              </span>
+              {/* only shown when something is actually late, so the sidebar
+                  stays quiet on healthy projects */}
+              {p.taskOverdue > 0 && <OverdueDot title={`기한 초과 ${p.taskOverdue}건`} />}
+            </ProjectItemMeta>
+          )}
         </ProjectItem>
       ))}
       <AddButton type="button" onClick={data.openCreateProject}>
@@ -99,7 +109,33 @@ const SectionTitle = styled.div`
   padding: 4px 0 8px;
 `;
 
+const ProjectItemName = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const ProjectItemMeta = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #767676;
+`;
+
+const OverdueDot = styled.span`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff6767;
+`;
+
 const ProjectItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 12px;
   border-radius: 8px;
   color: #d4d4d4;

@@ -8,6 +8,10 @@ export type Project = {
   description: string;
   createdByName: string;
   createdAt: string;
+  /** Aggregated by the list endpoint so the sidebar needs no extra requests. */
+  taskTotal: number;
+  taskDone: number;
+  taskOverdue: number;
 };
 
 export type Milestone = { id: string; title: string; targetDate: string | null; status: string };
