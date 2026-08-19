@@ -101,12 +101,26 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
                     {m.targetDate}
                   </MilestoneDate>
                 )}
-                {data.tasks.some((t) => t.milestoneId === m.id) && (
-                  <MilestoneDate>
-                    {data.tasks.filter((t) => t.milestoneId === m.id && t.status === "done").length}
-                    /{data.tasks.filter((t) => t.milestoneId === m.id).length} 완료
-                  </MilestoneDate>
-                )}
+                {(() => {
+                  const p = data.milestoneProgress.get(m.id);
+                  if (!p || p.total === 0) return null;
+                  return (
+                    <MilestoneProgress>
+                      <MiniTrack
+                        role="progressbar"
+                        aria-valuenow={p.percent}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`${m.title} 진행률`}
+                      >
+                        <MiniFill data-complete={p.done === p.total || undefined} style={{ width: `${p.percent}%` }} />
+                      </MiniTrack>
+                      <MilestoneDate>
+                        {p.done}/{p.total}
+                      </MilestoneDate>
+                    </MilestoneProgress>
+                  );
+                })()}
                 <RowControl onClick={(e) => e.stopPropagation()}>
                   <RowSelect
                     value={m.status}
@@ -1037,6 +1051,30 @@ const RowSelect = styled(CustomSelect)``;
 const MilestoneTitle = styled.span`
   color: #d4d4d4;
   font-size: 14px;
+`;
+
+const MilestoneProgress = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const MiniTrack = styled.div`
+  width: 56px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+`;
+
+const MiniFill = styled.div`
+  height: 100%;
+  border-radius: inherit;
+  background: #00b5ff;
+
+  &[data-complete] {
+    background: #4ade80;
+  }
 `;
 
 const MilestoneDate = styled.span`

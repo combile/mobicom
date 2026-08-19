@@ -559,6 +559,29 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     ? tasks.filter((t) => t.assigneeId === currentUserId && t.status !== "done").length
     : 0;
 
+  /**
+   * Per-milestone task counts, computed once instead of re-filtering the task
+   * list inside each row.
+   *
+   * Counts run over all tasks, not visibleTasks — a milestone's progress is a
+   * property of the milestone, and should not change because the list is
+   * filtered to one assignee.
+   */
+  const milestoneProgress = new Map(
+    milestones.map((m) => {
+      const linked = tasks.filter((t) => t.milestoneId === m.id);
+      const done = linked.filter((t) => t.status === "done").length;
+      return [
+        m.id,
+        {
+          total: linked.length,
+          done,
+          percent: linked.length === 0 ? 0 : Math.round((done / linked.length) * 100),
+        },
+      ];
+    }),
+  );
+
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId) ?? null;
@@ -583,6 +606,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     setSelectedProjectId,
     loadError,
     milestones,
+    milestoneProgress,
     tasks,
     visibleTasks,
     groupedTasks,
