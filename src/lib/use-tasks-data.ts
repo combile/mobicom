@@ -516,6 +516,22 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
         });
 
   /**
+   * Milestones ordered by target date rather than creation order.
+   *
+   * A milestone is a point on a timeline, so the date is the meaningful order;
+   * the order they happened to be typed in is not. Undated ones go last for the
+   * same reason undated tasks do — no deadline is not an early one.
+   *
+   * The grouped task view buckets in this order too, so both lists agree.
+   */
+  const orderedMilestones = [...milestones].sort((a, b) => {
+    if (!a.targetDate && !b.targetDate) return 0;
+    if (!a.targetDate) return 1;
+    if (!b.targetDate) return -1;
+    return a.targetDate.localeCompare(b.targetDate);
+  });
+
+  /**
    * Tasks bucketed for the grouped views.
    *
    * Buckets follow the source order the sidebar and member list already use, so
@@ -544,7 +560,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
             : []),
         ]
       : [
-          ...milestones
+          ...orderedMilestones
             .map((m) => ({
               id: m.id,
               title: m.title,
@@ -583,6 +599,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const myOpenCount = currentUserId
     ? tasks.filter((t) => t.assigneeId === currentUserId && t.status !== "done").length
     : 0;
+
 
   /**
    * Per-milestone task counts, computed once instead of re-filtering the task
@@ -647,7 +664,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     selectedProjectId,
     setSelectedProjectId,
     loadError,
-    milestones,
+    milestones: orderedMilestones,
     milestoneProgress,
     tasks,
     visibleTasks,
