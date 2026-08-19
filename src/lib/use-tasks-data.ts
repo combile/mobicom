@@ -45,14 +45,15 @@ export const MILESTONE_STATUS_OPTIONS = [
 const SOON_DAYS = 3;
 
 /** Local calendar date as YYYY-MM-DD, matching what `<input type="date">` stores. */
-function todayISO() {
+export function todayISO() {
   const d = new Date();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
-function shiftISO(days: number) {
+/** `days` from today, same format as todayISO. */
+export function shiftISO(days: number) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   const month = String(d.getMonth() + 1).padStart(2, "0");
