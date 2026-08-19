@@ -96,6 +96,7 @@ export function useTasksData(enabled: boolean) {
   const [statusFilter, setStatusFilter] = useState("");
   const [milestoneFilter, setMilestoneFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
+  const [groupByMilestone, setGroupByMilestone] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
@@ -456,6 +457,31 @@ export function useTasksData(enabled: boolean) {
       (!assigneeFilter || t.assigneeId === assigneeFilter),
   );
 
+  /**
+   * Tasks bucketed by milestone, in the milestone order the sidebar shows.
+   * Unassigned tasks come last — they are the leftovers, not a first section.
+   * Empty milestones are dropped so grouping does not add rows that say
+   * nothing.
+   */
+  const groupedTasks = [
+    ...milestones
+      .map((m) => ({
+        id: m.id,
+        title: m.title,
+        tasks: visibleTasks.filter((t) => t.milestoneId === m.id),
+      }))
+      .filter((g) => g.tasks.length > 0),
+    ...(visibleTasks.some((t) => !t.milestoneId)
+      ? [
+          {
+            id: null,
+            title: "마일스톤 없음",
+            tasks: visibleTasks.filter((t) => !t.milestoneId),
+          },
+        ]
+      : []),
+  ];
+
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId) ?? null;
@@ -482,6 +508,9 @@ export function useTasksData(enabled: boolean) {
     milestones,
     tasks,
     visibleTasks,
+    groupedTasks,
+    groupByMilestone,
+    setGroupByMilestone,
     allUsers,
     detailError,
 

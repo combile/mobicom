@@ -8,6 +8,7 @@ import {
   MILESTONE_STATUS_OPTIONS,
   TASK_STATUS_OPTIONS,
   dueState,
+  type Task,
   type TasksData,
 } from "@/lib/use-tasks-data";
 import { useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
@@ -144,48 +145,43 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
                 ...data.allUsers.map((u) => ({ value: u.id, label: u.name })),
               ]}
             />
+            <GroupToggle
+              type="button"
+              data-active={data.groupByMilestone || undefined}
+              onClick={() => data.setGroupByMilestone(!data.groupByMilestone)}
+              aria-pressed={data.groupByMilestone}
+            >
+              <span className="material-symbols-outlined">segment</span>
+              마일스톤별
+            </GroupToggle>
           </FilterRow>
-          <TaskList>
-            {data.visibleTasks.length === 0 && (
-              <EmptyState>조건에 맞는 태스크가 없습니다</EmptyState>
-            )}
-            {data.visibleTasks.map((t) => (
-              <TaskRow
-                key={t.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => data.setSelectedTaskId(t.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    data.setSelectedTaskId(t.id);
-                  }
-                }}
-              >
-                <TaskTitle>{t.title}</TaskTitle>
-                {t.milestoneId && (
-                  <MilestoneChip>
-                    {data.milestones.find((m) => m.id === t.milestoneId)?.title ?? "—"}
-                  </MilestoneChip>
-                )}
-                <TaskMeta>{t.assigneeName ?? "미배정"}</TaskMeta>
-                {t.dueDate && (
-                  <TaskMeta data-tone={dueState(t.dueDate, t.status) ?? undefined}>
-                    {t.dueDate}
-                  </TaskMeta>
-                )}
-                {/* the row opens the detail panel, so the status control has to
-                    keep its own clicks from reaching it */}
-                <RowControl onClick={(e) => e.stopPropagation()}>
-                  <RowSelect
-                    value={t.status}
-                    onChange={(v) => data.updateTaskStatus(t.id, v)}
-                    options={TASK_STATUS_OPTIONS}
-                  />
-                </RowControl>
-              </TaskRow>
-            ))}
-          </TaskList>
+          {data.visibleTasks.length === 0 && (
+            <EmptyState>조건에 맞는 태스크가 없습니다</EmptyState>
+          )}
+
+          {data.groupByMilestone ? (
+            data.groupedTasks.map((group) => (
+              <TaskGroup key={group.id ?? "unassigned"}>
+                <TaskGroupHeading data-unassigned={group.id === null || undefined}>
+                  {group.title}
+                  <TaskGroupCount>
+                    {group.tasks.filter((t) => t.status === "done").length}/{group.tasks.length}
+                  </TaskGroupCount>
+                </TaskGroupHeading>
+                <TaskList>
+                  {group.tasks.map((t) => (
+                    <TaskRowItem key={t.id} task={t} data={data} showMilestone={false} />
+                  ))}
+                </TaskList>
+              </TaskGroup>
+            ))
+          ) : (
+            <TaskList>
+              {data.visibleTasks.map((t) => (
+                <TaskRowItem key={t.id} task={t} data={data} showMilestone />
+              ))}
+            </TaskList>
+          )}
         </>
       )}
 
@@ -254,6 +250,54 @@ function EditProjectModal({ data }: { data: TasksData }) {
       </ModalCard>
     </ModalOverlay>,
     document.body,
+  );
+}
+
+/** One task row, shared by the flat list and the grouped view. */
+function TaskRowItem({
+  task,
+  data,
+  showMilestone,
+}: {
+  task: Task;
+  data: TasksData;
+  showMilestone: boolean;
+}) {
+  return (
+    <TaskRow
+      role="button"
+      tabIndex={0}
+      onClick={() => data.setSelectedTaskId(task.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          data.setSelectedTaskId(task.id);
+        }
+      }}
+    >
+      <TaskTitle>{task.title}</TaskTitle>
+      {/* redundant under a milestone heading, so the grouped view turns it off */}
+      {showMilestone && task.milestoneId && (
+        <MilestoneChip>
+          {data.milestones.find((m) => m.id === task.milestoneId)?.title ?? "—"}
+        </MilestoneChip>
+      )}
+      <TaskMeta>{task.assigneeName ?? "미배정"}</TaskMeta>
+      {task.dueDate && (
+        <TaskMeta data-tone={dueState(task.dueDate, task.status) ?? undefined}>
+          {task.dueDate}
+        </TaskMeta>
+      )}
+      {/* the row opens the detail panel, so the status control has to keep its
+          own clicks from reaching it */}
+      <RowControl onClick={(e) => e.stopPropagation()}>
+        <RowSelect
+          value={task.status}
+          onChange={(v) => data.updateTaskStatus(task.id, v)}
+          options={TASK_STATUS_OPTIONS}
+        />
+      </RowControl>
+    </TaskRow>
   );
 }
 
@@ -970,6 +1014,60 @@ const TaskList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
+`;
+
+const GroupToggle = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &:hover {
+    color: #d4d4d4;
+  }
+
+  &[data-active] {
+    border-color: rgba(0, 181, 255, 0.28);
+    background: rgba(0, 181, 255, 0.12);
+    color: #00b5ff;
+  }
+`;
+
+const TaskGroup = styled.section`
+  margin-bottom: 16px;
+`;
+
+const TaskGroupHeading = styled.h3`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #d4d4d4;
+
+  &[data-unassigned] {
+    color: #767676;
+    font-weight: 600;
+  }
+`;
+
+const TaskGroupCount = styled.span`
+  font-size: 11px;
+  font-weight: 400;
+  color: #767676;
 `;
 
 const TaskRow = styled.div`
