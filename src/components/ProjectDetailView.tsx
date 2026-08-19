@@ -31,7 +31,17 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
         <>
           {data.selectedProject && (
             <ProjectHeader>
-              <ProjectName>{data.selectedProject.name}</ProjectName>
+              <ProjectTitleRow>
+                <ProjectName>{data.selectedProject.name}</ProjectName>
+                <EditProjectButton
+                  type="button"
+                  onClick={() => data.setEditingProject(true)}
+                  aria-label="프로젝트 편집"
+                  title="프로젝트 편집"
+                >
+                  <span className="material-symbols-outlined">edit</span>
+                </EditProjectButton>
+              </ProjectTitleRow>
               {data.selectedProject.description && (
                 <ProjectDescription>{data.selectedProject.description}</ProjectDescription>
               )}
@@ -185,7 +195,65 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
       {data.selectedMilestone && (
         <MilestoneDetailModal key={data.selectedMilestone.id} data={data} />
       )}
+      {data.editingProject && data.selectedProject && (
+        <EditProjectModal key={data.selectedProject.id} data={data} />
+      )}
     </Main>
+  );
+}
+
+/** Rename a project or fix its description; same draft rules as the others. */
+function EditProjectModal({ data }: { data: TasksData }) {
+  const { overlayRef, cardRef } = useModalEnterAnimation();
+  const project = data.selectedProject!;
+
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description ?? "");
+
+  const close = () => {
+    data.setProjectDetailError(null);
+    data.setEditingProject(false);
+  };
+
+  async function save() {
+    const ok = await data.updateProject(project.id, { name, description });
+    if (ok) close();
+  }
+
+  return createPortal(
+    <ModalOverlay ref={overlayRef} onClick={close}>
+      <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
+        <ModalTitle>프로젝트 편집</ModalTitle>
+        <Field>
+          <label htmlFor="project-edit-name">프로젝트 이름</label>
+          <input
+            id="project-edit-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <label htmlFor="project-edit-description">설명</label>
+          <DescriptionArea
+            id="project-edit-description"
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="프로젝트 설명 (선택)"
+          />
+        </Field>
+        {data.projectDetailError && <ErrorText>{data.projectDetailError}</ErrorText>}
+        <ModalActions>
+          <button type="button" onClick={close}>
+            취소
+          </button>
+          <button type="button" onClick={save} disabled={data.savingProject || !name.trim()}>
+            {data.savingProject ? "저장 중..." : "저장"}
+          </button>
+        </ModalActions>
+      </ModalCard>
+    </ModalOverlay>,
+    document.body,
   );
 }
 
@@ -558,10 +626,38 @@ const ProjectHeader = styled.header`
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 `;
 
+const ProjectTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
 const ProjectName = styled.h1`
   font-size: 20px;
   font-weight: 700;
   color: #fff;
+`;
+
+const EditProjectButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #767676;
+  cursor: pointer;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #00b5ff;
+  }
 `;
 
 const ProjectDescription = styled.p`

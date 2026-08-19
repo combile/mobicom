@@ -107,6 +107,9 @@ export function useTasksData(enabled: boolean) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [savingTask, setSavingTask] = useState(false);
   const [taskDetailError, setTaskDetailError] = useState<string | null>(null);
+  const [editingProject, setEditingProject] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+  const [projectDetailError, setProjectDetailError] = useState<string | null>(null);
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
   const [savingMilestone, setSavingMilestone] = useState(false);
   const [milestoneDetailError, setMilestoneDetailError] = useState<string | null>(null);
@@ -191,6 +194,32 @@ export function useTasksData(enabled: boolean) {
     } finally {
       setCreatingProject(false);
     }
+  }
+
+  async function updateProject(projectId: string, patch: { name?: string; description?: string }) {
+    setSavingProject(true);
+    setProjectDetailError(null);
+    try {
+      const res = await fetch(`/api/mobion/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setProjectDetailError(data.error ?? "저장에 실패했습니다. 다시 시도해 주세요.");
+        return false;
+      }
+    } catch {
+      setProjectDetailError("저장에 실패했습니다. 다시 시도해 주세요.");
+      return false;
+    } finally {
+      setSavingProject(false);
+    }
+    // The sidebar renders from the project list, so a renamed project needs
+    // that list refetched, not just the detail payload.
+    loadProjects();
+    return true;
   }
 
   function openCreateMilestone() {
@@ -467,6 +496,13 @@ export function useTasksData(enabled: boolean) {
     taskDetailError,
     setTaskDetailError,
     updateTask,
+
+    editingProject,
+    setEditingProject,
+    savingProject,
+    projectDetailError,
+    setProjectDetailError,
+    updateProject,
 
     selectedMilestone,
     selectedMilestoneId,
