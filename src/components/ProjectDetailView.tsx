@@ -374,6 +374,33 @@ function formatCreatedAt(iso: string) {
   return d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
 }
 
+/**
+ * Relative shortcuts for a date field.
+ *
+ * Typing a date for "by tomorrow" is more work than the decision itself. The
+ * picker beside these still handles any other date.
+ */
+function DateShortcuts({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <DueShortcuts>
+      <OpenLinkButton type="button" onClick={() => onChange(todayISO())}>
+        오늘
+      </OpenLinkButton>
+      <OpenLinkButton type="button" onClick={() => onChange(shiftISO(1))}>
+        내일
+      </OpenLinkButton>
+      <OpenLinkButton type="button" onClick={() => onChange(shiftISO(7))}>
+        +7일
+      </OpenLinkButton>
+      {value && (
+        <OpenLinkButton type="button" onClick={() => onChange("")} title="날짜 제거">
+          지우기
+        </OpenLinkButton>
+      )}
+    </DueShortcuts>
+  );
+}
+
 /** One task row, shared by the flat list and the grouped view. */
 function TaskRowItem({
   task,
@@ -536,7 +563,10 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
             />
           </Field>
           <Field>
-            <label htmlFor="milestone-detail-date">목표 날짜</label>
+            <LabelRow>
+              <label htmlFor="milestone-detail-date">목표 날짜</label>
+              <DateShortcuts value={targetDate} onChange={setTargetDate} />
+            </LabelRow>
             <input
               id="milestone-detail-date"
               type="date"
@@ -734,24 +764,7 @@ function TaskDetailModal({ data }: { data: TasksData }) {
           <Field>
             <LabelRow>
               <label htmlFor="task-detail-due">마감일</label>
-              <DueShortcuts>
-                {/* typing a date for "by tomorrow" is more work than the
-                    decision itself; the picker still handles anything else */}
-                <OpenLinkButton type="button" onClick={() => setDueDate(todayISO())}>
-                  오늘
-                </OpenLinkButton>
-                <OpenLinkButton type="button" onClick={() => setDueDate(shiftISO(1))}>
-                  내일
-                </OpenLinkButton>
-                <OpenLinkButton type="button" onClick={() => setDueDate(shiftISO(7))}>
-                  +7일
-                </OpenLinkButton>
-                {dueDate && (
-                  <OpenLinkButton type="button" onClick={() => setDueDate("")} title="마감일 제거">
-                    지우기
-                  </OpenLinkButton>
-                )}
-              </DueShortcuts>
+              <DateShortcuts value={dueDate} onChange={setDueDate} />
             </LabelRow>
             <input
               id="task-detail-due"
@@ -866,7 +879,13 @@ function CreateMilestoneModal({ data }: { data: TasksData }) {
           />
         </Field>
         <Field>
-          <label htmlFor="new-milestone-date">목표 날짜</label>
+          <LabelRow>
+            <label htmlFor="new-milestone-date">목표 날짜</label>
+            <DateShortcuts
+              value={data.newMilestoneTargetDate}
+              onChange={data.setNewMilestoneTargetDate}
+            />
+          </LabelRow>
           <input
             id="new-milestone-date"
             type="date"
@@ -942,7 +961,10 @@ function CreateTaskModal({ data }: { data: TasksData }) {
           />
         </Field>
         <Field>
-          <label htmlFor="new-task-due-date">마감일</label>
+          <LabelRow>
+            <label htmlFor="new-task-due-date">마감일</label>
+            <DateShortcuts value={data.newTaskDueDate} onChange={data.setNewTaskDueDate} />
+          </LabelRow>
           <input
             id="new-task-due-date"
             type="date"
