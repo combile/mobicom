@@ -27,7 +27,16 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
   return (
     <Main>
       {!data.selectedProjectId && (
-        <EmptyState>프로젝트를 선택하거나 새로 만들어 보세요</EmptyState>
+        <EmptyState>
+          {data.projects.length === 0 ? (
+            <>
+              <EmptyTitle>아직 프로젝트가 없습니다</EmptyTitle>
+              <EmptyHint>왼쪽 사이드바의 &lsquo;프로젝트 추가&rsquo;로 시작해 보세요</EmptyHint>
+            </>
+          ) : (
+            "왼쪽에서 프로젝트를 선택해 주세요"
+          )}
+        </EmptyState>
       )}
       {data.selectedProjectId && data.detailError && <ErrorText>{data.detailError}</ErrorText>}
       {data.selectedProjectId && !data.detailError && (
@@ -212,7 +221,23 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
             </GroupToggle>
           </FilterRow>
           {data.visibleTasks.length === 0 && (
-            <EmptyState>조건에 맞는 태스크가 없습니다</EmptyState>
+            <EmptyState>
+              {data.hasActiveFilters ? (
+                <>
+                  <EmptyTitle>조건에 맞는 태스크가 없습니다</EmptyTitle>
+                  {/* the filters span five controls, so undoing them by hand to
+                      confirm the list is not actually empty is tedious */}
+                  <ResetFiltersButton type="button" onClick={data.resetFilters}>
+                    필터 초기화
+                  </ResetFiltersButton>
+                </>
+              ) : (
+                <>
+                  <EmptyTitle>아직 태스크가 없습니다</EmptyTitle>
+                  <EmptyHint>위 &lsquo;태스크 추가&rsquo;로 첫 태스크를 만들어 보세요</EmptyHint>
+                </>
+              )}
+            </EmptyState>
           )}
 
           {data.groupMode === "none" ? (
@@ -843,9 +868,40 @@ const Main = styled.div`
 `;
 
 const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   margin: auto;
+  padding: 24px 0;
   color: #9a9a9a;
   font-size: 14px;
+  text-align: center;
+`;
+
+const EmptyTitle = styled.span`
+  color: #d4d4d4;
+  font-size: 14px;
+`;
+
+const EmptyHint = styled.span`
+  color: #767676;
+  font-size: 12px;
+`;
+
+const ResetFiltersButton = styled.button`
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 181, 255, 0.28);
+  background: rgba(0, 181, 255, 0.12);
+  color: #00b5ff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(0, 181, 255, 0.2);
+  }
 `;
 
 const ProjectHeader = styled.header`
