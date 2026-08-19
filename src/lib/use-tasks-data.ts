@@ -368,12 +368,20 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     loadProjectDetail(selectedProjectId);
   }
 
-  function openCreateTask() {
+  /**
+   * Opens the create form seeded from where the user already is.
+   *
+   * Filtering to a milestone and then adding a task almost always means adding
+   * it to that milestone, and the old form made you pick it again. An explicit
+   * `prefill` wins over the filters — that comes from the per-group add
+   * buttons, which name their target directly.
+   */
+  function openCreateTask(prefill?: { milestoneId?: string | null; assigneeId?: string | null }) {
     setCreateTaskError(null);
     setNewTaskTitle("");
     setNewTaskDescription("");
-    setNewTaskAssigneeId("");
-    setNewTaskMilestoneId("");
+    setNewTaskAssigneeId(prefill?.assigneeId ?? assigneeFilter);
+    setNewTaskMilestoneId(prefill?.milestoneId ?? milestoneFilter);
     setNewTaskDueDate("");
     setShowCreateTask(true);
   }

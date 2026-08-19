@@ -134,7 +134,7 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
 
           <DetailSectionHeader>
             <DetailSectionTitle>태스크</DetailSectionTitle>
-            <DetailAddButton type="button" onClick={data.openCreateTask}>
+            <DetailAddButton type="button" onClick={() => data.openCreateTask()}>
               <span className="material-symbols-outlined">add</span>
               태스크 추가
             </DetailAddButton>
@@ -229,6 +229,20 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
                   <TaskGroupCount>
                     {group.tasks.filter((t) => t.status === "done").length}/{group.tasks.length}
                   </TaskGroupCount>
+                  <GroupAddButton
+                    type="button"
+                    onClick={() =>
+                      data.openCreateTask(
+                        data.groupMode === "assignee"
+                          ? { assigneeId: group.id }
+                          : { milestoneId: group.id },
+                      )
+                    }
+                    aria-label={`${group.title}에 태스크 추가`}
+                    title={`${group.title}에 태스크 추가`}
+                  >
+                    <span className="material-symbols-outlined">add</span>
+                  </GroupAddButton>
                 </TaskGroupHeading>
                 <TaskList>
                   {group.tasks.map((t) => (
@@ -1200,6 +1214,36 @@ const TaskGroupCount = styled.span`
   font-size: 11px;
   font-weight: 400;
   color: #767676;
+`;
+
+const GroupAddButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #767676;
+  cursor: pointer;
+  opacity: 0;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  /* revealed on hover so the headings stay clean, but focus brings it back for
+     keyboard users, who never trigger hover */
+  ${TaskGroupHeading}:hover &,
+  &:focus-visible {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #00b5ff;
+  }
 `;
 
 const TaskRow = styled.div`
