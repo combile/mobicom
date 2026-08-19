@@ -38,9 +38,67 @@ export function useCloseOnEscape(onClose: () => void) {
  * Exit animation is deliberately absent: it would need extra state to delay
  * unmounting past the tween.
  */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Keeps Tab inside the modal and puts focus in it on open.
+ *
+ * Without this, Tab walks straight out of the modal and into the page behind
+ * it — which is still there, just visually covered — so a keyboard user ends
+ * up editing a form they cannot see.
+ *
+ * Focus lands on the first field rather than the card itself, so typing works
+ * immediately; if the modal has no focusable content, the card takes focus so
+ * the Escape handler still has somewhere sensible to be.
+ *
+ * Focus returns to whatever was focused before on close, so dismissing a modal
+ * does not dump the user back at the top of the page.
+ */
+export function useModalFocus(cardRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+
+    const previous = document.activeElement as HTMLElement | null;
+    // a div is not focusable on its own, and the card needs to be for the
+    // no-fields fallback below
+    if (!card.hasAttribute("tabindex")) card.setAttribute("tabindex", "-1");
+    const first = card.querySelector<HTMLElement>(FOCUSABLE);
+    (first ?? card).focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab" || !card) return;
+      // re-queried per keypress: fields appear and disappear as the form
+      // changes, so a list captured on mount would go stale
+      const items = Array.from(card.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (items.length === 0) return;
+      const firstItem = items[0];
+      const lastItem = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === firstItem) {
+        e.preventDefault();
+        lastItem.focus();
+      } else if (!e.shiftKey && document.activeElement === lastItem) {
+        e.preventDefault();
+        firstItem.focus();
+      }
+    }
+
+    card.addEventListener("keydown", onKeyDown);
+    return () => {
+      card.removeEventListener("keydown", onKeyDown);
+      previous?.focus?.();
+    };
+  }, [cardRef]);
+}
+
 export function useModalEnterAnimation() {
   const overlayRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // every modal already calls this hook, so trapping focus here covers all of
+  // them without touching a single call site
+  useModalFocus(cardRef);
 
   useGSAP(() => {
     if (overlayRef.current) {
