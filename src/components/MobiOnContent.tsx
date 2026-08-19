@@ -7,7 +7,7 @@ import ProjectSidebarList from "./ProjectSidebarList";
 import ProjectDetailView from "./ProjectDetailView";
 import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
 import { useTasksData } from "@/lib/use-tasks-data";
-import { useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
+import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
 
 type Channel = {
@@ -659,6 +659,7 @@ type CreateChannelModalProps = {
  */
 function CreateChannelModal(props: CreateChannelModalProps) {
   const { overlayRef, cardRef } = useModalEnterAnimation();
+  useCloseOnEscape(props.onClose);
 
   return (
         <ModalOverlay ref={overlayRef} onClick={props.onClose}>

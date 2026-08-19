@@ -1,8 +1,31 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
+
+/**
+ * Closes a modal on Escape.
+ *
+ * Listens on the document because focus may sit anywhere inside the modal —
+ * or nowhere in particular right after it opens — so a handler bound to the
+ * card would miss the key.
+ *
+ * `onClose` is read through a ref so a handler redefined on every render does
+ * not detach and rebind the listener each time.
+ */
+export function useCloseOnEscape(onClose: () => void) {
+  const handler = useRef(onClose);
+  handler.current = onClose;
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") handler.current();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+}
 
 /**
  * Entrance animation shared by every create modal.
