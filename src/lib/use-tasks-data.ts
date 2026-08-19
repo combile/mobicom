@@ -596,6 +596,23 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+
+  /**
+   * Neighbours of the open task within the list as it is currently filtered and
+   * sorted, so stepping through the panel follows what is on screen.
+   *
+   * Index is -1 when the open task has dropped out of the filtered list — a
+   * status change can do that — and both neighbours are then null rather than
+   * jumping somewhere arbitrary.
+   */
+  const openTaskIndex = selectedTaskId
+    ? visibleTasks.findIndex((t) => t.id === selectedTaskId)
+    : -1;
+  const prevTaskId = openTaskIndex > 0 ? visibleTasks[openTaskIndex - 1].id : null;
+  const nextTaskId =
+    openTaskIndex >= 0 && openTaskIndex < visibleTasks.length - 1
+      ? visibleTasks[openTaskIndex + 1].id
+      : null;
   const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId) ?? null;
 
   // Summary counts run over every task, not visibleTasks: a filtered view
@@ -686,6 +703,9 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     selectedTask,
     selectedTaskId,
     setSelectedTaskId,
+    openTaskIndex,
+    prevTaskId,
+    nextTaskId,
     savingTask,
     taskDetailError,
     setTaskDetailError,

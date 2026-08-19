@@ -577,6 +577,17 @@ function TaskDetailModal({ data }: { data: TasksData }) {
 
   const due = dueState(dueDate || null, status);
 
+  // Stepping to another task swaps this component's `key`, which discards the
+  // local draft. Blocking the step while there are unsaved edits is what stops
+  // that from silently throwing away typing.
+  const dirty =
+    title !== task.title ||
+    description !== (task.description ?? "") ||
+    status !== task.status ||
+    assigneeId !== (task.assigneeId ?? "") ||
+    milestoneId !== (task.milestoneId ?? "") ||
+    dueDate !== (task.dueDate ?? "");
+
   return createPortal(
     <ModalOverlay ref={overlayRef} onClick={close}>
       <WideModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
@@ -584,6 +595,31 @@ function TaskDetailModal({ data }: { data: TasksData }) {
           <TicketLabel>태스크</TicketLabel>
           {due === "overdue" && <TicketBadge data-tone="overdue">기한 초과</TicketBadge>}
           {due === "soon" && <TicketBadge data-tone="soon">마감 임박</TicketBadge>}
+          <StepGroup>
+            {data.openTaskIndex >= 0 && (
+              <StepPosition>
+                {data.openTaskIndex + 1}/{data.visibleTasks.length}
+              </StepPosition>
+            )}
+            <StepButton
+              type="button"
+              onClick={() => data.prevTaskId && data.setSelectedTaskId(data.prevTaskId)}
+              disabled={!data.prevTaskId || dirty}
+              aria-label="이전 태스크"
+              title={dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : "이전 태스크"}
+            >
+              <span className="material-symbols-outlined">expand_less</span>
+            </StepButton>
+            <StepButton
+              type="button"
+              onClick={() => data.nextTaskId && data.setSelectedTaskId(data.nextTaskId)}
+              disabled={!data.nextTaskId || dirty}
+              aria-label="다음 태스크"
+              title={dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : "다음 태스크"}
+            >
+              <span className="material-symbols-outlined">expand_more</span>
+            </StepButton>
+          </StepGroup>
         </TicketTopRow>
 
         <Field>
@@ -1312,6 +1348,46 @@ const TicketBadge = styled.span`
   &[data-tone="soon"] {
     background: rgba(255, 157, 92, 0.16);
     color: #ff9d5c;
+  }
+`;
+
+const StepGroup = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+`;
+
+const StepPosition = styled.span`
+  margin-right: 6px;
+  font-size: 11px;
+  color: #767676;
+`;
+
+const StepButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    color: #d4d4d4;
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
 `;
 
