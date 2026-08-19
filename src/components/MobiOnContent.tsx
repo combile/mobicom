@@ -381,6 +381,25 @@ export default function MobiOnContent() {
     setNewChannelTags((prev) => prev.filter((t) => t !== tag));
   }
 
+  /**
+   * Turns a message into a task without leaving the conversation behind.
+   *
+   * The text becomes the title, trimmed to what a title can hold, and the full
+   * message is kept as the excerpt so the task still reads sensibly on its own.
+   * The channel is recorded so the task can point back at where it was decided.
+   */
+  function raiseTaskFromMessage(m: Message) {
+    const text = m.text.trim();
+    tasksData.openCreateTask({
+      title: text.slice(0, 80),
+      description: text.length > 80 ? text : "",
+      sourceChannelId: m.channelId,
+      sourceMessageId: m.id,
+      sourceExcerpt: text.slice(0, 500),
+    });
+    setMode("projects");
+  }
+
   const messageListRef = useRef<HTMLDivElement>(null);
   // `mode` belongs in here: switching to projects unmounts the message list, so
   // coming back remounts it scrolled to the top unless this runs again.
@@ -441,7 +460,13 @@ export default function MobiOnContent() {
         {mode === "projects" && (
           <>
             <ProjectSidebarList data={tasksData} />
-            <ProjectDetailView data={tasksData} />
+            <ProjectDetailView
+              data={tasksData}
+              onOpenChannel={(channelId) => {
+                setActiveChannelId(channelId);
+                setMode("chat");
+              }}
+            />
           </>
         )}
         {mode === "contests" && <ContestsView data={contestsData} />}
@@ -635,6 +660,17 @@ export default function MobiOnContent() {
                     >
                       {mi > 0 && <GroupedTimestamp>{formatTime(m.createdOn)}</GroupedTimestamp>}
                       <MessageText>{renderMessageText(m.text, knownUserIds)}</MessageText>
+                      {/* the point of having chat and projects in one place:
+                          something decided in conversation becomes work without
+                          being retyped somewhere else */}
+                      <RaiseTaskButton
+                        type="button"
+                        onClick={() => raiseTaskFromMessage(m)}
+                        aria-label="이 메시지로 태스크 만들기"
+                        title="이 메시지로 태스크 만들기"
+                      >
+                        <span className="material-symbols-outlined">add_task</span>
+                      </RaiseTaskButton>
                     </GroupedMessageRow>
                   ))}
                 </MessageBody>
@@ -1098,6 +1134,38 @@ const GroupedMessageRow = styled.div`
 
   &[data-mentions-me] {
     background: rgba(0, 181, 255, 0.08);
+  }
+`;
+
+const RaiseTaskButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-left: auto;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #767676;
+  cursor: pointer;
+  opacity: 0;
+
+  .material-symbols-outlined {
+    font-size: 17px;
+  }
+
+  /* hidden until the row is engaged so a conversation does not read as a
+     column of buttons, but reachable by keyboard, which never hovers */
+  ${GroupedMessageRow}:hover &,
+  &:focus-visible {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: rgba(0, 181, 255, 0.12);
+    color: #00b5ff;
   }
 `;
 

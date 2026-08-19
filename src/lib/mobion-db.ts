@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 10;
+const MOBION_SCHEMA_VERSION = 11;
 
 export const pool =
   globalThis.mobionPool ??
@@ -167,6 +167,16 @@ export async function ensureMobionSchema() {
           created_by UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
+      `);
+      // Where a task came from, when it came from a conversation. Nullable
+      // because most tasks are still created directly; the excerpt is stored
+      // rather than joined so the task keeps its context even if the message
+      // is later edited or the channel is left.
+      await pool.query(`
+        ALTER TABLE mobion_tasks
+          ADD COLUMN IF NOT EXISTS source_channel_id TEXT,
+          ADD COLUMN IF NOT EXISTS source_message_id TEXT,
+          ADD COLUMN IF NOT EXISTS source_excerpt TEXT
       `);
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_contests (

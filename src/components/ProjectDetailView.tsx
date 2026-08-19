@@ -25,7 +25,14 @@ import {
   ModalActions,
 } from "./modal-styles";
 
-export default function ProjectDetailView({ data }: { data: TasksData }) {
+export default function ProjectDetailView({
+  data,
+  onOpenChannel,
+}: {
+  data: TasksData;
+  /** Switches the workspace back to the conversation a task came from. */
+  onOpenChannel?: (channelId: string) => void;
+}) {
   return (
     <Main>
       {!data.selectedProjectId && (
@@ -295,7 +302,13 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
 
       {data.showCreateMilestone && <CreateMilestoneModal data={data} />}
       {data.showCreateTask && <CreateTaskModal data={data} />}
-      {data.selectedTask && <TaskDetailModal key={data.selectedTask.id} data={data} />}
+      {data.selectedTask && (
+        <TaskDetailModal
+          key={data.selectedTask.id}
+          data={data}
+          onOpenChannel={onOpenChannel}
+        />
+      )}
       {data.selectedMilestone && (
         <MilestoneDetailModal key={data.selectedMilestone.id} data={data} />
       )}
@@ -712,7 +725,13 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
  * opened — without it React reuses this instance and keeps the previous task's
  * draft values.
  */
-function TaskDetailModal({ data }: { data: TasksData }) {
+function TaskDetailModal({
+  data,
+  onOpenChannel,
+}: {
+  data: TasksData;
+  onOpenChannel?: (channelId: string) => void;
+}) {
   const { overlayRef, cardRef } = useModalEnterAnimation();
   const task = data.selectedTask!;
 
@@ -900,6 +919,24 @@ function TaskDetailModal({ data }: { data: TasksData }) {
           </Field>
         </TwoUp>
 
+        {task.sourceChannelId && (
+          <SourceNote>
+            <span className="material-symbols-outlined">forum</span>
+            <SourceQuote>{task.sourceExcerpt}</SourceQuote>
+            <OpenLinkButton
+              type="button"
+              disabled={dirty}
+              title={dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : "이 대화 열기"}
+              onClick={() => {
+                data.setSelectedTaskId(null);
+                onOpenChannel?.(task.sourceChannelId!);
+              }}
+            >
+              대화 보기
+            </OpenLinkButton>
+          </SourceNote>
+        )}
+
         <MetaLine>
           {task.createdByName ?? "알 수 없는 사용자"}님이 {formatCreatedAt(task.createdAt)}에 등록
         </MetaLine>
@@ -990,6 +1027,14 @@ function CreateTaskModal({ data }: { data: TasksData }) {
     <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateTask(false)}>
       <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
         <ModalTitle>새 태스크 만들기</ModalTitle>
+        {/* raised from chat: show what it came from so the title can be edited
+            into something that reads as work rather than as a message */}
+        {data.taskSource && (
+          <SourceNote>
+            <span className="material-symbols-outlined">forum</span>
+            <SourceQuote>{data.taskSource.excerpt}</SourceQuote>
+          </SourceNote>
+        )}
         <Field>
           <label htmlFor="new-task-title">제목</label>
           <input
@@ -1684,6 +1729,36 @@ const OpenLinkButton = styled.button`
     color: #767676;
     cursor: default;
   }
+`;
+
+const SourceNote = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 2px solid rgba(0, 181, 255, 0.5);
+  background: rgba(0, 181, 255, 0.06);
+
+  .material-symbols-outlined {
+    font-size: 15px;
+    color: #00b5ff;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+`;
+
+const SourceQuote = styled.span`
+  flex: 1;
+  min-width: 0;
+  color: #9a9a9a;
+  font-size: 12px;
+  line-height: 1.5;
+  /* a long message should not push the buttons off the card */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 `;
 
 const MetaLine = styled.p`

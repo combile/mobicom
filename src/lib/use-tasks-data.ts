@@ -28,6 +28,9 @@ export type Task = {
   createdAt: string;
   /** Null when the creator's account is gone, so treat it as optional. */
   createdByName: string | null;
+  /** Set when the task was raised from a chat message. */
+  sourceChannelId: string | null;
+  sourceExcerpt: string | null;
 };
 
 export const TASK_STATUS_OPTIONS = [
@@ -128,6 +131,12 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [createTaskError, setCreateTaskError] = useState<string | null>(null);
   const [creatingTask, setCreatingTask] = useState(false);
+  /** Set only when the create form was opened from a chat message. */
+  const [taskSource, setTaskSource] = useState<{
+    channelId: string;
+    messageId: string;
+    excerpt: string;
+  } | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [savingTask, setSavingTask] = useState(false);
   const [taskDetailError, setTaskDetailError] = useState<string | null>(null);
@@ -399,13 +408,30 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
    * `prefill` wins over the filters — that comes from the per-group add
    * buttons, which name their target directly.
    */
-  function openCreateTask(prefill?: { milestoneId?: string | null; assigneeId?: string | null }) {
+  function openCreateTask(prefill?: {
+    milestoneId?: string | null;
+    assigneeId?: string | null;
+    title?: string;
+    description?: string;
+    sourceChannelId?: string;
+    sourceMessageId?: string;
+    sourceExcerpt?: string;
+  }) {
     setCreateTaskError(null);
-    setNewTaskTitle("");
-    setNewTaskDescription("");
+    setNewTaskTitle(prefill?.title ?? "");
+    setNewTaskDescription(prefill?.description ?? "");
     setNewTaskAssigneeId(prefill?.assigneeId ?? assigneeFilter);
     setNewTaskMilestoneId(prefill?.milestoneId ?? milestoneFilter);
     setNewTaskDueDate("");
+    setTaskSource(
+      prefill?.sourceChannelId
+        ? {
+            channelId: prefill.sourceChannelId,
+            messageId: prefill.sourceMessageId ?? "",
+            excerpt: prefill.sourceExcerpt ?? "",
+          }
+        : null,
+    );
     setShowCreateTask(true);
   }
 
@@ -423,6 +449,9 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
           assigneeId: newTaskAssigneeId || null,
           milestoneId: newTaskMilestoneId || null,
           dueDate: newTaskDueDate || null,
+          sourceChannelId: taskSource?.channelId ?? null,
+          sourceMessageId: taskSource?.messageId ?? null,
+          sourceExcerpt: taskSource?.excerpt ?? null,
         }),
       });
       if (!res.ok) {
@@ -431,6 +460,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
         return;
       }
       setShowCreateTask(false);
+      setTaskSource(null);
       loadProjectDetail(selectedProjectId);
     } catch {
       setCreateTaskError("요청에 실패했습니다. 다시 시도해 주세요.");
@@ -751,6 +781,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     openCreateTask,
     handleCreateTask,
     updateTaskStatus,
+    taskSource,
 
     selectedTask,
     selectedTaskId,
