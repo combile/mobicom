@@ -35,6 +35,39 @@ export const MILESTONE_STATUS_OPTIONS = [
   { value: "done", label: "완료" },
 ];
 
+const SOON_DAYS = 3;
+
+/** Local calendar date as YYYY-MM-DD, matching what `<input type="date">` stores. */
+function todayISO() {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+function shiftISO(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+export type DueState = "overdue" | "soon" | null;
+
+/**
+ * Both dates are YYYY-MM-DD, so plain string comparison is already
+ * chronological — no Date parsing or timezone handling needed.
+ *
+ * Finished work is never late, so a done item returns null whatever its date.
+ */
+export function dueState(dueDate: string | null, status: string): DueState {
+  if (!dueDate || status === "done") return null;
+  if (dueDate < todayISO()) return "overdue";
+  if (dueDate <= shiftISO(SOON_DAYS)) return "soon";
+  return null;
+}
+
 /**
  * Project/milestone/task state for the workspace's projects mode.
  *
@@ -273,8 +306,24 @@ export function useTasksData(enabled: boolean) {
       (!assigneeFilter || t.assigneeId === assigneeFilter),
   );
 
+  const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
+
+  // Summary counts run over every task, not visibleTasks: a filtered view
+  // should not change what "this project is 40% done" means.
+  const doneCount = tasks.filter((t) => t.status === "done").length;
+  const overdueCount = tasks.filter((t) => dueState(t.dueDate, t.status) === "overdue").length;
+  const summary = {
+    total: tasks.length,
+    done: doneCount,
+    overdue: overdueCount,
+    milestones: milestones.length,
+    percent: tasks.length === 0 ? 0 : Math.round((doneCount / tasks.length) * 100),
+  };
+
   return {
     projects,
+    selectedProject,
+    summary,
     selectedProjectId,
     setSelectedProjectId,
     loadError,

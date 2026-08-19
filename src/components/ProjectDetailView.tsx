@@ -6,6 +6,7 @@ import CustomSelect from "./CustomSelect";
 import {
   MILESTONE_STATUS_OPTIONS,
   TASK_STATUS_OPTIONS,
+  dueState,
   type TasksData,
 } from "@/lib/use-tasks-data";
 import { useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
@@ -27,6 +28,37 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
       {data.selectedProjectId && data.detailError && <ErrorText>{data.detailError}</ErrorText>}
       {data.selectedProjectId && !data.detailError && (
         <>
+          {data.selectedProject && (
+            <ProjectHeader>
+              <ProjectName>{data.selectedProject.name}</ProjectName>
+              {data.selectedProject.description && (
+                <ProjectDescription>{data.selectedProject.description}</ProjectDescription>
+              )}
+              <StatRow>
+                <Stat>
+                  태스크 <StatValue>{data.summary.done}</StatValue>/{data.summary.total}
+                </Stat>
+                <Stat>
+                  마일스톤 <StatValue>{data.summary.milestones}</StatValue>
+                </Stat>
+                {data.summary.overdue > 0 && (
+                  <Stat data-tone="overdue">
+                    기한 초과 <StatValue>{data.summary.overdue}</StatValue>
+                  </Stat>
+                )}
+              </StatRow>
+              <ProgressTrack
+                role="progressbar"
+                aria-valuenow={data.summary.percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="태스크 완료율"
+              >
+                <ProgressFill style={{ width: `${data.summary.percent}%` }} />
+              </ProgressTrack>
+            </ProjectHeader>
+          )}
+
           <DetailSectionHeader>
             <DetailSectionTitle>마일스톤</DetailSectionTitle>
             <DetailAddButton type="button" onClick={data.openCreateMilestone}>
@@ -39,7 +71,11 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
             {data.milestones.map((m) => (
               <MilestoneRow key={m.id}>
                 <MilestoneTitle>{m.title}</MilestoneTitle>
-                {m.targetDate && <MilestoneDate>{m.targetDate}</MilestoneDate>}
+                {m.targetDate && (
+                  <MilestoneDate data-tone={dueState(m.targetDate, m.status) ?? undefined}>
+                    {m.targetDate}
+                  </MilestoneDate>
+                )}
                 {data.tasks.some((t) => t.milestoneId === m.id) && (
                   <MilestoneDate>
                     {data.tasks.filter((t) => t.milestoneId === m.id && t.status === "done").length}
@@ -92,8 +128,17 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
             {data.visibleTasks.map((t) => (
               <TaskRow key={t.id}>
                 <TaskTitle>{t.title}</TaskTitle>
+                {t.milestoneId && (
+                  <MilestoneChip>
+                    {data.milestones.find((m) => m.id === t.milestoneId)?.title ?? "—"}
+                  </MilestoneChip>
+                )}
                 <TaskMeta>{t.assigneeName ?? "미배정"}</TaskMeta>
-                {t.dueDate && <TaskMeta>{t.dueDate}</TaskMeta>}
+                {t.dueDate && (
+                  <TaskMeta data-tone={dueState(t.dueDate, t.status) ?? undefined}>
+                    {t.dueDate}
+                  </TaskMeta>
+                )}
                 <RowSelect
                   value={t.status}
                   onChange={(v) => data.updateTaskStatus(t.id, v)}
@@ -247,6 +292,74 @@ const EmptyState = styled.div`
   font-size: 14px;
 `;
 
+const ProjectHeader = styled.header`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const ProjectName = styled.h1`
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+`;
+
+const ProjectDescription = styled.p`
+  font-size: 13px;
+  color: #9a9a9a;
+`;
+
+const StatRow = styled.div`
+  display: flex;
+  gap: 16px;
+  margin-top: 2px;
+`;
+
+const Stat = styled.span`
+  font-size: 12px;
+  color: #767676;
+
+  &[data-tone="overdue"] {
+    color: #ff6767;
+  }
+`;
+
+const StatValue = styled.strong`
+  color: #d4d4d4;
+  font-weight: 700;
+
+  ${Stat}[data-tone="overdue"] & {
+    color: #ff6767;
+  }
+`;
+
+const ProgressTrack = styled.div`
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div`
+  height: 100%;
+  border-radius: inherit;
+  background: #00b5ff;
+  transition: width 0.3s ease;
+`;
+
+const MilestoneChip = styled.span`
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #9a9a9a;
+  font-size: 11px;
+  white-space: nowrap;
+`;
+
 const DetailSectionHeader = styled.div`
   display: flex;
   align-items: center;
@@ -317,6 +430,15 @@ const MilestoneTitle = styled.span`
 const MilestoneDate = styled.span`
   color: #767676;
   font-size: 12px;
+
+  &[data-tone="overdue"] {
+    color: #ff6767;
+    font-weight: 600;
+  }
+
+  &[data-tone="soon"] {
+    color: #ff9d5c;
+  }
 `;
 
 const FilterRow = styled.div`
@@ -348,4 +470,13 @@ const TaskTitle = styled.span`
 const TaskMeta = styled.span`
   color: #767676;
   font-size: 12px;
+
+  &[data-tone="overdue"] {
+    color: #ff6767;
+    font-weight: 600;
+  }
+
+  &[data-tone="soon"] {
+    color: #ff9d5c;
+  }
 `;
