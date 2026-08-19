@@ -15,7 +15,7 @@ import {
   type Task,
   type TasksData,
 } from "@/lib/use-tasks-data";
-import { useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
+import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import {
   ModalOverlay,
   ModalCard,
@@ -314,6 +314,7 @@ function EditProjectModal({ data }: { data: TasksData }) {
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
 
+  useCloseOnEscape(() => close());
   const close = () => {
     data.setProjectDetailError(null);
     data.setEditingProject(false);
@@ -549,6 +550,7 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
   const [status, setStatus] = useState(milestone.status);
   const [targetDate, setTargetDate] = useState(milestone.targetDate ?? "");
 
+  useCloseOnEscape(() => close());
   const close = () => {
     data.setMilestoneDetailError(null);
     data.setSelectedMilestoneId(null);
@@ -721,6 +723,7 @@ function TaskDetailModal({ data }: { data: TasksData }) {
   const [milestoneId, setMilestoneId] = useState(task.milestoneId ?? "");
   const [dueDate, setDueDate] = useState(task.dueDate ?? "");
 
+  useCloseOnEscape(() => close());
   const close = () => {
     data.setTaskDetailError(null);
     data.setSelectedTaskId(null);
@@ -931,6 +934,7 @@ function TaskDetailModal({ data }: { data: TasksData }) {
 // input being typed into.
 function CreateMilestoneModal({ data }: { data: TasksData }) {
   const { overlayRef, cardRef } = useModalEnterAnimation();
+  useCloseOnEscape(() => data.setShowCreateMilestone(false));
 
   return createPortal(
     <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateMilestone(false)}>
@@ -980,6 +984,7 @@ function CreateMilestoneModal({ data }: { data: TasksData }) {
 
 function CreateTaskModal({ data }: { data: TasksData }) {
   const { overlayRef, cardRef } = useModalEnterAnimation();
+  useCloseOnEscape(() => data.setShowCreateTask(false));
 
   return createPortal(
     <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateTask(false)}>

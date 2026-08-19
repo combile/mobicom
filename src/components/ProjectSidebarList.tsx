@@ -3,7 +3,7 @@
 import { createPortal } from "react-dom";
 import styled from "@emotion/styled";
 import type { TasksData } from "@/lib/use-tasks-data";
-import { useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
+import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import {
   ModalOverlay,
   ModalCard,
@@ -55,6 +55,7 @@ export default function ProjectSidebarList({ data }: { data: TasksData }) {
  */
 function CreateProjectModal({ data }: { data: TasksData }) {
   const { overlayRef, cardRef } = useModalEnterAnimation();
+  useCloseOnEscape(() => data.setShowCreateProject(false));
 
   return createPortal(
     <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateProject(false)}>
