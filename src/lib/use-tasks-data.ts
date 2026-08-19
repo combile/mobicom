@@ -285,6 +285,50 @@ export function useTasksData(enabled: boolean) {
     return true;
   }
 
+  async function deleteTask(taskId: string) {
+    if (!selectedProjectId) return false;
+    setSavingTask(true);
+    setTaskDetailError(null);
+    try {
+      const res = await fetch(`/api/mobion/tasks/${taskId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTaskDetailError(data.error ?? "삭제에 실패했습니다. 다시 시도해 주세요.");
+        return false;
+      }
+    } catch {
+      setTaskDetailError("삭제에 실패했습니다. 다시 시도해 주세요.");
+      return false;
+    } finally {
+      setSavingTask(false);
+    }
+    loadProjectDetail(selectedProjectId);
+    return true;
+  }
+
+  async function deleteMilestone(milestoneId: string) {
+    if (!selectedProjectId) return false;
+    setSavingMilestone(true);
+    setMilestoneDetailError(null);
+    try {
+      const res = await fetch(`/api/mobion/milestones/${milestoneId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setMilestoneDetailError(data.error ?? "삭제에 실패했습니다. 다시 시도해 주세요.");
+        return false;
+      }
+    } catch {
+      setMilestoneDetailError("삭제에 실패했습니다. 다시 시도해 주세요.");
+      return false;
+    } finally {
+      setSavingMilestone(false);
+    }
+    // Tasks that pointed at it are unlinked rather than removed, so the task
+    // list changes too — refetch both.
+    loadProjectDetail(selectedProjectId);
+    return true;
+  }
+
   async function updateMilestoneStatus(milestoneId: string, status: string) {
     if (!selectedProjectId) return;
     try {
@@ -496,6 +540,8 @@ export function useTasksData(enabled: boolean) {
     taskDetailError,
     setTaskDetailError,
     updateTask,
+    deleteTask,
+    deleteMilestone,
 
     editingProject,
     setEditingProject,

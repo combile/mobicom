@@ -257,6 +257,48 @@ function EditProjectModal({ data }: { data: TasksData }) {
   );
 }
 
+/**
+ * Two-step delete. Deletion is irreversible and there is no undo, so the first
+ * press only arms the button; the second one carries it out. A browser
+ * `confirm()` would do the same job but blocks the page and cannot say what
+ * else the deletion affects.
+ */
+function DeleteButton({
+  busy,
+  label,
+  confirmHint,
+  onDelete,
+}: {
+  busy: boolean;
+  label: string;
+  confirmHint?: string;
+  onDelete: () => void;
+}) {
+  const [armed, setArmed] = useState(false);
+
+  if (!armed) {
+    return (
+      <DangerButton type="button" onClick={() => setArmed(true)} disabled={busy}>
+        {label}
+      </DangerButton>
+    );
+  }
+
+  return (
+    <ConfirmGroup>
+      <ConfirmText>
+        되돌릴 수 없습니다{confirmHint ? ` · ${confirmHint}` : ""}
+      </ConfirmText>
+      <DangerButton type="button" data-armed onClick={onDelete} disabled={busy}>
+        {busy ? "삭제 중..." : "삭제 확인"}
+      </DangerButton>
+      <CancelDelete type="button" onClick={() => setArmed(false)} disabled={busy}>
+        취소
+      </CancelDelete>
+    </ConfirmGroup>
+  );
+}
+
 /** Milestone counterpart to TaskDetailModal; same local-draft and `key` rules. */
 function MilestoneDetailModal({ data }: { data: TasksData }) {
   const { overlayRef, cardRef } = useModalEnterAnimation();
@@ -340,14 +382,27 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
         </LinkedTasks>
 
         {data.milestoneDetailError && <ErrorText>{data.milestoneDetailError}</ErrorText>}
-        <ModalActions>
-          <button type="button" onClick={close}>
-            닫기
-          </button>
-          <button type="button" onClick={save} disabled={data.savingMilestone || !title.trim()}>
-            {data.savingMilestone ? "저장 중..." : "저장"}
-          </button>
-        </ModalActions>
+        <FooterRow>
+          <DeleteButton
+            busy={data.savingMilestone}
+            label="마일스톤 삭제"
+            confirmHint={
+              linked.length > 0 ? `태스크 ${linked.length}개의 연결이 해제됩니다` : undefined
+            }
+            onDelete={async () => {
+              const ok = await data.deleteMilestone(milestone.id);
+              if (ok) close();
+            }}
+          />
+          <ModalActions>
+            <button type="button" onClick={close}>
+              닫기
+            </button>
+            <button type="button" onClick={save} disabled={data.savingMilestone || !title.trim()}>
+              {data.savingMilestone ? "저장 중..." : "저장"}
+            </button>
+          </ModalActions>
+        </FooterRow>
       </WideModalCard>
     </ModalOverlay>,
     document.body,
@@ -467,14 +522,24 @@ function TaskDetailModal({ data }: { data: TasksData }) {
         </TwoUp>
 
         {data.taskDetailError && <ErrorText>{data.taskDetailError}</ErrorText>}
-        <ModalActions>
-          <button type="button" onClick={close}>
-            닫기
-          </button>
-          <button type="button" onClick={save} disabled={data.savingTask || !title.trim()}>
-            {data.savingTask ? "저장 중..." : "저장"}
-          </button>
-        </ModalActions>
+        <FooterRow>
+          <DeleteButton
+            busy={data.savingTask}
+            label="태스크 삭제"
+            onDelete={async () => {
+              const ok = await data.deleteTask(task.id);
+              if (ok) close();
+            }}
+          />
+          <ModalActions>
+            <button type="button" onClick={close}>
+              닫기
+            </button>
+            <button type="button" onClick={save} disabled={data.savingTask || !title.trim()}>
+              {data.savingTask ? "저장 중..." : "저장"}
+            </button>
+          </ModalActions>
+        </FooterRow>
       </WideModalCard>
     </ModalOverlay>,
     document.body,
@@ -811,6 +876,66 @@ const LinkedEmpty = styled.div`
   font-size: 12px;
   color: #767676;
   padding: 8px 0;
+`;
+
+const FooterRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const DangerButton = styled.button`
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #ff6767;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 103, 103, 0.12);
+  }
+
+  &[data-armed] {
+    background: #ff6767;
+    border-color: #ff6767;
+    color: #1a0808;
+    font-weight: 700;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
+const ConfirmGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const ConfirmText = styled.span`
+  font-size: 12px;
+  color: #ff9d5c;
+`;
+
+const CancelDelete = styled.button`
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: #d4d4d4;
+  }
 `;
 
 // Right-alignment lives on RowControl, which now wraps every use of this.

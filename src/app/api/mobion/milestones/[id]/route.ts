@@ -5,6 +5,35 @@ import { query } from "@/lib/mobion-db";
 
 const VALID_STATUSES = ["planned", "in_progress", "done"];
 
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    await requireCurrentUser();
+    const { id } = await params;
+
+    // Detach tasks before removing the milestone. Deleting them alongside it
+    // would mean one wrong click on a milestone destroys every task filed
+    // under it; unlinking loses nothing and the tasks stay in the list.
+    // Order matters — if the delete fails after this, tasks are merely
+    // unlinked rather than orphaned against a row that no longer exists.
+    await query(`UPDATE mobion_tasks SET milestone_id = NULL WHERE milestone_id = $1`, [id]);
+
+    const result = await query<{ id: string }>(
+      `DELETE FROM mobion_milestones WHERE id = $1 RETURNING id`,
+      [id],
+    );
+    if (!result.rows[0]) {
+      return NextResponse.json({ error: "마일스톤을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return mobionApiError(error, "마일스톤 삭제 실패");
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
