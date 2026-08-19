@@ -21,8 +21,17 @@ export default function ProjectSidebarList({ data }: { data: TasksData }) {
       {data.projects.map((p) => (
         <ProjectItem
           key={p.id}
+          role="button"
+          tabIndex={0}
+          aria-pressed={p.id === data.selectedProjectId}
           data-active={p.id === data.selectedProjectId || undefined}
           onClick={() => data.setSelectedProjectId(p.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              data.setSelectedProjectId(p.id);
+            }
+          }}
         >
           <ProjectItemName>{p.name}</ProjectItemName>
           {p.taskTotal > 0 && (
@@ -145,6 +154,11 @@ const ProjectItem = styled.div`
 
   &:hover {
     background: rgba(255, 255, 255, 0.06);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #00b5ff;
+    outline-offset: -2px;
   }
 
   &[data-active] {
