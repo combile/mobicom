@@ -179,6 +179,25 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     if (selectedProjectId) loadProjectDetail(selectedProjectId);
   }, [selectedProjectId]);
 
+  /**
+   * Clear the state that belonged to the project being left.
+   *
+   * The milestone filter is the one that actually breaks: milestones belong to
+   * a project, so switching leaves the filter pointing at an id no task in the
+   * new project can match, and the list comes back empty with no visible
+   * reason. The open panels refer to the old project's rows too.
+   *
+   * Status, assignee and search survive the switch — those are not tied to a
+   * project, and clearing them would throw away a narrowing the user may want
+   * to carry across.
+   */
+  useEffect(() => {
+    setMilestoneFilter("");
+    setSelectedTaskId(null);
+    setSelectedMilestoneId(null);
+    setEditingProject(false);
+  }, [selectedProjectId]);
+
   useEffect(() => {
     if (!enabled) return;
     fetch("/api/mobion/users/all")
