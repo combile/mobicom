@@ -64,6 +64,15 @@ export function shiftISO(days: number) {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
+export type TaskComment = {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorId: string | null;
+  /** Null once the author's account is gone; the discussion still stands. */
+  authorName: string | null;
+};
+
 export type DueState = "overdue" | "soon" | null;
 
 /**
@@ -138,6 +147,9 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     excerpt: string;
   } | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [postingComment, setPostingComment] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
   const [taskDetailError, setTaskDetailError] = useState<string | null>(null);
   const [editingProject, setEditingProject] = useState(false);
@@ -188,6 +200,49 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   useEffect(() => {
     if (selectedProjectId) loadProjectDetail(selectedProjectId);
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      setComments([]);
+      return;
+    }
+    setCommentsLoading(true);
+    fetch(`/api/mobion/tasks/${selectedTaskId}/comments`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setComments(data.comments ?? []))
+      // a failed thread load should not block editing the task itself
+      .catch(() => setComments([]))
+      .finally(() => setCommentsLoading(false));
+  }, [selectedTaskId]);
+
+  /**
+   * Appends locally instead of refetching: the response already carries the
+   * stored comment, and the thread is ordered oldest first.
+   */
+  async function addComment(taskId: string, body: string) {
+    setPostingComment(true);
+    setTaskDetailError(null);
+    try {
+      const res = await fetch(`/api/mobion/tasks/${taskId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTaskDetailError(data.error ?? "댓글을 남기지 못했습니다.");
+        return false;
+      }
+      const data = await res.json();
+      setComments((prev) => [...prev, data.comment]);
+      return true;
+    } catch {
+      setTaskDetailError("댓글을 남기지 못했습니다.");
+      return false;
+    } finally {
+      setPostingComment(false);
+    }
+  }
 
   /**
    * Clear the state that belonged to the project being left.
@@ -793,6 +848,10 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     taskDetailError,
     setTaskDetailError,
     updateTask,
+    comments,
+    commentsLoading,
+    postingComment,
+    addComment,
     deleteTask,
     deleteMilestone,
 

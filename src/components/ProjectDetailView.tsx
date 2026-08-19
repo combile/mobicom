@@ -741,6 +741,14 @@ function TaskDetailModal({
   const [assigneeId, setAssigneeId] = useState(task.assigneeId ?? "");
   const [milestoneId, setMilestoneId] = useState(task.milestoneId ?? "");
   const [dueDate, setDueDate] = useState(task.dueDate ?? "");
+  const [draftComment, setDraftComment] = useState("");
+
+  async function submitComment() {
+    const body = draftComment.trim();
+    if (!body) return;
+    const ok = await data.addComment(task.id, body);
+    if (ok) setDraftComment("");
+  }
 
   useCloseOnEscape(() => close());
   const close = () => {
@@ -940,6 +948,56 @@ function TaskDetailModal({
         <MetaLine>
           {task.createdByName ?? "알 수 없는 사용자"}님이 {formatCreatedAt(task.createdAt)}에 등록
         </MetaLine>
+
+        <CommentSection>
+          <CommentHeading>
+            논의
+            {data.comments.length > 0 && <CommentCount>{data.comments.length}</CommentCount>}
+          </CommentHeading>
+
+          {data.commentsLoading && <CommentEmpty>불러오는 중...</CommentEmpty>}
+
+          {!data.commentsLoading && data.comments.length === 0 && (
+            <CommentEmpty>
+              막히는 지점이나 정한 내용을 여기 남기면 태스크에 함께 남습니다
+            </CommentEmpty>
+          )}
+
+          {data.comments.map((c) => (
+            <Comment key={c.id}>
+              <CommentMeta>
+                <CommentAuthor>{c.authorName ?? "알 수 없는 사용자"}</CommentAuthor>
+                <CommentTime>{formatCreatedAt(c.createdAt)}</CommentTime>
+              </CommentMeta>
+              <CommentBody>{c.body}</CommentBody>
+            </Comment>
+          ))}
+
+          <CommentForm>
+            <CommentInput
+              rows={2}
+              value={draftComment}
+              onChange={(e) => setDraftComment(e.target.value)}
+              placeholder="논의 남기기"
+              onKeyDown={(e) => {
+                // Enter sends, Shift+Enter breaks the line: the box is for
+                // short remarks, and reaching for the button each time slows
+                // a back-and-forth down
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submitComment();
+                }
+              }}
+            />
+            <CommentSend
+              type="button"
+              onClick={submitComment}
+              disabled={data.postingComment || !draftComment.trim()}
+            >
+              {data.postingComment ? "남기는 중..." : "남기기"}
+            </CommentSend>
+          </CommentForm>
+        </CommentSection>
 
         {data.taskDetailError && <ErrorText>{data.taskDetailError}</ErrorText>}
         <FooterRow>
@@ -1727,6 +1785,115 @@ const OpenLinkButton = styled.button`
 
   &:disabled {
     color: #767676;
+    cursor: default;
+  }
+`;
+
+const CommentSection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const CommentHeading = styled.h3`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9a9a9a;
+`;
+
+const CommentCount = styled.span`
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  font-weight: 700;
+  color: #d4d4d4;
+`;
+
+const CommentEmpty = styled.p`
+  color: #767676;
+  font-size: 12px;
+  padding: 2px 0 4px;
+`;
+
+const Comment = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+`;
+
+const CommentMeta = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+`;
+
+const CommentAuthor = styled.span`
+  color: #d4d4d4;
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const CommentTime = styled.span`
+  color: #767676;
+  font-size: 11px;
+`;
+
+const CommentBody = styled.p`
+  color: #d4d4d4;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
+const CommentForm = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+`;
+
+const CommentInput = styled.textarea`
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+
+  &:focus {
+    border-color: #00b5ff;
+    box-shadow: 0 0 0 3px rgba(0, 181, 255, 0.15);
+  }
+`;
+
+const CommentSend = styled.button`
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #00b5ff;
+  color: #061018;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:disabled {
+    opacity: 0.5;
     cursor: default;
   }
 `;
