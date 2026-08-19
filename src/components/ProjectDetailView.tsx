@@ -1464,9 +1464,14 @@ const TaskList = styled.div`
 `;
 
 const SearchWrap = styled.div`
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
+  /* takes the leftover width so the selects and toggles stay on one row
+     instead of wrapping the moment the pane narrows */
+  flex: 1 1 160px;
+  min-width: 140px;
+  max-width: 280px;
   padding: 0 10px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -1484,7 +1489,8 @@ const SearchWrap = styled.div`
 `;
 
 const SearchInput = styled.input`
-  width: 160px;
+  width: 100%;
+  min-width: 0;
   padding: 7px 0;
   border: none;
   background: transparent;

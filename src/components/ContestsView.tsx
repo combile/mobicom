@@ -336,7 +336,7 @@ const Empty = styled.div`
   align-items: center;
   gap: 8px;
   margin: auto;
-  max-width: 380px;
+  max-width: 520px;
   text-align: center;
 `;
 
