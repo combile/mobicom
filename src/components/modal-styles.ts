@@ -58,6 +58,12 @@ export const Field = styled.div`
     font-size: 14px;
     outline: none;
   }
+
+  /* outline is off above, so focus needs its own affordance */
+  input:focus {
+    border-color: #00b5ff;
+    box-shadow: 0 0 0 3px rgba(0, 181, 255, 0.15);
+  }
 `;
 
 export const ErrorText = styled.p`

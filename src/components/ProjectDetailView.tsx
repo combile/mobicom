@@ -8,6 +8,7 @@ import {
   TASK_STATUS_OPTIONS,
   type TasksData,
 } from "@/lib/use-tasks-data";
+import { useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import {
   ModalOverlay,
   ModalCard,
@@ -104,115 +105,127 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
         </>
       )}
 
-      {data.showCreateMilestone &&
-        createPortal(
-          <ModalOverlay onClick={() => data.setShowCreateMilestone(false)}>
-            <ModalCard onClick={(e) => e.stopPropagation()}>
-              <ModalTitle>새 마일스톤 만들기</ModalTitle>
-              <Field>
-                <label htmlFor="new-milestone-title">제목</label>
-                <input
-                  id="new-milestone-title"
-                  value={data.newMilestoneTitle}
-                  onChange={(e) => data.setNewMilestoneTitle(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <label htmlFor="new-milestone-date">목표 날짜</label>
-                <input
-                  id="new-milestone-date"
-                  type="date"
-                  value={data.newMilestoneTargetDate}
-                  onChange={(e) => data.setNewMilestoneTargetDate(e.target.value)}
-                />
-              </Field>
-              {data.createMilestoneError && <ErrorText>{data.createMilestoneError}</ErrorText>}
-              <ModalActions>
-                <button type="button" onClick={() => data.setShowCreateMilestone(false)}>
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={data.handleCreateMilestone}
-                  disabled={data.creatingMilestone}
-                >
-                  {data.creatingMilestone ? "만드는 중..." : "만들기"}
-                </button>
-              </ModalActions>
-            </ModalCard>
-          </ModalOverlay>,
-          document.body,
-        )}
-
-      {data.showCreateTask &&
-        createPortal(
-          <ModalOverlay onClick={() => data.setShowCreateTask(false)}>
-            <ModalCard onClick={(e) => e.stopPropagation()}>
-              <ModalTitle>새 태스크 만들기</ModalTitle>
-              <Field>
-                <label htmlFor="new-task-title">제목</label>
-                <input
-                  id="new-task-title"
-                  value={data.newTaskTitle}
-                  onChange={(e) => data.setNewTaskTitle(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <label htmlFor="new-task-description">설명</label>
-                <input
-                  id="new-task-description"
-                  value={data.newTaskDescription}
-                  onChange={(e) => data.setNewTaskDescription(e.target.value)}
-                  placeholder="태스크 설명 (선택)"
-                />
-              </Field>
-              <Field>
-                <label>담당자</label>
-                <CustomSelect
-                  fullWidth
-                  value={data.newTaskAssigneeId}
-                  onChange={data.setNewTaskAssigneeId}
-                  options={[
-                    { value: "", label: "미배정" },
-                    ...data.allUsers.map((u) => ({ value: u.id, label: u.name })),
-                  ]}
-                />
-              </Field>
-              <Field>
-                <label>마일스톤</label>
-                <CustomSelect
-                  fullWidth
-                  value={data.newTaskMilestoneId}
-                  onChange={data.setNewTaskMilestoneId}
-                  options={[
-                    { value: "", label: "없음" },
-                    ...data.milestones.map((m) => ({ value: m.id, label: m.title })),
-                  ]}
-                />
-              </Field>
-              <Field>
-                <label htmlFor="new-task-due-date">마감일</label>
-                <input
-                  id="new-task-due-date"
-                  type="date"
-                  value={data.newTaskDueDate}
-                  onChange={(e) => data.setNewTaskDueDate(e.target.value)}
-                />
-              </Field>
-              {data.createTaskError && <ErrorText>{data.createTaskError}</ErrorText>}
-              <ModalActions>
-                <button type="button" onClick={() => data.setShowCreateTask(false)}>
-                  취소
-                </button>
-                <button type="button" onClick={data.handleCreateTask} disabled={data.creatingTask}>
-                  {data.creatingTask ? "만드는 중..." : "만들기"}
-                </button>
-              </ModalActions>
-            </ModalCard>
-          </ModalOverlay>,
-          document.body,
-        )}
+      {data.showCreateMilestone && <CreateMilestoneModal data={data} />}
+      {data.showCreateTask && <CreateTaskModal data={data} />}
     </Main>
+  );
+}
+
+// Module scope for the same reason as CreateProjectModal: a component defined
+// inside the parent remounts on every parent render and steals focus from the
+// input being typed into.
+function CreateMilestoneModal({ data }: { data: TasksData }) {
+  const { overlayRef, cardRef } = useModalEnterAnimation();
+
+  return createPortal(
+    <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateMilestone(false)}>
+      <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
+        <ModalTitle>새 마일스톤 만들기</ModalTitle>
+        <Field>
+          <label htmlFor="new-milestone-title">제목</label>
+          <input
+            id="new-milestone-title"
+            value={data.newMilestoneTitle}
+            onChange={(e) => data.setNewMilestoneTitle(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <label htmlFor="new-milestone-date">목표 날짜</label>
+          <input
+            id="new-milestone-date"
+            type="date"
+            value={data.newMilestoneTargetDate}
+            onChange={(e) => data.setNewMilestoneTargetDate(e.target.value)}
+          />
+        </Field>
+        {data.createMilestoneError && <ErrorText>{data.createMilestoneError}</ErrorText>}
+        <ModalActions>
+          <button type="button" onClick={() => data.setShowCreateMilestone(false)}>
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={data.handleCreateMilestone}
+            disabled={data.creatingMilestone}
+          >
+            {data.creatingMilestone ? "만드는 중..." : "만들기"}
+          </button>
+        </ModalActions>
+      </ModalCard>
+    </ModalOverlay>,
+    document.body,
+  );
+}
+
+function CreateTaskModal({ data }: { data: TasksData }) {
+  const { overlayRef, cardRef } = useModalEnterAnimation();
+
+  return createPortal(
+    <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateTask(false)}>
+      <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
+        <ModalTitle>새 태스크 만들기</ModalTitle>
+        <Field>
+          <label htmlFor="new-task-title">제목</label>
+          <input
+            id="new-task-title"
+            value={data.newTaskTitle}
+            onChange={(e) => data.setNewTaskTitle(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <label htmlFor="new-task-description">설명</label>
+          <input
+            id="new-task-description"
+            value={data.newTaskDescription}
+            onChange={(e) => data.setNewTaskDescription(e.target.value)}
+            placeholder="태스크 설명 (선택)"
+          />
+        </Field>
+        <Field>
+          <label>담당자</label>
+          <CustomSelect
+            fullWidth
+            value={data.newTaskAssigneeId}
+            onChange={data.setNewTaskAssigneeId}
+            options={[
+              { value: "", label: "미배정" },
+              ...data.allUsers.map((u) => ({ value: u.id, label: u.name })),
+            ]}
+          />
+        </Field>
+        <Field>
+          <label>마일스톤</label>
+          <CustomSelect
+            fullWidth
+            value={data.newTaskMilestoneId}
+            onChange={data.setNewTaskMilestoneId}
+            options={[
+              { value: "", label: "없음" },
+              ...data.milestones.map((m) => ({ value: m.id, label: m.title })),
+            ]}
+          />
+        </Field>
+        <Field>
+          <label htmlFor="new-task-due-date">마감일</label>
+          <input
+            id="new-task-due-date"
+            type="date"
+            value={data.newTaskDueDate}
+            onChange={(e) => data.setNewTaskDueDate(e.target.value)}
+          />
+        </Field>
+        {data.createTaskError && <ErrorText>{data.createTaskError}</ErrorText>}
+        <ModalActions>
+          <button type="button" onClick={() => data.setShowCreateTask(false)}>
+            취소
+          </button>
+          <button type="button" onClick={data.handleCreateTask} disabled={data.creatingTask}>
+            {data.creatingTask ? "만드는 중..." : "만들기"}
+          </button>
+        </ModalActions>
+      </ModalCard>
+    </ModalOverlay>,
+    document.body,
   );
 }
 
@@ -248,28 +261,31 @@ const DetailSectionTitle = styled.h2`
   white-space: nowrap;
 `;
 
+/**
+ * Tonal fill, unlike the sidebar's AddButton. This one sits in a section
+ * header rather than at the end of a list, so blending it into the rows below
+ * would misread it as one of them.
+ */
 const DetailAddButton = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  width: auto;
   flex-shrink: 0;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px dashed rgba(255, 255, 255, 0.24);
-  background: transparent;
-  color: #9a9a9a;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 181, 255, 0.28);
+  background: rgba(0, 181, 255, 0.12);
+  color: #00b5ff;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  text-align: left;
 
   .material-symbols-outlined {
     font-size: 16px;
   }
 
   &:hover {
-    color: #00b5ff;
-    border-color: #00b5ff;
+    background: rgba(0, 181, 255, 0.2);
   }
 `;
 
