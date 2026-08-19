@@ -9,6 +9,8 @@ import {
   SORT_OPTIONS,
   TASK_STATUS_OPTIONS,
   dueState,
+  shiftISO,
+  todayISO,
   type SortMode,
   type Task,
   type TasksData,
@@ -730,7 +732,27 @@ function TaskDetailModal({ data }: { data: TasksData }) {
             />
           </Field>
           <Field>
-            <label htmlFor="task-detail-due">마감일</label>
+            <LabelRow>
+              <label htmlFor="task-detail-due">마감일</label>
+              <DueShortcuts>
+                {/* typing a date for "by tomorrow" is more work than the
+                    decision itself; the picker still handles anything else */}
+                <OpenLinkButton type="button" onClick={() => setDueDate(todayISO())}>
+                  오늘
+                </OpenLinkButton>
+                <OpenLinkButton type="button" onClick={() => setDueDate(shiftISO(1))}>
+                  내일
+                </OpenLinkButton>
+                <OpenLinkButton type="button" onClick={() => setDueDate(shiftISO(7))}>
+                  +7일
+                </OpenLinkButton>
+                {dueDate && (
+                  <OpenLinkButton type="button" onClick={() => setDueDate("")} title="마감일 제거">
+                    지우기
+                  </OpenLinkButton>
+                )}
+              </DueShortcuts>
+            </LabelRow>
             <input
               id="task-detail-due"
               type="date"
@@ -1531,6 +1553,12 @@ const TicketBadge = styled.span`
     background: rgba(255, 157, 92, 0.16);
     color: #ff9d5c;
   }
+`;
+
+const DueShortcuts = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 `;
 
 const LabelRow = styled.div`
