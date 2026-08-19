@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 11;
+const MOBION_SCHEMA_VERSION = 12;
 
 export const pool =
   globalThis.mobionPool ??
@@ -177,6 +177,22 @@ export async function ensureMobionSchema() {
           ADD COLUMN IF NOT EXISTS source_channel_id TEXT,
           ADD COLUMN IF NOT EXISTS source_message_id TEXT,
           ADD COLUMN IF NOT EXISTS source_excerpt TEXT
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_task_comments (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          task_id UUID NOT NULL REFERENCES mobion_tasks(id) ON DELETE CASCADE,
+          -- SET NULL, not CASCADE: a discussion should survive someone leaving
+          -- the lab, otherwise the reasoning behind a decision disappears with
+          -- the account
+          user_id UUID REFERENCES mobion_users(id) ON DELETE SET NULL,
+          body TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_task_comments_task_idx
+          ON mobion_task_comments (task_id, created_at)
       `);
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_contests (
