@@ -13,6 +13,8 @@ type TaskRow = {
   milestone_id: string | null;
   assignee_id: string | null;
   assignee_name: string | null;
+  created_at: string;
+  created_by_name: string | null;
 };
 
 export async function GET(
@@ -40,9 +42,11 @@ export async function GET(
 
     const tasksResult = await query<TaskRow>(
       `SELECT t.id, t.title, t.description, t.status, t.due_date,
-              t.milestone_id, t.assignee_id, u.name AS assignee_name
+              t.milestone_id, t.assignee_id, u.name AS assignee_name,
+              t.created_at, c.name AS created_by_name
        FROM mobion_tasks t
        LEFT JOIN mobion_users u ON u.id = t.assignee_id
+       LEFT JOIN mobion_users c ON c.id = t.created_by
        WHERE t.project_id = $1 ORDER BY t.created_at ASC`,
       [id],
     );
@@ -64,6 +68,8 @@ export async function GET(
         milestoneId: t.milestone_id,
         assigneeId: t.assignee_id,
         assigneeName: t.assignee_name,
+        createdAt: t.created_at,
+        createdByName: t.created_by_name,
       })),
     });
   } catch (error) {

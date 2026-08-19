@@ -25,6 +25,9 @@ export type Task = {
   milestoneId: string | null;
   assigneeId: string | null;
   assigneeName: string | null;
+  createdAt: string;
+  /** Null when the creator's account is gone, so treat it as optional. */
+  createdByName: string | null;
 };
 
 export const TASK_STATUS_OPTIONS = [

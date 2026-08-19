@@ -355,6 +355,19 @@ function EditProjectModal({ data }: { data: TasksData }) {
   );
 }
 
+/**
+ * Date only — the exact minute a task was filed is rarely what anyone is
+ * after, and the panel already carries a lot of numbers.
+ *
+ * Runs client-side only: the panel opens on click, so this never renders during
+ * SSR where the server's locale and timezone could disagree with the browser's.
+ */
+function formatCreatedAt(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+}
+
 /** One task row, shared by the flat list and the grouped view. */
 function TaskRowItem({
   task,
@@ -711,6 +724,10 @@ function TaskDetailModal({ data }: { data: TasksData }) {
             />
           </Field>
         </TwoUp>
+
+        <MetaLine>
+          {task.createdByName ?? "알 수 없는 사용자"}님이 {formatCreatedAt(task.createdAt)}에 등록
+        </MetaLine>
 
         {data.taskDetailError && <ErrorText>{data.taskDetailError}</ErrorText>}
         <FooterRow>
@@ -1405,6 +1422,13 @@ const TicketBadge = styled.span`
     background: rgba(255, 157, 92, 0.16);
     color: #ff9d5c;
   }
+`;
+
+const MetaLine = styled.p`
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #767676;
+  font-size: 11px;
 `;
 
 const StepGroup = styled.div`
