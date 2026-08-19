@@ -23,14 +23,20 @@ export async function PATCH(
       return NextResponse.json({ error: "마일스톤 제목을 입력해 주세요." }, { status: 400 });
     }
 
+    // undefined leaves the date alone, null clears it. COALESCE alone cannot
+    // tell those apart, which is why a target date could be set but never
+    // removed. Same shape the task route already uses for its due date.
+    const targetDate =
+      body.targetDate !== undefined ? (body.targetDate ? String(body.targetDate) : null) : undefined;
+
     const result = await query<{ id: string; title: string; target_date: string | null; status: string }>(
       `UPDATE mobion_milestones SET
          title = COALESCE($2, title),
-         target_date = COALESCE($3, target_date),
-         status = COALESCE($4, status)
+         target_date = CASE WHEN $3::boolean THEN $4::date ELSE target_date END,
+         status = COALESCE($5, status)
        WHERE id = $1
        RETURNING id, title, target_date, status`,
-      [id, title ?? null, body.targetDate ?? null, body.status ?? null],
+      [id, title ?? null, targetDate !== undefined, targetDate ?? null, body.status ?? null],
     );
 
     const m = result.rows[0];

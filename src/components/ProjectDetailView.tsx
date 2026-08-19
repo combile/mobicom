@@ -70,7 +70,18 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
           <MilestoneList>
             {data.milestones.length === 0 && <EmptyState>아직 마일스톤이 없습니다</EmptyState>}
             {data.milestones.map((m) => (
-              <MilestoneRow key={m.id}>
+              <MilestoneRow
+                key={m.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => data.setSelectedMilestoneId(m.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    data.setSelectedMilestoneId(m.id);
+                  }
+                }}
+              >
                 <MilestoneTitle>{m.title}</MilestoneTitle>
                 {m.targetDate && (
                   <MilestoneDate data-tone={dueState(m.targetDate, m.status) ?? undefined}>
@@ -83,11 +94,13 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
                     /{data.tasks.filter((t) => t.milestoneId === m.id).length} 완료
                   </MilestoneDate>
                 )}
-                <RowSelect
-                  value={m.status}
-                  onChange={(v) => data.updateMilestoneStatus(m.id, v)}
-                  options={MILESTONE_STATUS_OPTIONS}
-                />
+                <RowControl onClick={(e) => e.stopPropagation()}>
+                  <RowSelect
+                    value={m.status}
+                    onChange={(v) => data.updateMilestoneStatus(m.id, v)}
+                    options={MILESTONE_STATUS_OPTIONS}
+                  />
+                </RowControl>
               </MilestoneRow>
             ))}
           </MilestoneList>
@@ -169,7 +182,107 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
       {data.showCreateMilestone && <CreateMilestoneModal data={data} />}
       {data.showCreateTask && <CreateTaskModal data={data} />}
       {data.selectedTask && <TaskDetailModal key={data.selectedTask.id} data={data} />}
+      {data.selectedMilestone && (
+        <MilestoneDetailModal key={data.selectedMilestone.id} data={data} />
+      )}
     </Main>
+  );
+}
+
+/** Milestone counterpart to TaskDetailModal; same local-draft and `key` rules. */
+function MilestoneDetailModal({ data }: { data: TasksData }) {
+  const { overlayRef, cardRef } = useModalEnterAnimation();
+  const milestone = data.selectedMilestone!;
+
+  const [title, setTitle] = useState(milestone.title);
+  const [status, setStatus] = useState(milestone.status);
+  const [targetDate, setTargetDate] = useState(milestone.targetDate ?? "");
+
+  const close = () => {
+    data.setMilestoneDetailError(null);
+    data.setSelectedMilestoneId(null);
+  };
+
+  async function save() {
+    const ok = await data.updateMilestone(milestone.id, {
+      title,
+      status,
+      targetDate: targetDate || null,
+    });
+    if (ok) close();
+  }
+
+  const linked = data.tasks.filter((t) => t.milestoneId === milestone.id);
+  const doneLinked = linked.filter((t) => t.status === "done").length;
+  const due = dueState(targetDate || null, status);
+
+  return createPortal(
+    <ModalOverlay ref={overlayRef} onClick={close}>
+      <WideModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
+        <TicketTopRow>
+          <TicketLabel>마일스톤</TicketLabel>
+          {due === "overdue" && <TicketBadge data-tone="overdue">기한 초과</TicketBadge>}
+          {due === "soon" && <TicketBadge data-tone="soon">마감 임박</TicketBadge>}
+        </TicketTopRow>
+
+        <Field>
+          <label htmlFor="milestone-detail-title">제목</label>
+          <input
+            id="milestone-detail-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </Field>
+        <TwoUp>
+          <Field>
+            <label>상태</label>
+            <CustomSelect
+              fullWidth
+              value={status}
+              onChange={setStatus}
+              options={MILESTONE_STATUS_OPTIONS}
+            />
+          </Field>
+          <Field>
+            <label htmlFor="milestone-detail-date">목표 날짜</label>
+            <input
+              id="milestone-detail-date"
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+            />
+          </Field>
+        </TwoUp>
+
+        <LinkedTasks>
+          {linked.length === 0 ? (
+            <LinkedEmpty>연결된 태스크가 없습니다</LinkedEmpty>
+          ) : (
+            <>
+              <LinkedHeading>
+                연결된 태스크 {doneLinked}/{linked.length} 완료
+              </LinkedHeading>
+              {linked.map((t) => (
+                <LinkedTask key={t.id} data-done={t.status === "done" || undefined}>
+                  {t.title}
+                </LinkedTask>
+              ))}
+            </>
+          )}
+        </LinkedTasks>
+
+        {data.milestoneDetailError && <ErrorText>{data.milestoneDetailError}</ErrorText>}
+        <ModalActions>
+          <button type="button" onClick={close}>
+            닫기
+          </button>
+          <button type="button" onClick={save} disabled={data.savingMilestone || !title.trim()}>
+            {data.savingMilestone ? "저장 중..." : "저장"}
+          </button>
+        </ModalActions>
+      </WideModalCard>
+    </ModalOverlay>,
+    document.body,
   );
 }
 
@@ -560,11 +673,52 @@ const MilestoneRow = styled.div`
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #00b5ff;
+    outline-offset: 2px;
+  }
 `;
 
-const RowSelect = styled(CustomSelect)`
-  margin-left: auto;
+const LinkedTasks = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 `;
+
+const LinkedHeading = styled.div`
+  font-size: 12px;
+  color: #9a9a9a;
+  padding: 6px 0 2px;
+`;
+
+const LinkedTask = styled.div`
+  font-size: 13px;
+  color: #d4d4d4;
+  padding: 4px 0;
+
+  &[data-done] {
+    color: #767676;
+    text-decoration: line-through;
+  }
+`;
+
+const LinkedEmpty = styled.div`
+  font-size: 12px;
+  color: #767676;
+  padding: 8px 0;
+`;
+
+// Right-alignment lives on RowControl, which now wraps every use of this.
+const RowSelect = styled(CustomSelect)``;
 
 const MilestoneTitle = styled.span`
   color: #d4d4d4;

@@ -107,6 +107,9 @@ export function useTasksData(enabled: boolean) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [savingTask, setSavingTask] = useState(false);
   const [taskDetailError, setTaskDetailError] = useState<string | null>(null);
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+  const [savingMilestone, setSavingMilestone] = useState(false);
+  const [milestoneDetailError, setMilestoneDetailError] = useState<string | null>(null);
 
   function loadProjects() {
     fetch("/api/mobion/projects")
@@ -222,6 +225,35 @@ export function useTasksData(enabled: boolean) {
     } finally {
       setCreatingMilestone(false);
     }
+  }
+
+  /** Milestone counterpart to `updateTask`; same null-vs-undefined contract. */
+  async function updateMilestone(
+    milestoneId: string,
+    patch: { title?: string; targetDate?: string | null; status?: string },
+  ) {
+    if (!selectedProjectId) return false;
+    setSavingMilestone(true);
+    setMilestoneDetailError(null);
+    try {
+      const res = await fetch(`/api/mobion/milestones/${milestoneId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setMilestoneDetailError(data.error ?? "저장에 실패했습니다. 다시 시도해 주세요.");
+        return false;
+      }
+    } catch {
+      setMilestoneDetailError("저장에 실패했습니다. 다시 시도해 주세요.");
+      return false;
+    } finally {
+      setSavingMilestone(false);
+    }
+    loadProjectDetail(selectedProjectId);
+    return true;
   }
 
   async function updateMilestoneStatus(milestoneId: string, status: string) {
@@ -353,6 +385,7 @@ export function useTasksData(enabled: boolean) {
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+  const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId) ?? null;
 
   // Summary counts run over every task, not visibleTasks: a filtered view
   // should not change what "this project is 40% done" means.
@@ -434,6 +467,14 @@ export function useTasksData(enabled: boolean) {
     taskDetailError,
     setTaskDetailError,
     updateTask,
+
+    selectedMilestone,
+    selectedMilestoneId,
+    setSelectedMilestoneId,
+    savingMilestone,
+    milestoneDetailError,
+    setMilestoneDetailError,
+    updateMilestone,
   };
 }
 
