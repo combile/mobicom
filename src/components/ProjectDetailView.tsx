@@ -6,8 +6,10 @@ import styled from "@emotion/styled";
 import CustomSelect from "./CustomSelect";
 import {
   MILESTONE_STATUS_OPTIONS,
+  SORT_OPTIONS,
   TASK_STATUS_OPTIONS,
   dueState,
+  type SortMode,
   type Task,
   type TasksData,
 } from "@/lib/use-tasks-data";
@@ -154,6 +156,11 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
                 { value: "", label: "모든 담당자" },
                 ...data.allUsers.map((u) => ({ value: u.id, label: u.name })),
               ]}
+            />
+            <CustomSelect
+              value={data.sortMode}
+              onChange={(v) => data.setSortMode(v as SortMode)}
+              options={SORT_OPTIONS}
             />
             {data.currentUserId && (
               <GroupToggle

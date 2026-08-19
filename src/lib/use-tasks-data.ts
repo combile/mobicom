@@ -77,6 +77,17 @@ export function dueState(dueDate: string | null, status: string): DueState {
  */
 export type GroupMode = "none" | "milestone" | "assignee";
 
+export type SortMode = "created" | "due" | "status";
+
+export const SORT_OPTIONS = [
+  { value: "created", label: "등록순" },
+  { value: "due", label: "마감일순" },
+  { value: "status", label: "상태순" },
+];
+
+/** Unstarted work first, finished work last. */
+const STATUS_ORDER = ["todo", "in_progress", "done"];
+
 export function useTasksData(enabled: boolean, currentUserId: string | null = null) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -100,6 +111,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
   const [search, setSearch] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("created");
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
@@ -456,7 +468,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   // Description is searched as well as title: it is often where the detail
   // someone half-remembers actually lives.
   const searchTerm = search.trim().toLowerCase();
-  const visibleTasks = tasks.filter(
+  const filteredTasks = tasks.filter(
     (t) =>
       (!statusFilter || t.status === statusFilter) &&
       (!milestoneFilter || t.milestoneId === milestoneFilter) &&
@@ -465,6 +477,28 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
         t.title.toLowerCase().includes(searchTerm) ||
         (t.description ?? "").toLowerCase().includes(searchTerm)),
   );
+
+  /**
+   * Sorting happens once, here, so the grouped views inherit it — they bucket
+   * this list rather than re-deriving their own.
+   *
+   * "created" keeps the order the API returned (created_at ASC) instead of
+   * sorting by a field the client does not receive.
+   */
+  const visibleTasks =
+    sortMode === "created"
+      ? filteredTasks
+      : [...filteredTasks].sort((a, b) => {
+          if (sortMode === "due") {
+            // Undated tasks sink to the bottom either way; a missing deadline
+            // is not the same as an imminent one.
+            if (!a.dueDate && !b.dueDate) return 0;
+            if (!a.dueDate) return 1;
+            if (!b.dueDate) return -1;
+            return a.dueDate.localeCompare(b.dueDate);
+          }
+          return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+        });
 
   /**
    * Tasks bucketed for the grouped views.
@@ -563,6 +597,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
 
     search,
     setSearch,
+    sortMode,
+    setSortMode,
     statusFilter,
     setStatusFilter,
     milestoneFilter,
