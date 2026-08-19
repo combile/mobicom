@@ -458,7 +458,28 @@ function TaskRowItem({
           {data.milestones.find((m) => m.id === task.milestoneId)?.title ?? "—"}
         </MilestoneChip>
       )}
-      <TaskMeta>{task.assigneeName ?? "미배정"}</TaskMeta>
+      {task.assigneeName ? (
+        <TaskMeta>{task.assigneeName}</TaskMeta>
+      ) : (
+        <TaskMeta>
+          미배정
+          {/* claiming unassigned work is the common row-level assignment; any
+              other reassignment goes through the detail panel rather than
+              putting a second select in every row */}
+          {data.currentUserId && (
+            <ClaimButton
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                data.updateTask(task.id, { assigneeId: data.currentUserId });
+              }}
+              title="나를 담당자로 지정"
+            >
+              나에게
+            </ClaimButton>
+          )}
+        </TaskMeta>
+      )}
       {task.dueDate && (
         <TaskMeta data-tone={dueState(task.dueDate, task.status) ?? undefined}>
           {task.dueDate}
@@ -1748,6 +1769,29 @@ const CheckBox = styled.input`
   margin: 0;
   accent-color: #00b5ff;
   cursor: pointer;
+`;
+
+const ClaimButton = styled.button`
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(0, 181, 255, 0.12);
+  color: #00b5ff;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+
+  /* kept out of sight until the row is engaged, so a list of unassigned tasks
+     does not read as a wall of buttons */
+  ${TaskRow}:hover &,
+  &:focus-visible {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: rgba(0, 181, 255, 0.24);
+  }
 `;
 
 const TaskMeta = styled.span`
