@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import styled from "@emotion/styled";
 import CustomSelect from "./CustomSelect";
@@ -126,7 +127,18 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
               <EmptyState>조건에 맞는 태스크가 없습니다</EmptyState>
             )}
             {data.visibleTasks.map((t) => (
-              <TaskRow key={t.id}>
+              <TaskRow
+                key={t.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => data.setSelectedTaskId(t.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    data.setSelectedTaskId(t.id);
+                  }
+                }}
+              >
                 <TaskTitle>{t.title}</TaskTitle>
                 {t.milestoneId && (
                   <MilestoneChip>
@@ -139,11 +151,15 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
                     {t.dueDate}
                   </TaskMeta>
                 )}
-                <RowSelect
-                  value={t.status}
-                  onChange={(v) => data.updateTaskStatus(t.id, v)}
-                  options={TASK_STATUS_OPTIONS}
-                />
+                {/* the row opens the detail panel, so the status control has to
+                    keep its own clicks from reaching it */}
+                <RowControl onClick={(e) => e.stopPropagation()}>
+                  <RowSelect
+                    value={t.status}
+                    onChange={(v) => data.updateTaskStatus(t.id, v)}
+                    options={TASK_STATUS_OPTIONS}
+                  />
+                </RowControl>
               </TaskRow>
             ))}
           </TaskList>
@@ -152,7 +168,135 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
 
       {data.showCreateMilestone && <CreateMilestoneModal data={data} />}
       {data.showCreateTask && <CreateTaskModal data={data} />}
+      {data.selectedTask && <TaskDetailModal key={data.selectedTask.id} data={data} />}
     </Main>
+  );
+}
+
+/**
+ * Ticket-style detail for one task.
+ *
+ * Edits are held locally and sent on save rather than per keystroke. The `key`
+ * on the caller is what resets those local fields when a different task is
+ * opened — without it React reuses this instance and keeps the previous task's
+ * draft values.
+ */
+function TaskDetailModal({ data }: { data: TasksData }) {
+  const { overlayRef, cardRef } = useModalEnterAnimation();
+  const task = data.selectedTask!;
+
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [status, setStatus] = useState(task.status);
+  const [assigneeId, setAssigneeId] = useState(task.assigneeId ?? "");
+  const [milestoneId, setMilestoneId] = useState(task.milestoneId ?? "");
+  const [dueDate, setDueDate] = useState(task.dueDate ?? "");
+
+  const close = () => {
+    data.setTaskDetailError(null);
+    data.setSelectedTaskId(null);
+  };
+
+  async function save() {
+    const ok = await data.updateTask(task.id, {
+      title,
+      description,
+      status,
+      assigneeId: assigneeId || null,
+      milestoneId: milestoneId || null,
+      dueDate: dueDate || null,
+    });
+    if (ok) close();
+  }
+
+  const due = dueState(dueDate || null, status);
+
+  return createPortal(
+    <ModalOverlay ref={overlayRef} onClick={close}>
+      <WideModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
+        <TicketTopRow>
+          <TicketLabel>태스크</TicketLabel>
+          {due === "overdue" && <TicketBadge data-tone="overdue">기한 초과</TicketBadge>}
+          {due === "soon" && <TicketBadge data-tone="soon">마감 임박</TicketBadge>}
+        </TicketTopRow>
+
+        <Field>
+          <label htmlFor="task-detail-title">제목</label>
+          <input
+            id="task-detail-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <label htmlFor="task-detail-description">설명</label>
+          <DescriptionArea
+            id="task-detail-description"
+            rows={5}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="이 태스크가 무엇인지 적어 두면 다른 사람이 맥락을 잡기 쉽습니다"
+          />
+        </Field>
+        <TwoUp>
+          <Field>
+            <label>상태</label>
+            <CustomSelect
+              fullWidth
+              value={status}
+              onChange={setStatus}
+              options={TASK_STATUS_OPTIONS}
+            />
+          </Field>
+          <Field>
+            <label htmlFor="task-detail-due">마감일</label>
+            <input
+              id="task-detail-due"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </Field>
+        </TwoUp>
+        <TwoUp>
+          <Field>
+            <label>담당자</label>
+            <CustomSelect
+              fullWidth
+              value={assigneeId}
+              onChange={setAssigneeId}
+              options={[
+                { value: "", label: "미배정" },
+                ...data.allUsers.map((u) => ({ value: u.id, label: u.name })),
+              ]}
+            />
+          </Field>
+          <Field>
+            <label>마일스톤</label>
+            <CustomSelect
+              fullWidth
+              value={milestoneId}
+              onChange={setMilestoneId}
+              options={[
+                { value: "", label: "없음" },
+                ...data.milestones.map((m) => ({ value: m.id, label: m.title })),
+              ]}
+            />
+          </Field>
+        </TwoUp>
+
+        {data.taskDetailError && <ErrorText>{data.taskDetailError}</ErrorText>}
+        <ModalActions>
+          <button type="button" onClick={close}>
+            닫기
+          </button>
+          <button type="button" onClick={save} disabled={data.savingTask || !title.trim()}>
+            {data.savingTask ? "저장 중..." : "저장"}
+          </button>
+        </ModalActions>
+      </WideModalCard>
+    </ModalOverlay>,
+    document.body,
   );
 }
 
@@ -460,6 +604,81 @@ const TaskRow = styled.div`
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #00b5ff;
+    outline-offset: 2px;
+  }
+`;
+
+const RowControl = styled.div`
+  margin-left: auto;
+  cursor: default;
+`;
+
+const WideModalCard = styled(ModalCard)`
+  width: min(520px, calc(100% - 48px));
+`;
+
+const TicketTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const TicketLabel = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #767676;
+  text-transform: uppercase;
+`;
+
+const TicketBadge = styled.span`
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+
+  &[data-tone="overdue"] {
+    background: rgba(255, 103, 103, 0.16);
+    color: #ff6767;
+  }
+
+  &[data-tone="soon"] {
+    background: rgba(255, 157, 92, 0.16);
+    color: #ff9d5c;
+  }
+`;
+
+const TwoUp = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+`;
+
+const DescriptionArea = styled.textarea`
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+
+  &:focus {
+    border-color: #00b5ff;
+    box-shadow: 0 0 0 3px rgba(0, 181, 255, 0.15);
+  }
 `;
 
 const TaskTitle = styled.span`

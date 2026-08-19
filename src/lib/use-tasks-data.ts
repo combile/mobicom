@@ -104,6 +104,9 @@ export function useTasksData(enabled: boolean) {
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [createTaskError, setCreateTaskError] = useState<string | null>(null);
   const [creatingTask, setCreatingTask] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [savingTask, setSavingTask] = useState(false);
+  const [taskDetailError, setTaskDetailError] = useState<string | null>(null);
 
   function loadProjects() {
     fetch("/api/mobion/projects")
@@ -280,6 +283,48 @@ export function useTasksData(enabled: boolean) {
     }
   }
 
+  /**
+   * Partial update for the task detail panel. The endpoint already accepted
+   * every one of these fields; until now the UI only ever sent `status`.
+   *
+   * `null` clears a field and `undefined` leaves it untouched, matching what
+   * the route expects — so an omitted key is not the same as an empty one.
+   */
+  async function updateTask(
+    taskId: string,
+    patch: {
+      title?: string;
+      description?: string;
+      status?: string;
+      assigneeId?: string | null;
+      milestoneId?: string | null;
+      dueDate?: string | null;
+    },
+  ) {
+    if (!selectedProjectId) return false;
+    setSavingTask(true);
+    setTaskDetailError(null);
+    try {
+      const res = await fetch(`/api/mobion/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTaskDetailError(data.error ?? "저장에 실패했습니다. 다시 시도해 주세요.");
+        return false;
+      }
+    } catch {
+      setTaskDetailError("저장에 실패했습니다. 다시 시도해 주세요.");
+      return false;
+    } finally {
+      setSavingTask(false);
+    }
+    loadProjectDetail(selectedProjectId);
+    return true;
+  }
+
   async function updateTaskStatus(taskId: string, status: string) {
     if (!selectedProjectId) return;
     try {
@@ -307,6 +352,7 @@ export function useTasksData(enabled: boolean) {
   );
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
 
   // Summary counts run over every task, not visibleTasks: a filtered view
   // should not change what "this project is 40% done" means.
@@ -380,6 +426,14 @@ export function useTasksData(enabled: boolean) {
     openCreateTask,
     handleCreateTask,
     updateTaskStatus,
+
+    selectedTask,
+    selectedTaskId,
+    setSelectedTaskId,
+    savingTask,
+    taskDetailError,
+    setTaskDetailError,
+    updateTask,
   };
 }
 
