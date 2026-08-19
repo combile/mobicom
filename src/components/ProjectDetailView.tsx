@@ -352,7 +352,16 @@ function TaskRowItem({
         }
       }}
     >
-      <TaskTitle>{task.title}</TaskTitle>
+      {/* the row opens the detail panel, so this has to keep its click */}
+      <CheckControl onClick={(e) => e.stopPropagation()}>
+        <CheckBox
+          type="checkbox"
+          checked={task.status === "done"}
+          onChange={(e) => data.updateTaskStatus(task.id, e.target.checked ? "done" : "todo")}
+          aria-label={`${task.title} 완료 표시`}
+        />
+      </CheckControl>
+      <TaskTitle data-done={task.status === "done" || undefined}>{task.title}</TaskTitle>
       {/* redundant under a milestone heading, so the grouped view turns it off */}
       {showMilestone && task.milestoneId && (
         <MilestoneChip>
@@ -1333,6 +1342,26 @@ const DescriptionArea = styled.textarea`
 const TaskTitle = styled.span`
   color: #d4d4d4;
   font-size: 14px;
+
+  &[data-done] {
+    color: #767676;
+    text-decoration: line-through;
+  }
+`;
+
+const CheckControl = styled.span`
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: default;
+`;
+
+const CheckBox = styled.input`
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #00b5ff;
+  cursor: pointer;
 `;
 
 const TaskMeta = styled.span`
