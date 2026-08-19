@@ -736,7 +736,24 @@ function TaskDetailModal({ data }: { data: TasksData }) {
             />
           </Field>
           <Field>
-            <label>마일스톤</label>
+            <LabelRow>
+              <label>마일스톤</label>
+              {milestoneId && (
+                <OpenLinkButton
+                  type="button"
+                  disabled={dirty}
+                  title={
+                    dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : "이 마일스톤 열기"
+                  }
+                  onClick={() => {
+                    data.setSelectedTaskId(null);
+                    data.setSelectedMilestoneId(milestoneId);
+                  }}
+                >
+                  열기
+                </OpenLinkButton>
+              )}
+            </LabelRow>
             <CustomSelect
               fullWidth
               value={milestoneId}
@@ -1479,6 +1496,32 @@ const TicketBadge = styled.span`
   &[data-tone="soon"] {
     background: rgba(255, 157, 92, 0.16);
     color: #ff9d5c;
+  }
+`;
+
+const LabelRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`;
+
+const OpenLinkButton = styled.button`
+  padding: 1px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #00b5ff;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: rgba(0, 181, 255, 0.12);
+  }
+
+  &:disabled {
+    color: #767676;
+    cursor: default;
   }
 `;
 
