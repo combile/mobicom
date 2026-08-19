@@ -7,6 +7,8 @@ import ProjectSidebarList from "./ProjectSidebarList";
 import ProjectDetailView from "./ProjectDetailView";
 import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
 import { useTasksData } from "@/lib/use-tasks-data";
+import { useScheduleData } from "@/lib/use-schedule-data";
+import ScheduleView from "./ScheduleView";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
 
@@ -86,7 +88,7 @@ function groupMessages(list: Message[]): MessageGroup[] {
   return groups;
 }
 
-type WorkspaceMode = "chat" | "projects";
+type WorkspaceMode = "chat" | "projects" | "schedule";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("chat");
@@ -94,6 +96,7 @@ export default function MobiOnContent() {
   // needs it, and a const cannot be read before its declaration
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const tasksData = useTasksData(mode === "projects", currentUserId);
+  const scheduleData = useScheduleData(mode === "schedule");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -421,12 +424,32 @@ export default function MobiOnContent() {
           >
             <span className="material-symbols-outlined">checklist</span>
           </RailButton>
+          <RailButton
+            type="button"
+            data-active={mode === "schedule" || undefined}
+            onClick={() => setMode("schedule")}
+            aria-label="일정"
+            title="일정"
+          >
+            <span className="material-symbols-outlined">event</span>
+          </RailButton>
         </IconRail>
         {mode === "projects" && (
           <>
             <ProjectSidebarList data={tasksData} />
             <ProjectDetailView data={tasksData} />
           </>
+        )}
+        {mode === "schedule" && (
+          <ScheduleView
+            data={scheduleData}
+            // the schedule spans projects, so opening one means switching mode
+            // and selecting it — the projects view then loads its detail
+            onOpenProject={(projectId) => {
+              tasksData.setSelectedProjectId(projectId);
+              setMode("projects");
+            }}
+          />
         )}
         {mode === "chat" && (
           <>
