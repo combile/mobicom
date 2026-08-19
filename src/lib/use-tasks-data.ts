@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type Project = {
   id: string;
@@ -147,6 +147,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     excerpt: string;
   } | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const pendingTaskRef = useRef<string | null>(null);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
@@ -258,7 +259,11 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
    */
   useEffect(() => {
     setMilestoneFilter("");
-    setSelectedTaskId(null);
+    // A task chosen from home arrives with its project, and the switch would
+    // otherwise clear the selection this effect is meant to protect against
+    // stale ones. Carrying it through the switch keeps both behaviours.
+    setSelectedTaskId(pendingTaskRef.current);
+    pendingTaskRef.current = null;
     setSelectedMilestoneId(null);
     setEditingProject(false);
   }, [selectedProjectId]);
@@ -531,6 +536,21 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
    * `null` clears a field and `undefined` leaves it untouched, matching what
    * the route expects — so an omitted key is not the same as an empty one.
    */
+  /**
+   * Opens one task, switching project first when it lives in another one.
+   *
+   * Used by home and the schedule, where a row names a task in a project that
+   * may not be the one currently open.
+   */
+  function openTaskInProject(projectId: string, taskId: string) {
+    if (projectId === selectedProjectId) {
+      setSelectedTaskId(taskId);
+      return;
+    }
+    pendingTaskRef.current = taskId;
+    setSelectedProjectId(projectId);
+  }
+
   async function updateTask(
     taskId: string,
     patch: {
@@ -841,6 +861,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     selectedTask,
     selectedTaskId,
     setSelectedTaskId,
+    openTaskInProject,
     openTaskIndex,
     prevTaskId,
     nextTaskId,

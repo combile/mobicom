@@ -10,6 +10,8 @@ import { useTasksData } from "@/lib/use-tasks-data";
 import { useScheduleData } from "@/lib/use-schedule-data";
 import ScheduleView from "./ScheduleView";
 import { useContestsData } from "@/lib/use-contests-data";
+import { useHomeData } from "@/lib/use-home-data";
+import HomeView from "./HomeView";
 import ContestsView from "./ContestsView";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
@@ -90,16 +92,17 @@ function groupMessages(list: Message[]): MessageGroup[] {
   return groups;
 }
 
-type WorkspaceMode = "chat" | "projects" | "schedule" | "contests";
+type WorkspaceMode = "home" | "chat" | "projects" | "schedule" | "contests";
 
 export default function MobiOnContent() {
-  const [mode, setMode] = useState<WorkspaceMode>("chat");
+  const [mode, setMode] = useState<WorkspaceMode>("home");
   // declared here rather than with the other chat state because useTasksData
   // needs it, and a const cannot be read before its declaration
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const tasksData = useTasksData(mode === "projects", currentUserId);
   const scheduleData = useScheduleData(mode === "schedule");
   const contestsData = useContestsData(mode === "contests");
+  const homeData = useHomeData(mode === "home");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -422,6 +425,15 @@ export default function MobiOnContent() {
         <IconRail>
           <RailButton
             type="button"
+            data-active={mode === "home" || undefined}
+            onClick={() => setMode("home")}
+            aria-label="홈"
+            title="홈"
+          >
+            <span className="material-symbols-outlined">home</span>
+          </RailButton>
+          <RailButton
+            type="button"
             data-active={mode === "chat" || undefined}
             onClick={() => setMode("chat")}
             aria-label="채팅"
@@ -468,6 +480,17 @@ export default function MobiOnContent() {
               }}
             />
           </>
+        )}
+        {mode === "home" && (
+          <HomeView
+            data={homeData}
+            // home only points at things; opening one switches to the view that
+            // owns it and selects it there
+            onOpenTask={(projectId, taskId) => {
+              tasksData.openTaskInProject(projectId, taskId);
+              setMode("projects");
+            }}
+          />
         )}
         {mode === "contests" && <ContestsView data={contestsData} />}
         {mode === "schedule" && (
