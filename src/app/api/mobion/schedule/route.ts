@@ -4,14 +4,15 @@ import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 
 type ScheduleRow = {
-  kind: "task" | "milestone";
+  kind: "task" | "milestone" | "contest";
   id: string;
   title: string;
   date: string;
   status: string;
-  project_id: string;
+  project_id: string | null;
   project_name: string;
   assignee_name: string | null;
+  url: string | null;
 };
 
 /**
@@ -26,11 +27,11 @@ type ScheduleRow = {
  */
 export async function GET() {
   try {
-    await requireCurrentUser();
+    const user = await requireCurrentUser();
 
     const result = await query<ScheduleRow>(
       `SELECT 'task' AS kind, t.id, t.title, t.due_date::text AS date, t.status,
-              p.id AS project_id, p.name AS project_name, u.name AS assignee_name
+              p.id AS project_id, p.name AS project_name, u.name AS assignee_name, NULL AS url
        FROM mobion_tasks t
        JOIN mobion_projects p ON p.id = t.project_id
        LEFT JOIN mobion_users u ON u.id = t.assignee_id
@@ -39,12 +40,24 @@ export async function GET() {
        UNION ALL
 
        SELECT 'milestone' AS kind, m.id, m.title, m.target_date::text AS date, m.status,
-              p.id AS project_id, p.name AS project_name, NULL AS assignee_name
+              p.id AS project_id, p.name AS project_name, NULL AS assignee_name, NULL AS url
        FROM mobion_milestones m
        JOIN mobion_projects p ON p.id = m.project_id
        WHERE m.target_date IS NOT NULL
 
+       UNION ALL
+
+       -- only contests this user marked: a crawler collects everything a
+       -- source publishes, and scheduling all of it would bury the team's own
+       -- deadlines
+       SELECT 'contest' AS kind, c.id, c.title, c.deadline::text AS date, 'todo' AS status,
+              NULL AS project_id, c.organizer AS project_name, NULL AS assignee_name, c.url
+       FROM mobion_contests c
+       JOIN mobion_contest_interests i ON i.contest_id = c.id AND i.user_id = $1
+       WHERE c.deadline IS NOT NULL
+
        ORDER BY date ASC`,
+      [user.id],
     );
 
     return NextResponse.json({
@@ -57,6 +70,7 @@ export async function GET() {
         projectId: r.project_id,
         projectName: r.project_name,
         assigneeName: r.assignee_name,
+        url: r.url,
       })),
     });
   } catch (error) {

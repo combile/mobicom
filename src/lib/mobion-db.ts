@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 9;
+const MOBION_SCHEMA_VERSION = 10;
 
 export const pool =
   globalThis.mobionPool ??
@@ -166,6 +166,30 @@ export async function ensureMobionSchema() {
           due_date DATE,
           created_by UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_contests (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          source TEXT NOT NULL,
+          source_key TEXT NOT NULL,
+          title TEXT NOT NULL,
+          organizer TEXT NOT NULL DEFAULT '',
+          url TEXT NOT NULL,
+          deadline DATE,
+          tags TEXT[] NOT NULL DEFAULT '{}',
+          collected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          -- lets a re-run update what it already stored instead of inserting a
+          -- second copy of the same posting
+          UNIQUE (source, source_key)
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_contest_interests (
+          contest_id UUID NOT NULL REFERENCES mobion_contests(id) ON DELETE CASCADE,
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (contest_id, user_id)
         )
       `);
     })().catch((error) => {
