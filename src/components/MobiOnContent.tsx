@@ -9,6 +9,8 @@ import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-men
 import { useTasksData } from "@/lib/use-tasks-data";
 import { useScheduleData } from "@/lib/use-schedule-data";
 import ScheduleView from "./ScheduleView";
+import { useContestsData } from "@/lib/use-contests-data";
+import ContestsView from "./ContestsView";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
 
@@ -88,7 +90,7 @@ function groupMessages(list: Message[]): MessageGroup[] {
   return groups;
 }
 
-type WorkspaceMode = "chat" | "projects" | "schedule";
+type WorkspaceMode = "chat" | "projects" | "schedule" | "contests";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("chat");
@@ -97,6 +99,7 @@ export default function MobiOnContent() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const tasksData = useTasksData(mode === "projects", currentUserId);
   const scheduleData = useScheduleData(mode === "schedule");
+  const contestsData = useContestsData(mode === "contests");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -433,6 +436,15 @@ export default function MobiOnContent() {
           >
             <span className="material-symbols-outlined">event</span>
           </RailButton>
+          <RailButton
+            type="button"
+            data-active={mode === "contests" || undefined}
+            onClick={() => setMode("contests")}
+            aria-label="대회"
+            title="대회"
+          >
+            <span className="material-symbols-outlined">emoji_events</span>
+          </RailButton>
         </IconRail>
         {mode === "projects" && (
           <>
@@ -440,6 +452,7 @@ export default function MobiOnContent() {
             <ProjectDetailView data={tasksData} />
           </>
         )}
+        {mode === "contests" && <ContestsView data={contestsData} />}
         {mode === "schedule" && (
           <ScheduleView
             data={scheduleData}
