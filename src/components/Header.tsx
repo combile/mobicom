@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { label: "About", href: "/about" },
   { label: "Members", href: "/members" },
   { label: "Mobi:ON", href: "/mobion" },
-  { label: "태스크", href: "/tasks" },
   { label: "Blog", href: "/blog" },
   { label: "Contact", href: "#" },
 ];
