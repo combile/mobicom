@@ -512,8 +512,17 @@ export default function MobiOnContent() {
             visibleChannelsOnly.map((c) => (
               <ChannelItem
                 key={c.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={c.id === activeChannelId}
                 data-active={c.id === activeChannelId || undefined}
                 onClick={() => setActiveChannelId(c.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActiveChannelId(c.id);
+                  }
+                }}
               >
                 # {c.name}
               </ChannelItem>
@@ -531,8 +540,17 @@ export default function MobiOnContent() {
             visibleDms.map((c) => (
               <ChannelItem
                 key={c.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={c.id === activeChannelId}
                 data-active={c.id === activeChannelId || undefined}
                 onClick={() => setActiveChannelId(c.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActiveChannelId(c.id);
+                  }
+                }}
               >
                 <PresenceDot data-online={c.online || undefined} />
                 {c.name}
@@ -841,6 +859,11 @@ const RailButton = styled.button`
     color: #d4d4d4;
   }
 
+  &:focus-visible {
+    outline: 2px solid #00b5ff;
+    outline-offset: -2px;
+  }
+
   &[data-active] {
     background: rgba(0, 181, 255, 0.15);
     color: #00b5ff;
@@ -865,6 +888,11 @@ const ChannelItem = styled.div`
 
   &:hover {
     background: rgba(255, 255, 255, 0.06);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #00b5ff;
+    outline-offset: -2px;
   }
 
   &[data-active] {
