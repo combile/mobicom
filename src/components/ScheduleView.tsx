@@ -18,6 +18,19 @@ export default function ScheduleView({
   data: ScheduleData;
   onOpenProject: (projectId: string) => void;
 }) {
+  /**
+   * Tasks and milestones live in a project, so selecting one goes there.
+   * A contest has no project — its useful destination is the posting itself,
+   * opened in a new tab so the workspace is not navigated away from.
+   */
+  function activate(item: ScheduleItem) {
+    if (item.projectId) {
+      onOpenProject(item.projectId);
+    } else if (item.url) {
+      window.open(item.url, "_blank", "noopener,noreferrer");
+    }
+  }
+
   return (
     <Main>
       <Header>
@@ -62,18 +75,24 @@ export default function ScheduleView({
               key={`${item.kind}-${item.id}`}
               role="button"
               tabIndex={0}
-              onClick={() => onOpenProject(item.projectId)}
+              onClick={() => activate(item)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onOpenProject(item.projectId);
+                  activate(item);
                 }
               }}
-              title={`${item.projectName} 열기`}
+              title={
+                item.projectId ? `${item.projectName} 열기` : "대회 공고 열기"
+              }
             >
               <KindMark data-kind={item.kind}>
                 <span className="material-symbols-outlined">
-                  {item.kind === "milestone" ? "flag" : "check_circle"}
+                  {item.kind === "milestone"
+                    ? "flag"
+                    : item.kind === "contest"
+                      ? "emoji_events"
+                      : "check_circle"}
                 </span>
               </KindMark>
               <RowTitle data-done={item.status === "done" || undefined}>{item.title}</RowTitle>
@@ -215,6 +234,10 @@ const KindMark = styled.span`
 
   &[data-kind="milestone"] {
     color: #8b7cf6;
+  }
+
+  &[data-kind="contest"] {
+    color: #e5c76b;
   }
 `;
 

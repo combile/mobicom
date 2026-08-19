@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import { dueState, todayISO } from "./use-tasks-data";
 
 export type ScheduleItem = {
-  kind: "task" | "milestone";
+  kind: "task" | "milestone" | "contest";
   id: string;
   title: string;
   date: string;
   status: string;
-  projectId: string;
+  /** Null for contests, which belong to no project. */
+  projectId: string | null;
   projectName: string;
   assigneeName: string | null;
+  /** Set for contests only — where the posting can be read. */
+  url: string | null;
 };
 
 export type ScheduleBucket = {
