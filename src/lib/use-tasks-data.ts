@@ -75,7 +75,9 @@ export function dueState(dueDate: string | null, status: string): DueState {
  * in one component so the SSE connection survives switching), and firing
  * project requests while the user is only chatting wastes a round trip.
  */
-export function useTasksData(enabled: boolean) {
+export type GroupMode = "none" | "milestone" | "assignee";
+
+export function useTasksData(enabled: boolean, currentUserId: string | null = null) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -96,7 +98,7 @@ export function useTasksData(enabled: boolean) {
   const [statusFilter, setStatusFilter] = useState("");
   const [milestoneFilter, setMilestoneFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
-  const [groupByMilestone, setGroupByMilestone] = useState(false);
+  const [groupMode, setGroupMode] = useState<GroupMode>("none");
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
@@ -458,29 +460,63 @@ export function useTasksData(enabled: boolean) {
   );
 
   /**
-   * Tasks bucketed by milestone, in the milestone order the sidebar shows.
-   * Unassigned tasks come last — they are the leftovers, not a first section.
-   * Empty milestones are dropped so grouping does not add rows that say
-   * nothing.
+   * Tasks bucketed for the grouped views.
+   *
+   * Buckets follow the source order the sidebar and member list already use, so
+   * the sections do not reshuffle between views. The catch-all bucket goes last
+   * in both modes — leftovers are not a first section — and empty buckets are
+   * dropped so grouping never adds a heading that says nothing.
    */
-  const groupedTasks = [
-    ...milestones
-      .map((m) => ({
-        id: m.id,
-        title: m.title,
-        tasks: visibleTasks.filter((t) => t.milestoneId === m.id),
-      }))
-      .filter((g) => g.tasks.length > 0),
-    ...(visibleTasks.some((t) => !t.milestoneId)
+  const groupedTasks =
+    groupMode === "assignee"
       ? [
-          {
-            id: null,
-            title: "마일스톤 없음",
-            tasks: visibleTasks.filter((t) => !t.milestoneId),
-          },
+          ...allUsers
+            .map((u) => ({
+              id: u.id,
+              title: u.name,
+              tasks: visibleTasks.filter((t) => t.assigneeId === u.id),
+            }))
+            .filter((g) => g.tasks.length > 0),
+          ...(visibleTasks.some((t) => !t.assigneeId)
+            ? [
+                {
+                  id: null,
+                  title: "미배정",
+                  tasks: visibleTasks.filter((t) => !t.assigneeId),
+                },
+              ]
+            : []),
         ]
-      : []),
-  ];
+      : [
+          ...milestones
+            .map((m) => ({
+              id: m.id,
+              title: m.title,
+              tasks: visibleTasks.filter((t) => t.milestoneId === m.id),
+            }))
+            .filter((g) => g.tasks.length > 0),
+          ...(visibleTasks.some((t) => !t.milestoneId)
+            ? [
+                {
+                  id: null,
+                  title: "마일스톤 없음",
+                  tasks: visibleTasks.filter((t) => !t.milestoneId),
+                },
+              ]
+            : []),
+        ];
+
+  const myTasksActive = !!currentUserId && assigneeFilter === currentUserId;
+
+  /** Toggles the assignee filter onto the signed-in user and back off. */
+  function toggleMyTasks() {
+    if (!currentUserId) return;
+    setAssigneeFilter(myTasksActive ? "" : currentUserId);
+  }
+
+  const myOpenCount = currentUserId
+    ? tasks.filter((t) => t.assigneeId === currentUserId && t.status !== "done").length
+    : 0;
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
@@ -509,8 +545,12 @@ export function useTasksData(enabled: boolean) {
     tasks,
     visibleTasks,
     groupedTasks,
-    groupByMilestone,
-    setGroupByMilestone,
+    groupMode,
+    setGroupMode,
+    myTasksActive,
+    toggleMyTasks,
+    myOpenCount,
+    currentUserId,
     allUsers,
     detailError,
 

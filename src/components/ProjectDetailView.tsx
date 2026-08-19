@@ -145,23 +145,54 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
                 ...data.allUsers.map((u) => ({ value: u.id, label: u.name })),
               ]}
             />
+            {data.currentUserId && (
+              <GroupToggle
+                type="button"
+                data-active={data.myTasksActive || undefined}
+                onClick={data.toggleMyTasks}
+                aria-pressed={data.myTasksActive}
+              >
+                <span className="material-symbols-outlined">person</span>
+                내 태스크
+                {data.myOpenCount > 0 && <ToggleCount>{data.myOpenCount}</ToggleCount>}
+              </GroupToggle>
+            )}
             <GroupToggle
               type="button"
-              data-active={data.groupByMilestone || undefined}
-              onClick={() => data.setGroupByMilestone(!data.groupByMilestone)}
-              aria-pressed={data.groupByMilestone}
+              data-active={data.groupMode === "milestone" || undefined}
+              onClick={() =>
+                data.setGroupMode(data.groupMode === "milestone" ? "none" : "milestone")
+              }
+              aria-pressed={data.groupMode === "milestone"}
             >
               <span className="material-symbols-outlined">segment</span>
               마일스톤별
+            </GroupToggle>
+            <GroupToggle
+              type="button"
+              data-active={data.groupMode === "assignee" || undefined}
+              onClick={() =>
+                data.setGroupMode(data.groupMode === "assignee" ? "none" : "assignee")
+              }
+              aria-pressed={data.groupMode === "assignee"}
+            >
+              <span className="material-symbols-outlined">group</span>
+              담당자별
             </GroupToggle>
           </FilterRow>
           {data.visibleTasks.length === 0 && (
             <EmptyState>조건에 맞는 태스크가 없습니다</EmptyState>
           )}
 
-          {data.groupByMilestone ? (
+          {data.groupMode === "none" ? (
+            <TaskList>
+              {data.visibleTasks.map((t) => (
+                <TaskRowItem key={t.id} task={t} data={data} showMilestone />
+              ))}
+            </TaskList>
+          ) : (
             data.groupedTasks.map((group) => (
-              <TaskGroup key={group.id ?? "unassigned"}>
+              <TaskGroup key={group.id ?? "none"}>
                 <TaskGroupHeading data-unassigned={group.id === null || undefined}>
                   {group.title}
                   <TaskGroupCount>
@@ -170,17 +201,18 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
                 </TaskGroupHeading>
                 <TaskList>
                   {group.tasks.map((t) => (
-                    <TaskRowItem key={t.id} task={t} data={data} showMilestone={false} />
+                    <TaskRowItem
+                      key={t.id}
+                      task={t}
+                      data={data}
+                      // the heading already names it, so only the other mode
+                      // needs the milestone chip
+                      showMilestone={data.groupMode === "assignee"}
+                    />
                   ))}
                 </TaskList>
               </TaskGroup>
             ))
-          ) : (
-            <TaskList>
-              {data.visibleTasks.map((t) => (
-                <TaskRowItem key={t.id} task={t} data={data} showMilestone />
-              ))}
-            </TaskList>
           )}
         </>
       )}
@@ -1006,8 +1038,12 @@ const MilestoneDate = styled.span`
 
 const FilterRow = styled.div`
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+  /* three view toggles now sit alongside the selects; without wrapping they
+     squeeze the filters at narrow widths */
+  flex-wrap: wrap;
 `;
 
 const TaskList = styled.div`
@@ -1016,11 +1052,18 @@ const TaskList = styled.div`
   gap: 6px;
 `;
 
+const ToggleCount = styled.span`
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 700;
+`;
+
 const GroupToggle = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);

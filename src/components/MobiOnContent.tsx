@@ -90,7 +90,10 @@ type WorkspaceMode = "chat" | "projects";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("chat");
-  const tasksData = useTasksData(mode === "projects");
+  // declared here rather than with the other chat state because useTasksData
+  // needs it, and a const cannot be read before its declaration
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const tasksData = useTasksData(mode === "projects", currentUserId);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -101,7 +104,6 @@ export default function MobiOnContent() {
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
   const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDescription, setNewChannelDescription] = useState("");
   const [newChannelTags, setNewChannelTags] = useState<string[]>([]);
