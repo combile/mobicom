@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import MentionInput from "./MentionInput";
+import ProjectSidebarList from "./ProjectSidebarList";
+import ProjectDetailView from "./ProjectDetailView";
 import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
+import { useTasksData } from "@/lib/use-tasks-data";
 
 type Channel = {
   id: string;
@@ -81,7 +84,11 @@ function groupMessages(list: Message[]): MessageGroup[] {
   return groups;
 }
 
+type WorkspaceMode = "chat" | "projects";
+
 export default function MobiOnContent() {
+  const [mode, setMode] = useState<WorkspaceMode>("chat");
+  const tasksData = useTasksData(mode === "projects");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -365,10 +372,12 @@ export default function MobiOnContent() {
   }
 
   const messageListRef = useRef<HTMLDivElement>(null);
+  // `mode` belongs in here: switching to projects unmounts the message list, so
+  // coming back remounts it scrolled to the top unless this runs again.
   useEffect(() => {
     const el = messageListRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, activeChannelId]);
+  }, [messages, activeChannelId, mode]);
 
   if (connectionError) {
     return (
@@ -389,6 +398,34 @@ export default function MobiOnContent() {
     <Root>
       {reconnecting && <ReconnectBanner>재연결 중...</ReconnectBanner>}
       <Layout>
+        <IconRail>
+          <RailButton
+            type="button"
+            data-active={mode === "chat" || undefined}
+            onClick={() => setMode("chat")}
+            aria-label="채팅"
+            title="채팅"
+          >
+            <span className="material-symbols-outlined">forum</span>
+          </RailButton>
+          <RailButton
+            type="button"
+            data-active={mode === "projects" || undefined}
+            onClick={() => setMode("projects")}
+            aria-label="프로젝트"
+            title="프로젝트"
+          >
+            <span className="material-symbols-outlined">checklist</span>
+          </RailButton>
+        </IconRail>
+        {mode === "projects" && (
+          <>
+            <ProjectSidebarList data={tasksData} />
+            <ProjectDetailView data={tasksData} />
+          </>
+        )}
+        {mode === "chat" && (
+          <>
         <Sidebar>
           <SectionHeader ref={channelMenuRef}>
             <SectionTitle type="button" onClick={toggleChannelsCollapsed}>
@@ -557,6 +594,8 @@ export default function MobiOnContent() {
           </Composer>
           {sendError && <SendErrorText>{sendError}</SendErrorText>}
         </Main>
+          </>
+        )}
       </Layout>
       {showCreateChannel && (
         <ModalOverlay onClick={() => setShowCreateChannel(false)}>
@@ -696,11 +735,54 @@ const ReconnectBanner = styled.div`
 const Layout = styled.div`
   display: flex;
   height: calc(100vh - clamp(159px, 17.4vh, 213px));
-  max-width: 1100px;
+  /* 1100px of panes + the 56px rail, so adding the rail did not shrink the
+     chat and project panes that were sized against the old value. */
+  max-width: 1156px;
   margin: 0 auto;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
+`;
+
+const IconRail = styled.nav`
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0;
+  background: rgba(24, 24, 24, 0.45);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const RailButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+
+  .material-symbols-outlined {
+    font-size: 22px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #d4d4d4;
+  }
+
+  &[data-active] {
+    background: rgba(0, 181, 255, 0.15);
+    color: #00b5ff;
+  }
 `;
 
 const Sidebar = styled.div`
