@@ -494,6 +494,14 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
   const doneLinked = linked.filter((t) => t.status === "done").length;
   const due = dueState(targetDate || null, status);
 
+  // Jumping to a linked task closes this panel and drops the local draft, so
+  // the links are held back while there are unsaved edits — same guard the
+  // task panel uses for its prev/next steps.
+  const dirty =
+    title !== milestone.title ||
+    status !== milestone.status ||
+    targetDate !== (milestone.targetDate ?? "");
+
   return createPortal(
     <ModalOverlay ref={overlayRef} onClick={close}>
       <WideModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
@@ -541,7 +549,19 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
                 연결된 태스크 {doneLinked}/{linked.length} 완료
               </LinkedHeading>
               {linked.map((t) => (
-                <LinkedTask key={t.id} data-done={t.status === "done" || undefined}>
+                <LinkedTask
+                  key={t.id}
+                  type="button"
+                  data-done={t.status === "done" || undefined}
+                  disabled={dirty}
+                  title={dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : t.title}
+                  // swaps the open panel for the task's own; the milestone
+                  // panel closes so the two never stack
+                  onClick={() => {
+                    data.setSelectedMilestoneId(null);
+                    data.setSelectedTaskId(t.id);
+                  }}
+                >
                   {t.title}
                 </LinkedTask>
               ))}
@@ -1100,14 +1120,43 @@ const LinkedHeading = styled.div`
   padding: 6px 0 2px;
 `;
 
-const LinkedTask = styled.div`
-  font-size: 13px;
+const LinkedTask = styled.button`
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  margin: 0 -8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: #d4d4d4;
-  padding: 4px 0;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #00b5ff;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #00b5ff;
+    outline-offset: -2px;
+  }
 
   &[data-done] {
     color: #767676;
     text-decoration: line-through;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  &:disabled:hover {
+    background: transparent;
+    color: inherit;
   }
 `;
 
