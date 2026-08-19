@@ -7,6 +7,8 @@ import ProjectSidebarList from "./ProjectSidebarList";
 import ProjectDetailView from "./ProjectDetailView";
 import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
 import { useTasksData } from "@/lib/use-tasks-data";
+import { useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
+import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
 
 type Channel = {
   id: string;
@@ -88,7 +90,10 @@ type WorkspaceMode = "chat" | "projects";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("chat");
-  const tasksData = useTasksData(mode === "projects");
+  // declared here rather than with the other chat state because useTasksData
+  // needs it, and a const cannot be read before its declaration
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const tasksData = useTasksData(mode === "projects", currentUserId);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
@@ -99,7 +104,6 @@ export default function MobiOnContent() {
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
   const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDescription, setNewChannelDescription] = useState("");
   const [newChannelTags, setNewChannelTags] = useState<string[]>([]);
@@ -598,114 +602,171 @@ export default function MobiOnContent() {
         )}
       </Layout>
       {showCreateChannel && (
-        <ModalOverlay onClick={() => setShowCreateChannel(false)}>
-          <ModalCard onClick={(e) => e.stopPropagation()}>
-            <ModalTitle>새 채널 만들기</ModalTitle>
-            <Field>
-              <label htmlFor="new-channel-name">채널 이름</label>
-              <input
-                id="new-channel-name"
-                value={newChannelName}
-                onChange={(e) => setNewChannelName(e.target.value)}
-              />
-            </Field>
-            <Field>
-              <label htmlFor="new-channel-description">설명</label>
-              <input
-                id="new-channel-description"
-                value={newChannelDescription}
-                onChange={(e) => setNewChannelDescription(e.target.value)}
-                placeholder="채널 설명 (선택)"
-              />
-            </Field>
-            <Field>
-              <label htmlFor="new-channel-tags">태그</label>
-              <input
-                id="new-channel-tags"
-                value={newTagInput}
-                onChange={(e) => setNewTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-                placeholder="태그 입력 후 Enter"
-              />
-              {newChannelTags.length > 0 && (
-                <TagChipRow>
-                  {newChannelTags.map((tag) => (
-                    <TagChip key={tag}>
-                      {tag}
-                      <TagChipRemove type="button" onClick={() => removeTag(tag)}>
-                        ×
-                      </TagChipRemove>
-                    </TagChip>
-                  ))}
-                </TagChipRow>
-              )}
-            </Field>
-            <RadioRow>
-              <CheckRow>
-                <HiddenInput
-                  type="radio"
-                  name="channel-visibility"
-                  checked={!newChannelPrivate}
-                  onChange={() => setNewChannelPrivate(false)}
-                />
-                <RadioBox />
-                공개
-              </CheckRow>
-              <CheckRow>
-                <HiddenInput
-                  type="radio"
-                  name="channel-visibility"
-                  checked={newChannelPrivate}
-                  onChange={() => setNewChannelPrivate(true)}
-                />
-                <RadioBox />
-                비공개
-              </CheckRow>
-            </RadioRow>
-            {newChannelPrivate && (
-              <>
-                <MemberList>
-                  {allUsers.map((u) => (
-                    <CheckRow key={u.id}>
-                      <HiddenInput
-                        type="checkbox"
-                        checked={newChannelMemberIds.includes(u.id)}
-                        onChange={() => toggleMember(u.id)}
-                      />
-                      <CheckboxBox />
-                      {u.name}
-                    </CheckRow>
-                  ))}
-                </MemberList>
-                <CheckRow>
-                  <HiddenInput
-                    type="checkbox"
-                    checked={newChannelProfessor}
-                    onChange={(e) => setNewChannelProfessor(e.target.checked)}
-                  />
-                  <CheckboxBox />
-                  교수님에게 공개
-                </CheckRow>
-              </>
-            )}
-            {createChannelError && <SendErrorText>{createChannelError}</SendErrorText>}
-            <ModalActions>
-              <button type="button" onClick={() => setShowCreateChannel(false)}>
-                취소
-              </button>
-              <button type="button" onClick={handleCreateChannel} disabled={creatingChannel}>
-                {creatingChannel ? "만드는 중..." : "만들기"}
-              </button>
-            </ModalActions>
-          </ModalCard>
-        </ModalOverlay>
+        <CreateChannelModal
+          name={newChannelName}
+          setName={setNewChannelName}
+          description={newChannelDescription}
+          setDescription={setNewChannelDescription}
+          tagInput={newTagInput}
+          setTagInput={setNewTagInput}
+          tags={newChannelTags}
+          addTag={addTag}
+          removeTag={removeTag}
+          isPrivate={newChannelPrivate}
+          setIsPrivate={setNewChannelPrivate}
+          allUsers={allUsers}
+          memberIds={newChannelMemberIds}
+          toggleMember={toggleMember}
+          professor={newChannelProfessor}
+          setProfessor={setNewChannelProfessor}
+          error={createChannelError}
+          creating={creatingChannel}
+          onCreate={handleCreateChannel}
+          onClose={() => setShowCreateChannel(false)}
+        />
       )}
     </Root>
+  );
+}
+
+type CreateChannelModalProps = {
+  name: string;
+  setName: (v: string) => void;
+  description: string;
+  setDescription: (v: string) => void;
+  tagInput: string;
+  setTagInput: (v: string) => void;
+  tags: string[];
+  addTag: () => void;
+  removeTag: (tag: string) => void;
+  isPrivate: boolean;
+  setIsPrivate: (v: boolean) => void;
+  allUsers: { id: string; name: string }[];
+  memberIds: string[];
+  toggleMember: (id: string) => void;
+  professor: boolean;
+  setProfessor: (v: boolean) => void;
+  error: string | null;
+  creating: boolean;
+  onCreate: () => void;
+  onClose: () => void;
+};
+
+/**
+ * Module scope, like the project/milestone/task modals: defined inside
+ * MobiOnContent it would be a fresh component type on every render, remounting
+ * mid-typing and dropping input focus.
+ */
+function CreateChannelModal(props: CreateChannelModalProps) {
+  const { overlayRef, cardRef } = useModalEnterAnimation();
+
+  return (
+        <ModalOverlay ref={overlayRef} onClick={props.onClose}>
+          <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
+            <ModalTitle>새 채널 만들기</ModalTitle>
+      <Field>
+        <label htmlFor="new-channel-name">채널 이름</label>
+        <input
+          id="new-channel-name"
+          value={props.name}
+          onChange={(e) => props.setName(e.target.value)}
+        />
+      </Field>
+      <Field>
+        <label htmlFor="new-channel-description">설명</label>
+        <input
+          id="new-channel-description"
+          value={props.description}
+          onChange={(e) => props.setDescription(e.target.value)}
+          placeholder="채널 설명 (선택)"
+        />
+      </Field>
+      <Field>
+        <label htmlFor="new-channel-tags">태그</label>
+        <input
+          id="new-channel-tags"
+          value={props.tagInput}
+          onChange={(e) => props.setTagInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              props.addTag();
+            }
+          }}
+          placeholder="태그 입력 후 Enter"
+        />
+        {props.tags.length > 0 && (
+          <TagChipRow>
+            {props.tags.map((tag) => (
+              <TagChip key={tag}>
+                {tag}
+                <TagChipRemove type="button" onClick={() => props.removeTag(tag)}>
+                  ×
+                </TagChipRemove>
+              </TagChip>
+            ))}
+          </TagChipRow>
+        )}
+      </Field>
+      <RadioRow>
+        <CheckRow>
+          <HiddenInput
+            type="radio"
+            name="channel-visibility"
+            checked={!props.isPrivate}
+            onChange={() => props.setIsPrivate(false)}
+          />
+          <RadioBox />
+          공개
+        </CheckRow>
+        <CheckRow>
+          <HiddenInput
+            type="radio"
+            name="channel-visibility"
+            checked={props.isPrivate}
+            onChange={() => props.setIsPrivate(true)}
+          />
+          <RadioBox />
+          비공개
+        </CheckRow>
+      </RadioRow>
+      {props.isPrivate && (
+        <>
+          <MemberList>
+            {props.allUsers.map((u) => (
+              <CheckRow key={u.id}>
+                <HiddenInput
+                  type="checkbox"
+                  checked={props.memberIds.includes(u.id)}
+                  onChange={() => props.toggleMember(u.id)}
+                />
+                <CheckboxBox />
+                {u.name}
+              </CheckRow>
+            ))}
+          </MemberList>
+          <CheckRow>
+            <HiddenInput
+              type="checkbox"
+              checked={props.professor}
+              onChange={(e) => props.setProfessor(e.target.checked)}
+            />
+            <CheckboxBox />
+            교수님에게 공개
+          </CheckRow>
+        </>
+      )}
+      {props.error && <SendErrorText>{props.error}</SendErrorText>}
+      <ModalActions>
+        <button type="button" onClick={props.onClose}>
+          취소
+        </button>
+        <button type="button" onClick={props.onCreate} disabled={props.creating}>
+          {props.creating ? "만드는 중..." : "만들기"}
+        </button>
+      </ModalActions>
+      </ModalCard>
+    </ModalOverlay>
   );
 }
 
@@ -1128,57 +1189,9 @@ const ChannelMenuDivider = styled.div`
   background: rgba(255, 255, 255, 0.14);
 `;
 
-const ModalOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-`;
 
-const ModalCard = styled.div`
-  width: min(360px, calc(100% - 48px));
-  max-height: 80vh;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 28px;
-  border-radius: 16px;
-  background: rgba(37, 37, 37, 0.95);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-`;
 
-const ModalTitle = styled.h2`
-  font-size: 18px;
-  font-weight: 700;
-  color: #fff;
-`;
 
-const Field = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-
-  label {
-    font-size: 13px;
-    color: #9a9a9a;
-  }
-
-  input {
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(0, 0, 0, 0.25);
-    color: #fff;
-    font-size: 14px;
-    outline: none;
-  }
-`;
 
 const RadioRow = styled.div`
   display: flex;
@@ -1308,32 +1321,3 @@ const TagChipRemove = styled.button`
   padding: 0;
 `;
 
-const ModalActions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-
-  button {
-    padding: 8px 16px;
-    border-radius: 10px;
-    border: none;
-    font-size: 14px;
-    cursor: pointer;
-  }
-
-  button:first-of-type {
-    background: transparent;
-    color: #9a9a9a;
-  }
-
-  button:last-of-type {
-    background: #00b5ff;
-    color: #061018;
-    font-weight: 700;
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-  }
-`;

@@ -5,6 +5,28 @@ import { query } from "@/lib/mobion-db";
 
 const VALID_STATUSES = ["todo", "in_progress", "done"];
 
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    await requireCurrentUser();
+    const { id } = await params;
+
+    const result = await query<{ id: string }>(
+      `DELETE FROM mobion_tasks WHERE id = $1 RETURNING id`,
+      [id],
+    );
+    if (!result.rows[0]) {
+      return NextResponse.json({ error: "태스크를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return mobionApiError(error, "태스크 삭제 실패");
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },

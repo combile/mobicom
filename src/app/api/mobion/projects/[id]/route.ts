@@ -70,3 +70,45 @@ export async function GET(
     return mobionApiError(error, "프로젝트 정보를 불러오지 못했습니다.");
   }
 }
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    await requireCurrentUser();
+    const { id } = await params;
+    const body = await request.json();
+
+    // Same limits the create route applies, so an edit cannot smuggle in a
+    // value that creating would have rejected.
+    const name = body.name != null ? String(body.name).trim().slice(0, 100) : undefined;
+    if (name !== undefined && !name) {
+      return NextResponse.json({ error: "프로젝트 이름을 입력해 주세요." }, { status: 400 });
+    }
+    const description =
+      body.description != null ? String(body.description).trim().slice(0, 500) : undefined;
+
+    if (name === undefined && description === undefined) {
+      return NextResponse.json({ error: "변경할 내용이 없습니다." }, { status: 400 });
+    }
+
+    const result = await query<{ id: string; name: string; description: string }>(
+      `UPDATE mobion_projects SET
+         name = COALESCE($2, name),
+         description = COALESCE($3, description)
+       WHERE id = $1
+       RETURNING id, name, description`,
+      [id, name ?? null, description ?? null],
+    );
+
+    const project = result.rows[0];
+    if (!project) {
+      return NextResponse.json({ error: "프로젝트를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    return NextResponse.json({ project });
+  } catch (error) {
+    return mobionApiError(error, "프로젝트 수정 실패");
+  }
+}
