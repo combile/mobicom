@@ -375,6 +375,18 @@ function formatCreatedAt(iso: string) {
 }
 
 /**
+ * The one status change offered as a button, keyed by where the task is now.
+ *
+ * Done is included so finishing something is not a one-way door — reopening it
+ * otherwise means hunting through the select.
+ */
+const NEXT_STATUS: Record<string, { value: string; label: string; hint: string }> = {
+  todo: { value: "in_progress", label: "진행 시작", hint: "상태를 진행중으로" },
+  in_progress: { value: "done", label: "완료", hint: "상태를 완료로" },
+  done: { value: "todo", label: "다시 열기", hint: "상태를 할 일로" },
+};
+
+/**
  * Relative shortcuts for a date field.
  *
  * Typing a date for "by tomorrow" is more work than the decision itself. The
@@ -687,6 +699,7 @@ function TaskDetailModal({ data }: { data: TasksData }) {
   }
 
   const due = dueState(dueDate || null, status);
+  const nextStatus = NEXT_STATUS[status];
 
   // Stepping to another task swaps this component's `key`, which discards the
   // local draft. Blocking the step while there are unsaved edits is what stops
@@ -753,7 +766,20 @@ function TaskDetailModal({ data }: { data: TasksData }) {
         </Field>
         <TwoUp>
           <Field>
-            <label>상태</label>
+            <LabelRow>
+              <label>상태</label>
+              {/* one step forward is what people almost always want; the select
+                  covers moving backwards or skipping a step */}
+              {nextStatus && (
+                <OpenLinkButton
+                  type="button"
+                  onClick={() => setStatus(nextStatus.value)}
+                  title={nextStatus.hint}
+                >
+                  {nextStatus.label}
+                </OpenLinkButton>
+              )}
+            </LabelRow>
             <CustomSelect
               fullWidth
               value={status}
