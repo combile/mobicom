@@ -389,14 +389,6 @@ export default function MobiOnContent() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, activeChannelId, mode]);
 
-  if (connectionError) {
-    return (
-      <Root>
-        <ErrorBanner>{connectionError}</ErrorBanner>
-      </Root>
-    );
-  }
-
   const activeMessages = messages
     .filter((m) => m.channelId === activeChannelId)
     .sort((a, b) => a.createdOn - b.createdOn);
@@ -464,7 +456,15 @@ export default function MobiOnContent() {
             }}
           />
         )}
-        {mode === "chat" && (
+        {mode === "chat" && connectionError && (
+          <ChatUnavailable>
+            <ErrorBanner>{connectionError}</ErrorBanner>
+            <ChatUnavailableHint>
+              프로젝트·일정·대회는 왼쪽 레일에서 계속 사용할 수 있습니다
+            </ChatUnavailableHint>
+          </ChatUnavailable>
+        )}
+        {mode === "chat" && !connectionError && (
           <>
         <Sidebar>
           <SectionHeader ref={channelMenuRef}>
@@ -829,10 +829,26 @@ const Root = styled.div`
   position: relative;
   z-index: 1;
   min-height: 100vh;
-  /* Header.tsx's Bar is position: absolute, top: 54px, height: 75px — its
-     bottom edge sits at 129px. Match the top padding About/Members/Blog
-     already use so the fixed header never overlaps page content. */
-  padding: clamp(135px, 14.4vh, 189px) 24px 24px;
+  /* Header.tsx's Bar is absolute, top 54px, height 75px, so its bottom edge is
+     at 129px. Reading pages clamp up to 189px for breathing room; a workspace
+     wants that space for content instead, so it clears the header and stops. */
+  padding: 145px 24px 24px;
+`;
+
+const ChatUnavailable = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+`;
+
+const ChatUnavailableHint = styled.p`
+  color: #767676;
+  font-size: 13px;
 `;
 
 const ErrorBanner = styled.div`
@@ -850,10 +866,12 @@ const ReconnectBanner = styled.div`
 
 const Layout = styled.div`
   display: flex;
-  height: calc(100vh - clamp(159px, 17.4vh, 213px));
-  /* 1100px of panes + the 56px rail, so adding the rail did not shrink the
-     chat and project panes that were sized against the old value. */
-  max-width: 1156px;
+  height: calc(100vh - 169px);
+  /* Wide enough to use a laptop screen properly — the old 1156px cap left a
+     third of a 1440px window empty — but still capped so rows do not stretch
+     to unreadable lengths on a large external display. */
+  width: 100%;
+  max-width: 1680px;
   margin: 0 auto;
   border-radius: 16px;
   overflow: hidden;
