@@ -559,6 +559,16 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
             : []),
         ];
 
+  const hasActiveFilters =
+    !!statusFilter || !!milestoneFilter || !!assigneeFilter || !!search.trim();
+
+  function resetFilters() {
+    setStatusFilter("");
+    setMilestoneFilter("");
+    setAssigneeFilter("");
+    setSearch("");
+  }
+
   const myTasksActive = !!currentUserId && assigneeFilter === currentUserId;
 
   /** Toggles the assignee filter onto the signed-in user and back off. */
@@ -650,6 +660,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
 
     search,
     setSearch,
+    hasActiveFilters,
+    resetFilters,
     sortMode,
     setSortMode,
     statusFilter,
