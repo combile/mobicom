@@ -724,7 +724,20 @@ function TaskDetailModal({ data }: { data: TasksData }) {
         </TwoUp>
         <TwoUp>
           <Field>
-            <label>담당자</label>
+            <LabelRow>
+              <label>담당자</label>
+              {/* picking yourself out of a member list is the common case, so it
+                  gets a shortcut; the select still handles everyone else */}
+              {data.currentUserId && assigneeId !== data.currentUserId && (
+                <OpenLinkButton
+                  type="button"
+                  onClick={() => setAssigneeId(data.currentUserId!)}
+                  title="나를 담당자로 지정"
+                >
+                  나에게
+                </OpenLinkButton>
+              )}
+            </LabelRow>
             <CustomSelect
               fullWidth
               value={assigneeId}
