@@ -386,6 +386,13 @@ const NEXT_STATUS: Record<string, { value: string; label: string; hint: string }
   done: { value: "todo", label: "다시 열기", hint: "상태를 할 일로" },
 };
 
+/** Milestones use their own vocabulary — planned rather than todo. */
+const NEXT_MILESTONE_STATUS: Record<string, { value: string; label: string; hint: string }> = {
+  planned: { value: "in_progress", label: "진행 시작", hint: "상태를 진행중으로" },
+  in_progress: { value: "done", label: "완료", hint: "상태를 완료로" },
+  done: { value: "planned", label: "다시 열기", hint: "상태를 계획으로" },
+};
+
 /**
  * Relative shortcuts for a date field.
  *
@@ -538,6 +545,7 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
   const linked = data.tasks.filter((t) => t.milestoneId === milestone.id);
   const doneLinked = linked.filter((t) => t.status === "done").length;
   const due = dueState(targetDate || null, status);
+  const nextStatus = NEXT_MILESTONE_STATUS[status];
 
   // Jumping to a linked task closes this panel and drops the local draft, so
   // the links are held back while there are unsaved edits — same guard the
@@ -566,7 +574,18 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
         </Field>
         <TwoUp>
           <Field>
-            <label>상태</label>
+            <LabelRow>
+              <label>상태</label>
+              {nextStatus && (
+                <OpenLinkButton
+                  type="button"
+                  onClick={() => setStatus(nextStatus.value)}
+                  title={nextStatus.hint}
+                >
+                  {nextStatus.label}
+                </OpenLinkButton>
+              )}
+            </LabelRow>
             <CustomSelect
               fullWidth
               value={status}
