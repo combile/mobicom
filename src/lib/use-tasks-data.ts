@@ -99,6 +99,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const [milestoneFilter, setMilestoneFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  const [search, setSearch] = useState("");
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
@@ -452,11 +453,17 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     loadProjectDetail(selectedProjectId);
   }
 
+  // Description is searched as well as title: it is often where the detail
+  // someone half-remembers actually lives.
+  const searchTerm = search.trim().toLowerCase();
   const visibleTasks = tasks.filter(
     (t) =>
       (!statusFilter || t.status === statusFilter) &&
       (!milestoneFilter || t.milestoneId === milestoneFilter) &&
-      (!assigneeFilter || t.assigneeId === assigneeFilter),
+      (!assigneeFilter || t.assigneeId === assigneeFilter) &&
+      (!searchTerm ||
+        t.title.toLowerCase().includes(searchTerm) ||
+        (t.description ?? "").toLowerCase().includes(searchTerm)),
   );
 
   /**
@@ -554,6 +561,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     allUsers,
     detailError,
 
+    search,
+    setSearch,
     statusFilter,
     setStatusFilter,
     milestoneFilter,

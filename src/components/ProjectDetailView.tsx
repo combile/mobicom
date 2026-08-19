@@ -124,6 +124,16 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
             </DetailAddButton>
           </DetailSectionHeader>
           <FilterRow>
+            <SearchWrap>
+              <span className="material-symbols-outlined">search</span>
+              <SearchInput
+                type="search"
+                value={data.search}
+                onChange={(e) => data.setSearch(e.target.value)}
+                placeholder="제목·설명 검색"
+                aria-label="태스크 검색"
+              />
+            </SearchWrap>
             <CustomSelect
               value={data.statusFilter}
               onChange={data.setStatusFilter}
@@ -1050,6 +1060,40 @@ const TaskList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
+`;
+
+const SearchWrap = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.25);
+  color: #767676;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &:focus-within {
+    border-color: #00b5ff;
+    box-shadow: 0 0 0 3px rgba(0, 181, 255, 0.15);
+  }
+`;
+
+const SearchInput = styled.input`
+  width: 160px;
+  padding: 7px 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+
+  &::placeholder {
+    color: #767676;
+  }
 `;
 
 const ToggleCount = styled.span`
