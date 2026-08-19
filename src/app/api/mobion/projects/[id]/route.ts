@@ -15,6 +15,8 @@ type TaskRow = {
   assignee_name: string | null;
   created_at: string;
   created_by_name: string | null;
+  source_channel_id: string | null;
+  source_excerpt: string | null;
 };
 
 export async function GET(
@@ -43,7 +45,8 @@ export async function GET(
     const tasksResult = await query<TaskRow>(
       `SELECT t.id, t.title, t.description, t.status, t.due_date,
               t.milestone_id, t.assignee_id, u.name AS assignee_name,
-              t.created_at, c.name AS created_by_name
+              t.created_at, c.name AS created_by_name,
+              t.source_channel_id, t.source_excerpt
        FROM mobion_tasks t
        LEFT JOIN mobion_users u ON u.id = t.assignee_id
        LEFT JOIN mobion_users c ON c.id = t.created_by
@@ -70,6 +73,8 @@ export async function GET(
         assigneeName: t.assignee_name,
         createdAt: t.created_at,
         createdByName: t.created_by_name,
+        sourceChannelId: t.source_channel_id,
+        sourceExcerpt: t.source_excerpt,
       })),
     });
   } catch (error) {
