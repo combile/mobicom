@@ -57,6 +57,10 @@ export default function ProjectDetailView({ data }: { data: TasksData }) {
               {data.selectedProject.description && (
                 <ProjectDescription>{data.selectedProject.description}</ProjectDescription>
               )}
+              <ProjectMeta>
+                {data.selectedProject.createdByName}님이{" "}
+                {formatCreatedAt(data.selectedProject.createdAt)}에 생성
+              </ProjectMeta>
               <StatRow>
                 <Stat>
                   태스크 <StatValue>{data.summary.done}</StatValue>/{data.summary.total}
@@ -987,6 +991,11 @@ const EditProjectButton = styled.button`
 const ProjectDescription = styled.p`
   font-size: 13px;
   color: #9a9a9a;
+`;
+
+const ProjectMeta = styled.p`
+  font-size: 11px;
+  color: #767676;
 `;
 
 const StatRow = styled.div`
