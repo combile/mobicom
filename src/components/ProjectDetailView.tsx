@@ -545,13 +545,30 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
         </TwoUp>
 
         <LinkedTasks>
+          <LinkedHeading>
+            {linked.length === 0
+              ? "연결된 태스크"
+              : `연결된 태스크 ${doneLinked}/${linked.length} 완료`}
+            <OpenLinkButton
+              type="button"
+              disabled={dirty}
+              title={
+                dirty ? "저장하거나 닫은 뒤 추가할 수 있습니다" : "이 마일스톤에 태스크 추가"
+              }
+              // hands the milestone to the create form so it does not have to
+              // be picked again, the same way the group headings do
+              onClick={() => {
+                data.setSelectedMilestoneId(null);
+                data.openCreateTask({ milestoneId: milestone.id });
+              }}
+            >
+              + 태스크
+            </OpenLinkButton>
+          </LinkedHeading>
           {linked.length === 0 ? (
-            <LinkedEmpty>연결된 태스크가 없습니다</LinkedEmpty>
+            <LinkedEmpty>아직 없습니다</LinkedEmpty>
           ) : (
             <>
-              <LinkedHeading>
-                연결된 태스크 {doneLinked}/{linked.length} 완료
-              </LinkedHeading>
               {linked.map((t) => (
                 <LinkedTask
                   key={t.id}
@@ -1154,6 +1171,10 @@ const LinkedTasks = styled.div`
 `;
 
 const LinkedHeading = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 12px;
   color: #9a9a9a;
   padding: 6px 0 2px;
