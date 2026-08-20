@@ -50,6 +50,28 @@ export type Task = {
   checklistDone: number;
 };
 
+export type TaskActivity = {
+  id: string;
+  /** title | description | status | due_date | start_date | assignee | milestone */
+  field: string;
+  from: string | null;
+  to: string | null;
+  createdAt: string;
+  /** Null once the account is gone; the entry still stands. */
+  actorName: string | null;
+};
+
+/**
+ * Comments and changes read as one thread.
+ *
+ * Split into two lists they answer separate questions and neither is enough:
+ * "why did this slip" is a comment, "when did it slip" is a change, and the
+ * pair only makes sense in the order they happened.
+ */
+export type TimelineEntry =
+  | { kind: "comment"; at: string; id: string; comment: TaskComment }
+  | { kind: "activity"; at: string; id: string; activity: TaskActivity };
+
 export type ChecklistItem = {
   id: string;
   label: string;
@@ -178,6 +200,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const pendingTaskRef = useRef<string | null>(null);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [activity, setActivity] = useState<TaskActivity[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
@@ -230,6 +253,22 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   useEffect(() => {
     if (selectedProjectId) loadProjectDetail(selectedProjectId);
   }, [selectedProjectId]);
+
+  function loadActivity(taskId: string) {
+    return fetch(`/api/mobion/tasks/${taskId}/activity`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setActivity(data.entries ?? []))
+      // a missing history should not stop the task from being edited
+      .catch(() => setActivity([]));
+  }
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      setActivity([]);
+      return;
+    }
+    loadActivity(selectedTaskId);
+  }, [selectedTaskId]);
 
   useEffect(() => {
     if (!selectedTaskId) {
@@ -514,6 +553,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     } finally {
       setSavingTask(false);
     }
+    // the save just wrote history entries; the panel is still open on them
+    loadActivity(taskId);
     loadProjectDetail(selectedProjectId);
     return true;
   }
@@ -683,6 +724,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     } finally {
       setSavingTask(false);
     }
+    // the save just wrote history entries; the panel is still open on them
+    loadActivity(taskId);
     loadProjectDetail(selectedProjectId);
     return true;
   }
@@ -883,6 +926,22 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     percent: tasks.length === 0 ? 0 : Math.round((doneCount / tasks.length) * 100),
   };
 
+  /**
+   * Merged oldest first, the order the comment thread already reads in.
+   * Ties break toward the change: a remark explaining a move is written after
+   * the move, and within the same second that order would otherwise be lost.
+   */
+  const timeline: TimelineEntry[] = [
+    ...comments.map((c) => ({ kind: "comment" as const, at: c.createdAt, id: c.id, comment: c })),
+    ...activity.map((a) => ({ kind: "activity" as const, at: a.createdAt, id: a.id, activity: a })),
+  ].sort((x, y) =>
+    x.at === y.at
+      ? Number(x.kind === "comment") - Number(y.kind === "comment")
+      : x.at < y.at
+        ? -1
+        : 1,
+  );
+
   return {
     projects,
     selectedProject,
@@ -974,6 +1033,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     taskDetailError,
     setTaskDetailError,
     updateTask,
+    activity,
+    timeline,
     checklist,
     addChecklistItem,
     toggleChecklistItem,
