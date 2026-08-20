@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 15;
+const MOBION_SCHEMA_VERSION = 16;
 
 export const pool =
   globalThis.mobionPool ??
@@ -268,6 +268,28 @@ export async function ensureMobionSchema() {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS mobion_task_checklist_task_idx
           ON mobion_task_checklist (task_id, position, created_at)
+      `);
+      // What changed on a task, and who changed it. The discussion records why
+      // a decision was made; this records that it was made at all — the two
+      // read as one thread and neither answers the other's question.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_task_activity (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          task_id UUID NOT NULL REFERENCES mobion_tasks(id) ON DELETE CASCADE,
+          -- SET NULL like comments: history that loses its author is still
+          -- history, and dropping the entry entirely would be worse
+          actor_id UUID REFERENCES mobion_users(id) ON DELETE SET NULL,
+          field TEXT NOT NULL,
+          -- Text, not ids. A milestone that is later renamed or deleted must
+          -- not rewrite or blank out what the history says happened.
+          from_value TEXT,
+          to_value TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_task_activity_task_idx
+          ON mobion_task_activity (task_id, created_at)
       `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;

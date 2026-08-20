@@ -16,6 +16,7 @@ import {
   dueState,
   type SortMode,
   type Task,
+  type TaskActivity,
   type TasksData,
 } from "@/lib/use-tasks-data";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
@@ -397,6 +398,37 @@ const NEXT_MILESTONE_STATUS: Record<string, { value: string; label: string; hint
   in_progress: { value: "done", label: "완료", hint: "상태를 완료로" },
   done: { value: "planned", label: "다시 열기", hint: "상태를 계획으로" },
 };
+
+const FIELD_NAMES: Record<string, string> = {
+  status: "상태",
+  assignee: "담당자",
+  milestone: "마일스톤",
+  due_date: "마감일",
+  start_date: "시작일",
+};
+
+/**
+ * One change, as a compact `field before → after`.
+ *
+ * A full sentence would need Korean particles chosen from the preceding
+ * syllable's final consonant, and the values here are not all Korean — a
+ * milestone named in Latin letters or a bare date has no reliable reading, so
+ * every such sentence would carry an "을(를)" that reads as unfinished. The
+ * arrow form says the same thing, denser, and is what a change log looks like
+ * anyway.
+ */
+function describeActivity(a: TaskActivity) {
+  if (a.field === "description") return "설명 수정";
+  if (a.field === "title") return `제목 '${a.from}' → '${a.to}'`;
+
+  // status is stored as its raw code so the wording stays with the select
+  const label = (v: string | null) =>
+    a.field === "status" ? (TASK_STATUS_OPTIONS.find((o) => o.value === v)?.label ?? v) : v;
+  const name = FIELD_NAMES[a.field] ?? a.field;
+  const from = a.from ? `${label(a.from)} ` : "";
+
+  return `${name} ${from}→ ${a.to ? label(a.to) : "없음"}`;
+}
 
 /** One task row, shared by the flat list and the grouped view. */
 function TaskRowItem({
@@ -989,30 +1021,44 @@ function TaskDetailModal({
             <CommentCount>· {data.comments.length}</CommentCount>
           </CommentHeading>
 
-          {data.comments.map((c) => (
-            <Comment key={c.id}>
-              {/* an initial is enough to tell speakers apart at a glance, which
-                  is what a thread needs more than a boxed card per remark */}
-              <CommentAvatar style={{ background: avatarTint(c.authorName ?? "?") }}>
-                {(c.authorName ?? "?").charAt(0)}
-              </CommentAvatar>
-              <CommentMain>
-                <CommentMeta>
-                  <CommentAuthor>{c.authorName ?? "알 수 없는 사용자"}</CommentAuthor>
-                  <CommentTime>{formatCreatedAt(c.createdAt)}</CommentTime>
-                </CommentMeta>
-                <CommentBody>
-                  {parseMentionSegments(c.body).map((seg, i) =>
-                    seg.type === "mention" ? (
-                      <CommentMention key={i}>@{seg.name}</CommentMention>
-                    ) : (
-                      <span key={i}>{seg.content}</span>
-                    ),
-                  )}
-                </CommentBody>
-              </CommentMain>
-            </Comment>
-          ))}
+          {data.timeline.map((entry) =>
+            entry.kind === "activity" ? (
+              <ActivityLine key={`a-${entry.id}`}>
+                <ActivityDot />
+                <ActivityWho>{entry.activity.actorName ?? "알 수 없는 사용자"}</ActivityWho>
+                <span>{describeActivity(entry.activity)}</span>
+                <ActivityTime>{formatCreatedAt(entry.activity.createdAt)}</ActivityTime>
+              </ActivityLine>
+            ) : (
+              <Comment key={`c-${entry.id}`}>
+                {/* an initial is enough to tell speakers apart at a glance,
+                    which is what a thread needs more than a boxed card per
+                    remark */}
+                <CommentAvatar
+                  style={{ background: avatarTint(entry.comment.authorName ?? "?") }}
+                >
+                  {(entry.comment.authorName ?? "?").charAt(0)}
+                </CommentAvatar>
+                <CommentMain>
+                  <CommentMeta>
+                    <CommentAuthor>
+                      {entry.comment.authorName ?? "알 수 없는 사용자"}
+                    </CommentAuthor>
+                    <CommentTime>{formatCreatedAt(entry.comment.createdAt)}</CommentTime>
+                  </CommentMeta>
+                  <CommentBody>
+                    {parseMentionSegments(entry.comment.body).map((seg, i) =>
+                      seg.type === "mention" ? (
+                        <CommentMention key={i}>@{seg.name}</CommentMention>
+                      ) : (
+                        <span key={i}>{seg.content}</span>
+                      ),
+                    )}
+                  </CommentBody>
+                </CommentMain>
+              </Comment>
+            ),
+          )}
 
           <CommentForm>
             <CommentInputWrap>
@@ -1021,16 +1067,17 @@ function TaskDetailModal({
                 onChange={setDraftComment}
                 onSend={submitComment}
                 users={data.allUsers}
-                placeholder="댓글을 남겨주세요..."
+                placeholder="댓글 남기기"
               />
             </CommentInputWrap>
-            <QuietButton
-              type="button"
-              onClick={submitComment}
-              disabled={data.postingComment || !draftComment.trim()}
-            >
-              전송
-            </QuietButton>
+            {/* Enter already sends, so the button only appears once there is
+                something to send — a permanently greyed-out button beside an
+                empty field is what makes the area read as a form */}
+            {draftComment.trim() && (
+              <QuietButton type="button" onClick={submitComment} disabled={data.postingComment}>
+                {data.postingComment ? "남기는 중..." : "남기기"}
+              </QuietButton>
+            )}
           </CommentForm>
         </CommentSection>
 
@@ -2131,11 +2178,38 @@ const ChecklistChip = styled.span`
   }
 `;
 
-const CommentEmpty = styled.p`
+/* A change is context for the remarks around it, not an entry competing with
+   them — one quiet line, no avatar, no card. */
+const ActivityLine = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 3px 0;
   color: #767676;
   font-size: 12px;
-  padding: 2px 0 4px;
 `;
+
+const ActivityDot = styled.span`
+  width: 4px;
+  height: 4px;
+  flex-shrink: 0;
+  /* sits on the same left edge as the comment avatars above and below */
+  margin: 0 8px;
+  border-radius: 50%;
+  background: #4a4a4a;
+`;
+
+const ActivityWho = styled.span`
+  color: #9a9a9a;
+`;
+
+const ActivityTime = styled.span`
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #5f5f5f;
+  font-size: 11px;
+`;
+
 
 /* No card per comment: a thread is a sequence of remarks, and boxing each one
    turns a short exchange into a stack of panels. */
@@ -2193,9 +2267,7 @@ const CommentForm = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1px solid #2a2a2a;
+  margin-top: 8px;
 `;
 
 const CommentMention = styled.span`
@@ -2203,30 +2275,35 @@ const CommentMention = styled.span`
   font-weight: 600;
 `;
 
+/* MentionInput renders a bare input and leaves the look to whoever places it.
+   The same underline the checklist field uses, so the two ends of the panel do
+   not disagree about what an input is. */
 const CommentInputWrap = styled.div`
   flex: 1;
   min-width: 0;
-`;
 
-const CommentInput = styled.textarea`
-  flex: 1;
-  min-width: 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.25);
-  color: #fff;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
-  outline: none;
+  input {
+    width: 100%;
+    padding: 6px 2px;
+    border: none;
+    border-bottom: 1px solid #2a2a2a;
+    background: transparent;
+    color: #d4d4d4;
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+  }
 
-  &:focus {
-    border-color: #00b5ff;
-    box-shadow: 0 0 0 3px rgba(0, 181, 255, 0.15);
+  input::placeholder {
+    color: #6a6a6a;
+  }
+
+  input:focus {
+    border-bottom-color: #5a5a5a;
   }
 `;
+
+
 
 const CommentSend = styled.button`
   padding: 8px 14px;
