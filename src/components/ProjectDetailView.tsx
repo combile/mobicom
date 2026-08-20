@@ -525,6 +525,7 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
 
   const [title, setTitle] = useState(milestone.title);
   const [status, setStatus] = useState(milestone.status);
+  const [kind, setKind] = useState(milestone.kind);
   const [targetDate, setTargetDate] = useState(milestone.targetDate ?? "");
 
   useCloseOnEscape(() => close());
@@ -537,6 +538,7 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
     const ok = await data.updateMilestone(milestone.id, {
       title,
       status,
+      kind,
       targetDate: targetDate || null,
     });
     if (ok) close();
@@ -553,6 +555,7 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
   const dirty =
     title !== milestone.title ||
     status !== milestone.status ||
+    kind !== milestone.kind ||
     targetDate !== (milestone.targetDate ?? "");
 
   return createPortal(
@@ -571,6 +574,12 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
+        </Field>
+        <Field>
+          <label>유형</label>
+          {/* settable only at creation until now, so a checkpoint that turned
+              out to be a deliverable had to be deleted and made again */}
+          <CustomSelect fullWidth value={kind} onChange={setKind} options={MILESTONE_KINDS} />
         </Field>
         <TwoUp>
           <Field>
