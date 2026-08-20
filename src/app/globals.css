@@ -35,19 +35,26 @@
   --text-faint: #878e9e;
   --text-inverse: #ffffff;
 
-  /* Darkened from the brand #00b5ff, which on white is a pale wash that fails
-     against body text. The hue is kept so the app still reads as the same
-     product in either theme. */
-  --accent: #0071c9;
-  --accent-soft: rgba(0, 113, 201, 0.1);
-  --danger: #c2352b;
-  --danger-soft: rgba(194, 53, 43, 0.09);
-  --warn: #a45c06;
-  --warn-soft: rgba(164, 92, 6, 0.11);
-  --ok: #10703c;
-  --milestone: #5b46cf;
-  --milestone-soft: rgba(91, 70, 207, 0.1);
-  --ok-soft: rgba(16, 112, 60, 0.1);
+  /* Two layers per hue. The `-soft` value is the pastel itself — a real tint
+     with body, not a ten-percent wash — and the plain value is the same family
+     pulled down far enough to sit on white as text. A pastel that has to carry
+     a label stops being legible long before it stops being pretty, so the two
+     jobs get two values. */
+  --accent: #3178bd;
+  --accent-soft: #dcecfb;
+  --danger: #bd4a53;
+  --danger-soft: #fbe2e4;
+  --warn: #a1620f;
+  --warn-soft: #fcecd9;
+  --ok: #237a52;
+  --ok-soft: #dcf1e6;
+  --milestone: #6350c4;
+  --milestone-soft: #e7e2fa;
+  /* A third weight, for large filled areas like chart bars. The `-soft` tint
+     is too faint to read as data and the plain value is tuned for text, which
+     on a bar this size comes out heavier than everything around it. */
+  --accent-fill: #7fb3e2;
+  --ok-fill: #6fbf98;
 
   /* the workspace panels sit on a translucent wash over the page */
   --panel-wash: rgba(255, 255, 255, 0.82);
@@ -80,16 +87,18 @@
     --text-faint: #767676;
     --text-inverse: #141414;
 
-    --accent: #00b5ff;
-    --accent-soft: rgba(0, 181, 255, 0.12);
-    --danger: #ff6767;
-    --danger-soft: rgba(255, 103, 103, 0.14);
-    --warn: #ff9d5c;
-    --warn-soft: rgba(255, 157, 92, 0.16);
-    --ok: #4ade80;
-    --milestone: #8b7cf6;
-    --milestone-soft: rgba(139, 124, 246, 0.16);
-    --ok-soft: rgba(74, 222, 128, 0.16);
+    --accent: #6ec8f7;
+    --accent-soft: rgba(110, 200, 247, 0.15);
+    --danger: #f2a1a8;
+    --danger-soft: rgba(242, 161, 168, 0.16);
+    --warn: #f5c391;
+    --warn-soft: rgba(245, 195, 145, 0.16);
+    --ok: #8ddfb4;
+    --milestone: #bcaaf8;
+    --milestone-soft: rgba(188, 170, 248, 0.18);
+    --ok-soft: rgba(141, 223, 180, 0.16);
+    --accent-fill: #5aa8d4;
+    --ok-fill: #64b892;
 
     --panel-wash: rgba(37, 37, 37, 0.35);
     --overlay: rgba(0, 0, 0, 0.6);
@@ -120,16 +129,18 @@
   --text-faint: #767676;
   --text-inverse: #141414;
 
-  --accent: #00b5ff;
-  --accent-soft: rgba(0, 181, 255, 0.12);
-  --danger: #ff6767;
-  --danger-soft: rgba(255, 103, 103, 0.14);
-  --warn: #ff9d5c;
-  --warn-soft: rgba(255, 157, 92, 0.16);
-  --ok: #4ade80;
-  --milestone: #8b7cf6;
-  --milestone-soft: rgba(139, 124, 246, 0.16);
-  --ok-soft: rgba(74, 222, 128, 0.16);
+  --accent: #6ec8f7;
+  --accent-soft: rgba(110, 200, 247, 0.15);
+  --danger: #f2a1a8;
+  --danger-soft: rgba(242, 161, 168, 0.16);
+  --warn: #f5c391;
+  --warn-soft: rgba(245, 195, 145, 0.16);
+  --ok: #8ddfb4;
+  --milestone: #bcaaf8;
+  --milestone-soft: rgba(188, 170, 248, 0.18);
+  --ok-soft: rgba(141, 223, 180, 0.16);
+  --accent-fill: #5aa8d4;
+  --ok-fill: #64b892;
 
   --panel-wash: rgba(37, 37, 37, 0.35);
   --overlay: rgba(0, 0, 0, 0.6);

@@ -341,12 +341,12 @@ const Bar = styled.div`
   height: 8px;
   min-width: 8px;
   border-radius: 999px;
-  /* Solid, not the soft tints: a bar on a chart is the content being read,
-     and a ten-percent wash of it disappears against a light background. */
-  background: var(--accent);
+  /* The fill weight, not the text weight: solid enough to read as data,
+     soft enough not to shout past the controls around it. */
+  background: var(--accent-fill);
 
   &[data-status="done"] {
-    background: var(--ok);
+    background: var(--ok-fill);
   }
 
   &[data-status="todo"] {
