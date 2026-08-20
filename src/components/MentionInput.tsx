@@ -11,11 +11,19 @@ type MentionInputProps = {
   onChange: (value: string) => void;
   onSend: () => void;
   users: MentionUser[];
+  /** Comments reuse this input, and their prompt differs from chat's. */
+  placeholder?: string;
 };
 
 const MAX_CANDIDATES = 8;
 
-export default function MentionInput({ value, onChange, onSend, users }: MentionInputProps) {
+export default function MentionInput({
+  value,
+  onChange,
+  onSend,
+  users,
+  placeholder = "메시지 입력... (@로 멘션)",
+}: MentionInputProps) {
   const [trigger, setTrigger] = useState<{ start: number; query: string } | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -85,7 +93,7 @@ export default function MentionInput({ value, onChange, onSend, users }: Mention
           updateTrigger(e.target.value, e.target.selectionStart ?? e.target.value.length);
         }}
         onKeyDown={handleKeyDown}
-        placeholder="메시지 입력... (@로 멘션)"
+        placeholder={placeholder}
       />
       {trigger && candidates.length > 0 && (
         <Dropdown role="listbox">
