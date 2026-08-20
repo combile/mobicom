@@ -1,17 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import styled from "@emotion/styled";
 import CalendarView from "./CalendarView";
+import CustomSelect from "./CustomSelect";
+import DatePicker from "./DatePicker";
 import type { ScheduleData, ScheduleItem } from "@/lib/use-schedule-data";
-import { ErrorText } from "./modal-styles";
+import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
+import { todayISO } from "@/lib/use-tasks-data";
+import {
+  ErrorText,
+  Field,
+  ModalActions,
+  ModalCard,
+  ModalOverlay,
+  ModalTitle,
+} from "./modal-styles";
 
 /**
- * Deadlines from every project in one list.
+ * Deadlines from every project in one place.
  *
- * Read-only by design: this is a view over tasks and milestones, not a place
- * that owns anything, so editing happens where the item lives. Selecting a row
- * hands the project back to the caller, which switches to the projects mode.
+ * Editing still happens where the item lives — selecting a row hands the
+ * project back to the caller. Creating is the exception: picking a day and
+ * naming the thing is the whole action, and routing it through "open the
+ * project first" loses the date that was just chosen.
  */
 export default function ScheduleView({
   data,
@@ -60,6 +73,10 @@ export default function ScheduleView({
             목록
           </ModeButton>
         </ModeSwitch>
+        <AddScheduleButton type="button" onClick={() => data.openCreate(todayISO())}>
+          <span className="material-symbols-outlined">add</span>
+          일정 추가
+        </AddScheduleButton>
         <DoneToggle
           type="button"
           data-active={data.showDone || undefined}
@@ -77,15 +94,18 @@ export default function ScheduleView({
             if (item.projectId) onOpenProject(item.projectId);
             else if (item.url) window.open(item.url, "_blank", "noopener,noreferrer");
           }}
+          onCreate={data.openCreate}
         />
       )}
+
+      {data.createDate && <CreateScheduleModal data={data} />}
 
       {data.loadError && <ErrorText>{data.loadError}</ErrorText>}
 
       {mode === "list" && !data.loadError && data.isEmpty && !data.loading && (
         <Empty>
           <EmptyTitle>기한이 정해진 일이 없습니다</EmptyTitle>
-          <EmptyHint>태스크나 마일스톤에 날짜를 넣으면 여기 모여서 보입니다</EmptyHint>
+          <EmptyHint>&lsquo;일정 추가&rsquo;로 바로 만들거나, 태스크에 날짜를 넣으면 여기 모입니다</EmptyHint>
         </Empty>
       )}
 
@@ -138,6 +158,82 @@ export default function ScheduleView({
         </Bucket>
       ))}
     </Main>
+  );
+}
+
+/**
+ * Create a task or milestone on a chosen day.
+ *
+ * A milestone needs its date and a task treats it as a deadline, so the same
+ * field means different things to the two endpoints — the kind switch is what
+ * decides which one gets called, not two separate forms.
+ */
+function CreateScheduleModal({ data }: { data: ScheduleData }) {
+  const { overlayRef, cardRef } = useModalEnterAnimation();
+  useCloseOnEscape(data.closeCreate);
+
+  return createPortal(
+    <ModalOverlay ref={overlayRef} onClick={data.closeCreate}>
+      <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
+        <ModalTitle>일정 추가</ModalTitle>
+        <Field>
+          <label htmlFor="schedule-new-title">제목</label>
+          <input
+            id="schedule-new-title"
+            value={data.newTitle}
+            onChange={(e) => data.setNewTitle(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <label>종류</label>
+          <CustomSelect
+            fullWidth
+            value={data.newKind}
+            onChange={(v) => data.setNewKind(v as "task" | "milestone")}
+            options={[
+              { value: "task", label: "태스크" },
+              { value: "milestone", label: "마일스톤" },
+            ]}
+          />
+        </Field>
+        <Field>
+          <label>프로젝트</label>
+          <CustomSelect
+            fullWidth
+            value={data.newProjectId}
+            onChange={data.setNewProjectId}
+            options={[
+              { value: "", label: "선택하세요" },
+              ...data.projects.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+          />
+        </Field>
+        <Field>
+          <label>{data.newKind === "task" ? "마감일" : "목표 날짜"}</label>
+          <DatePicker
+            block
+            value={data.createDate ?? ""}
+            /* an item on the schedule has to sit on a day, so clearing is a
+               no-op here rather than a state the form can be submitted in */
+            onChange={(v) => v && data.setCreateDate(v)}
+          />
+        </Field>
+        {data.createError && <ErrorText>{data.createError}</ErrorText>}
+        <ModalActions>
+          <button type="button" onClick={data.closeCreate}>
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={data.handleCreate}
+            disabled={data.creating || !data.newTitle.trim() || !data.newProjectId}
+          >
+            {data.creating ? "만드는 중..." : "만들기"}
+          </button>
+        </ModalActions>
+      </ModalCard>
+    </ModalOverlay>,
+    document.body,
   );
 }
 
@@ -208,6 +304,28 @@ const ModeButton = styled.button`
   &[data-active] {
     background: #2f2f2f;
     color: #f0f0f0;
+  }
+`;
+
+const AddScheduleButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px 6px 9px;
+  border: 1px solid #333;
+  border-radius: 7px;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 12px;
+  cursor: pointer;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  &:hover {
+    border-color: #4a4a4a;
+    background: #2a2a2a;
   }
 `;
 

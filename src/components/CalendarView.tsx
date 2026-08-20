@@ -24,9 +24,11 @@ function ymd(d: Date) {
 export default function CalendarView({
   items,
   onOpen,
+  onCreate,
 }: {
   items: ScheduleItem[];
   onOpen: (item: ScheduleItem) => void;
+  onCreate: (date: string) => void;
 }) {
   const today = todayISO();
   const [cursor, setCursor] = useState(() => {
@@ -106,6 +108,15 @@ export default function CalendarView({
           return (
             <DayCell key={cell.date} data-outside={!cell.inMonth || undefined}>
               <DayNumber data-today={cell.date === today || undefined}>{cell.day}</DayNumber>
+              {/* hidden until the cell is under the pointer: 42 always-visible
+                  plus signs would be louder than the schedule itself */}
+              <AddButton
+                type="button"
+                onClick={() => onCreate(cell.date)}
+                title={`${cell.date}에 일정 추가`}
+              >
+                <span className="material-symbols-outlined">add</span>
+              </AddButton>
               {dayItems.slice(0, VISIBLE_PER_DAY).map((item) => (
                 <Entry
                   key={`${item.kind}-${item.id}`}
@@ -214,25 +225,7 @@ const WeekdayCell = styled.div`
   }
 `;
 
-const DayCell = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-height: 92px;
-  padding: 5px 5px 7px;
-  border-right: 1px solid #2a2a2a;
-  border-bottom: 1px solid #2a2a2a;
 
-  /* neighbouring months stay visible so weeks read as weeks, just recessed
-     enough not to be mistaken for this one */
-  &[data-outside] {
-    background: rgba(0, 0, 0, 0.18);
-  }
-
-  &[data-outside] > * {
-    opacity: 0.4;
-  }
-`;
 
 const DayNumber = styled.span`
   padding: 1px 5px;
@@ -300,4 +293,62 @@ const More = styled.span`
   padding: 0 4px;
   color: #6a6a6a;
   font-size: 10px;
+`;
+
+const DayCell = styled.div`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 92px;
+  padding: 5px 5px 7px;
+  border-right: 1px solid #2a2a2a;
+  border-bottom: 1px solid #2a2a2a;
+
+  &[data-outside] {
+    background: rgba(0, 0, 0, 0.18);
+  }
+
+  /* neighbouring months stay visible so weeks read as weeks, just recessed
+     enough not to be mistaken for this one. Named children rather than every
+     child: a blanket rule also un-hides the add button, which is supposed to
+     stay out of sight until the cell is hovered. */
+  &[data-outside] ${DayNumber},
+  &[data-outside] ${Entry},
+  &[data-outside] ${More} {
+    opacity: 0.4;
+  }
+`;
+
+const AddButton = styled.button`
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #8a8a8a;
+  opacity: 0;
+  cursor: pointer;
+
+  .material-symbols-outlined {
+    font-size: 14px;
+  }
+
+  ${DayCell}:hover & {
+    opacity: 1;
+  }
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    background: #2f2f2f;
+    color: #e0e0e0;
+  }
 `;
