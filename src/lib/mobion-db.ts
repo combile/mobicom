@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 18;
+const MOBION_SCHEMA_VERSION = 19;
 
 export const pool =
   globalThis.mobionPool ??
@@ -305,6 +305,44 @@ export async function ensureMobionSchema() {
           PRIMARY KEY (user_id, channel_id)
         )
       `);
+      // Three roles rather than one admin flag. `is_admin` could say who may
+      // administer but not who may only look, and "the professor can see
+      // everything and change nothing" is exactly a read-only role.
+      await pool.query(
+        `ALTER TABLE mobion_users
+           ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'member'`,
+      );
+      await pool.query(
+        `ALTER TABLE mobion_users DROP CONSTRAINT IF EXISTS mobion_users_role_check`,
+      );
+      await pool.query(
+        `ALTER TABLE mobion_users
+           ADD CONSTRAINT mobion_users_role_check
+           CHECK (role IN ('member', 'lead', 'professor'))`,
+      );
+      // One-time carry-over of the old flag. Guarded on "nobody is a lead yet"
+      // so it cannot undo a later demotion by running again.
+      await pool.query(`
+        UPDATE mobion_users SET role = 'lead'
+        WHERE is_admin = true
+          AND NOT EXISTS (SELECT 1 FROM mobion_users WHERE role <> 'member')
+      `);
+      // When someone was here. `first_seen_at` is what the server observed and
+      // never changes; `checked_in_at` is the person's own correction. Keeping
+      // both is the record of the correction — a separate audit table would
+      // say the same thing at more cost.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_attendance (
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          work_date DATE NOT NULL,
+          first_seen_at TIMESTAMPTZ NOT NULL,
+          checked_in_at TIMESTAMPTZ,
+          note TEXT,
+          corrected_at TIMESTAMPTZ,
+          PRIMARY KEY (user_id, work_date)
+        )
+      `);
+
       // 'due_soon' joins the original two. The constraint is replaced rather
       // than the column left unchecked: the set is small and closed, and an
       // unconstrained kind is how a typo becomes a notification nobody can

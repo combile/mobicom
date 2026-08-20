@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import styled from "@emotion/styled";
 import type { HomeData, HomeTask } from "@/lib/use-home-data";
 import { ErrorText } from "./modal-styles";
@@ -30,6 +31,8 @@ export default function HomeView({
           <Count>내 태스크 {data.myTasks.length}</Count>
         </Counts>
       </Header>
+
+      <AttendanceLine data={data} />
 
       {data.loadError && <ErrorText>{data.loadError}</ErrorText>}
 
@@ -170,6 +173,185 @@ const Main = styled.div`
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   overflow-y: auto;
   padding: 20px;
+`;
+
+/**
+ * Today's arrival time, and the way to fix it.
+ *
+ * Shown to the person it is about, on the first screen they see. A record kept
+ * about someone that they cannot see is a different kind of thing from one
+ * they can, and this is meant to be the second kind — the correction control
+ * sits right next to the number rather than somewhere in settings.
+ */
+function AttendanceLine({ data }: { data: HomeData }) {
+  const [editing, setEditing] = useState(false);
+  const today = data.todayAttendance;
+  const [time, setTime] = useState("");
+  const [note, setNote] = useState("");
+
+  if (!today) return null;
+
+  const shown = today.checkedInAt ?? today.firstSeenAt;
+  const corrected = Boolean(today.checkedInAt);
+
+  function begin() {
+    if (!today) return;
+    const d = new Date(today.checkedInAt ?? today.firstSeenAt);
+    setTime(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
+    setNote(today.note ?? "");
+    setEditing(true);
+  }
+
+  return (
+    <Attendance>
+      <span className="material-symbols-outlined">schedule</span>
+      <AttendanceText>
+        오늘 <AttendanceTime>{formatClock(shown)}</AttendanceTime> 기록
+        {corrected && <AttendanceOrigin>자동 {formatClock(today.firstSeenAt)}에서 수정</AttendanceOrigin>}
+        {today.note && <AttendanceNote>{today.note}</AttendanceNote>}
+      </AttendanceText>
+
+      {editing ? (
+        <AttendanceEdit>
+          <AttendanceInput
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            aria-label="출근 시각"
+          />
+          <AttendanceInput
+            value={note}
+            placeholder="사유 (선택)"
+            onChange={(e) => setNote(e.target.value)}
+            aria-label="수정 사유"
+          />
+          <AttendanceAction
+            type="button"
+            onClick={async () => {
+              const ok = await data.correctAttendance(today.date, time, note || null);
+              if (ok) setEditing(false);
+            }}
+          >
+            저장
+          </AttendanceAction>
+          <AttendanceAction type="button" onClick={() => setEditing(false)}>
+            취소
+          </AttendanceAction>
+          {corrected && (
+            <AttendanceAction
+              type="button"
+              onClick={async () => {
+                const ok = await data.correctAttendance(today.date, null, null);
+                if (ok) setEditing(false);
+              }}
+              title="자동으로 기록된 시각으로 되돌립니다"
+            >
+              되돌리기
+            </AttendanceAction>
+          )}
+        </AttendanceEdit>
+      ) : (
+        <AttendanceAction type="button" onClick={begin}>
+          수정
+        </AttendanceAction>
+      )}
+    </Attendance>
+  );
+}
+
+/** Client-side only, so the server's locale never disagrees with the browser's. */
+function formatClock(iso: string) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+const Attendance = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-hover);
+  font-size: 13px;
+  color: var(--text-muted);
+
+  > .material-symbols-outlined {
+    font-size: 17px;
+    color: var(--text-faint);
+  }
+`;
+
+const AttendanceText = styled.span`
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const AttendanceTime = styled.strong`
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+`;
+
+const AttendanceOrigin = styled.span`
+  color: var(--text-faint);
+  font-size: 11px;
+`;
+
+const AttendanceNote = styled.span`
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--surface-active);
+  color: var(--text-muted);
+  font-size: 11px;
+`;
+
+const AttendanceEdit = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+`;
+
+const AttendanceInput = styled.input`
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  max-width: 150px;
+
+  &:focus {
+    border-color: var(--accent);
+  }
+`;
+
+const AttendanceAction = styled.button`
+  margin-left: auto;
+  padding: 3px 9px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-active);
+    color: var(--text);
+  }
+
+  /* only the first control in a row pushes itself right */
+  ${/* sc-selector */ ""}
+  & ~ & {
+    margin-left: 0;
+  }
 `;
 
 const Header = styled.header`

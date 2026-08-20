@@ -58,12 +58,33 @@ async function raiseDueSoonNotifications(userId: string) {
   );
 }
 
+/**
+ * Note that this person was here today.
+ *
+ * Recorded here rather than in `requireCurrentUser` because this endpoint is
+ * already the app's heartbeat — the client polls it while the workspace is
+ * open, in every mode — and an upsert on every authenticated request would be
+ * a write per request to answer a question that changes once a day.
+ *
+ * `DO NOTHING` means the first request of the day wins, and no later one can
+ * push the observed time forward.
+ */
+async function noteAttendance(userId: string) {
+  await query(
+    `INSERT INTO mobion_attendance (user_id, work_date, first_seen_at)
+     VALUES ($1, CURRENT_DATE, now())
+     ON CONFLICT (user_id, work_date) DO NOTHING`,
+    [userId],
+  );
+}
+
 export async function GET() {
   try {
     const user = await requireCurrentUser();
 
     // Best-effort: a failure here must not cost the caller the notifications
     // that already exist.
+    await noteAttendance(user.id).catch(() => {});
     await raiseDueSoonNotifications(user.id).catch(() => {});
 
     const result = await query<NotificationRow>(
