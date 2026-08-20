@@ -191,7 +191,7 @@ const Chart = styled.div`
 
 const Empty = styled.p`
   padding: 18px 0;
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
 `;
 
@@ -199,14 +199,14 @@ const Axis = styled.div`
   position: relative;
   height: 18px;
   margin-left: ${LABEL_WIDTH};
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
 `;
 
 const Tick = styled.span`
   position: absolute;
   top: 0;
   transform: translateX(-50%);
-  color: #767676;
+  color: var(--text-faint);
   font-size: 10px;
   white-space: nowrap;
 `;
@@ -216,7 +216,7 @@ const TodayLine = styled.span`
   top: 14px;
   bottom: -2000px;
   width: 1px;
-  background: rgba(255, 157, 92, 0.45);
+  background: var(--warn-soft);
 `;
 
 const Group = styled.div`
@@ -224,7 +224,7 @@ const Group = styled.div`
   flex-direction: column;
   gap: 2px;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border);
 `;
 
 const Row = styled.div`
@@ -242,21 +242,21 @@ const GroupHead = styled.button`
   padding: 0;
   border: none;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 13px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
 
   &:hover {
-    color: #00b5ff;
+    color: var(--accent);
   }
 `;
 
 const PlainHead = styled.span`
   width: ${LABEL_WIDTH};
   flex-shrink: 0;
-  color: #767676;
+  color: var(--text-faint);
   font-size: 13px;
   font-weight: 700;
 `;
@@ -268,7 +268,7 @@ const GroupName = styled.span`
 `;
 
 const GroupCount = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 11px;
   font-weight: 400;
   flex-shrink: 0;
@@ -286,7 +286,7 @@ const SummaryBar = styled.div`
   top: 8px;
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--surface-active);
 `;
 
 const Diamond = styled.span`
@@ -296,16 +296,16 @@ const Diamond = styled.span`
   height: 12px;
   margin-left: -6px;
   transform: rotate(45deg);
-  background: #8b7cf6;
+  background: var(--milestone);
   border-radius: 2px;
 
   &[data-status="done"] {
-    background: #4ade80;
+    background: var(--ok);
   }
 
   &[data-status="planned"] {
     background: transparent;
-    border: 2px solid #8b7cf6;
+    border: 2px solid var(--milestone);
   }
 `;
 
@@ -315,7 +315,7 @@ const TaskName = styled.button`
   padding: 0 0 0 12px;
   border: none;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 12px;
   text-align: left;
   cursor: pointer;
@@ -324,11 +324,11 @@ const TaskName = styled.button`
   white-space: nowrap;
 
   &:hover {
-    color: #00b5ff;
+    color: var(--accent);
   }
 
   &[data-done] {
-    color: #767676;
+    color: var(--text-faint);
     text-decoration: line-through;
   }
 `;
@@ -339,13 +339,13 @@ const Bar = styled.div`
   height: 8px;
   min-width: 8px;
   border-radius: 999px;
-  background: rgba(0, 181, 255, 0.55);
+  background: var(--accent-soft);
 
   &[data-status="done"] {
-    background: rgba(74, 222, 128, 0.45);
+    background: var(--ok-soft);
   }
 
   &[data-status="todo"] {
-    background: rgba(255, 255, 255, 0.22);
+    background: var(--surface-active);
   }
 `;

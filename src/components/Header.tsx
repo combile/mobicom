@@ -18,6 +18,13 @@ const NAV_ITEMS = [
 export default function Header() {
   const barRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
+  // The bar floats over whatever page is beneath it, and only some of them
+  // follow the theme setting — the landing and its siblings are a designed
+  // dark composition. Over those it stays dark on purpose; over the app it
+  // follows the tokens like everything else.
+  const overDarkPage = !["/mobion", "/login", "/profile"].some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
   const router = useRouter();
   const [userName, setUserName] = useState<string | null>(null);
 
@@ -80,7 +87,7 @@ export default function Header() {
   );
 
   return (
-    <Bar className="mobi-header" ref={barRef}>
+    <Bar className="mobi-header" ref={barRef} data-over-dark={overDarkPage || undefined}>
       <Link href="/" style={{ textDecoration: "none" }}>
         <Logo data-magnetic="0.18">MOBICOM</Logo>
       </Link>
@@ -136,14 +143,22 @@ const Bar = styled.header`
   padding: 0 38px;
   overflow: hidden;
   border-radius: 45px;
-  background: rgba(37, 37, 37, 0.2);
+  background: var(--panel-wash);
   backdrop-filter: blur(4px) saturate(140%);
   -webkit-backdrop-filter: blur(4px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35),
-    inset 0 1px 1px rgba(255, 255, 255, 0.25),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
   z-index: 20;
+
+  &[data-over-dark] {
+    background: rgba(37, 37, 37, 0.2);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35),
+      inset 0 1px 1px rgba(255, 255, 255, 0.25),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.35);
+    color: #fff;
+  }
 
   &::before {
     content: "";
@@ -178,7 +193,7 @@ const Logo = styled.div`
   font-family: "NeoDunggeunmo Pro", "Pretendard Variable", monospace;
   font-weight: 400;
   font-size: 38px;
-  color: #fff;
+  color: inherit;
   user-select: none;
 
   @media (max-width: 760px) {
@@ -208,20 +223,20 @@ const NavLink = styled(Link)`
   position: relative;
   font-size: 22px;
   font-weight: 400;
-  color: #fff;
+  color: inherit;
   white-space: nowrap;
   text-decoration: none;
   transition: color 0.2s ease, opacity 0.2s ease;
   opacity: 0.92;
 
   &:hover {
-    color: #00b5ff;
+    color: var(--accent);
     opacity: 1;
   }
 
   /* 현재 페이지 표시 — 하단 파란 점 */
   &[data-active] {
-    color: #00b5ff;
+    color: var(--accent);
     opacity: 1;
   }
   &[data-active]::after {
@@ -232,7 +247,7 @@ const NavLink = styled(Link)`
     width: 4.5px;
     height: 4.5px;
     border-radius: 50%;
-    background: #00b5ff;
+    background: var(--accent);
     transform: translateX(-50%);
     box-shadow: 0 0 6px rgba(0, 181, 255, 0.8);
   }
@@ -246,11 +261,11 @@ const LoginButton = styled.button`
   gap: 8px;
   padding: 10px 22px;
   border-radius: 90px;
-  border: 1px solid #00b5ff;
-  background: linear-gradient(90deg, #004460 0%, #000000 100%);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
   font-size: 16px;
   font-weight: 600;
-  color: #00b5ff;
+  color: var(--accent);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 
   .material-symbols-outlined {
@@ -292,9 +307,9 @@ const LogoutButton = styled.button`
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   cursor: pointer;
   transition: color 0.2s ease, border-color 0.2s ease;
 
@@ -303,7 +318,7 @@ const LogoutButton = styled.button`
   }
 
   &:hover {
-    color: #ff6767;
-    border-color: #ff6767;
+    color: var(--danger);
+    border-color: var(--danger);
   }
 `;

@@ -43,7 +43,7 @@ function formatTime(ms: number) {
   });
 }
 
-const AVATAR_COLORS = ["#00b5ff", "#ff9d5c", "#8b7cf6", "#4ade80", "#ff6767", "#e5c76b"];
+const AVATAR_COLORS = ["var(--accent)", "var(--warn)", "var(--milestone)", "var(--ok)", "var(--danger)", "var(--warn)"];
 
 function avatarColor(authorId: string) {
   let hash = 0;
@@ -1026,19 +1026,19 @@ const ChatUnavailable = styled.div`
 `;
 
 const ChatUnavailableHint = styled.p`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 13px;
 `;
 
 const ErrorBanner = styled.div`
   text-align: center;
-  color: #ff6767;
+  color: var(--danger);
   padding: 40px;
 `;
 
 const ReconnectBanner = styled.div`
   text-align: center;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 13px;
   padding: 8px;
 `;
@@ -1054,7 +1054,7 @@ const Layout = styled.div`
   margin: 0 auto;
   border-radius: 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
 `;
 
 const IconRail = styled.nav`
@@ -1065,10 +1065,10 @@ const IconRail = styled.nav`
   align-items: center;
   gap: 4px;
   padding: 12px 0;
-  background: rgba(24, 24, 24, 0.45);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid var(--border);
 `;
 
 const RailDot = styled.span`
@@ -1078,7 +1078,7 @@ const RailDot = styled.span`
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #ff9d5c;
+  background: var(--warn);
 `;
 
 const RailButton = styled.button`
@@ -1091,7 +1091,7 @@ const RailButton = styled.button`
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   cursor: pointer;
 
   .material-symbols-outlined {
@@ -1099,24 +1099,24 @@ const RailButton = styled.button`
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #d4d4d4;
+    background: var(--surface-hover);
+    color: var(--text);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 
   &[data-active] {
-    background: rgba(0, 181, 255, 0.15);
-    color: #00b5ff;
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 `;
 
 const Sidebar = styled.div`
   width: 220px;
-  background: rgba(37, 37, 37, 0.35);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   padding: 12px;
@@ -1129,22 +1129,22 @@ const ChannelItem = styled.div`
   gap: 6px;
   padding: 8px 12px;
   border-radius: 8px;
-  color: #d4d4d4;
+  color: var(--text);
   cursor: pointer;
   font-size: 14px;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--surface-hover);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 
   &[data-active] {
-    background: rgba(0, 181, 255, 0.15);
-    color: #00b5ff;
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 `;
 
@@ -1154,11 +1154,11 @@ const PresenceDot = styled.span`
   height: 8px;
   border-radius: 50%;
   margin-right: 6px;
-  background: #767676;
+  background: var(--text-faint);
 
   &[data-online] {
-    background: #4ade80;
-    box-shadow: 0 0 4px rgba(74, 222, 128, 0.6);
+    background: var(--ok);
+    box-shadow: 0 0 4px var(--ok-soft);
   }
 `;
 
@@ -1172,21 +1172,21 @@ const TagFilterRow = styled.div`
 const TagFilterChip = styled.button`
   padding: 3px 9px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid var(--border-strong);
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 11px;
   cursor: pointer;
 
   &:hover {
-    border-color: #00b5ff;
-    color: #00b5ff;
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   &[data-active] {
-    background: rgba(0, 181, 255, 0.2);
-    border-color: #00b5ff;
-    color: #00b5ff;
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
   }
 `;
 
@@ -1194,34 +1194,34 @@ const Main = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: rgba(37, 37, 37, 0.35);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
 `;
 
 const ChannelHeader = styled.div`
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid var(--border-strong);
 `;
 
 const ChannelHeaderTitle = styled.div`
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-strong);
 `;
 
 const ChannelHeaderDescription = styled.div`
   margin-top: 2px;
   font-size: 12px;
-  color: #9a9a9a;
+  color: var(--text-muted);
 `;
 
 const UnreadBadge = styled.span`
   margin-left: auto;
   padding: 0 6px;
   border-radius: 999px;
-  background: #e0e0e0;
-  color: #141414;
+  background: var(--selected-bg);
+  color: var(--text-inverse);
   font-size: 10px;
   font-weight: 700;
   line-height: 16px;
@@ -1235,16 +1235,16 @@ const LoadOlderRow = styled.div`
 
 const LoadOlderButton = styled.button`
   padding: 4px 12px;
-  border: 1px solid #333;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: transparent;
-  color: #8a8a8a;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    border-color: #4a4a4a;
-    color: #d4d4d4;
+    border-color: var(--border-strong);
+    color: var(--text);
   }
 
   &:disabled {
@@ -1289,7 +1289,7 @@ const AvatarFallback = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #061018;
+  color: var(--on-solid);
   font-weight: 700;
   font-size: 13px;
   flex-shrink: 0;
@@ -1304,21 +1304,21 @@ const MessageMeta = styled.div`
 const MessageAuthor = styled.span`
   font-weight: 700;
   font-size: 13px;
-  color: #00b5ff;
+  color: var(--accent);
 `;
 
 const MessageTime = styled.span`
   font-size: 11px;
-  color: #767676;
+  color: var(--text-faint);
 `;
 
 const MessageText = styled.div`
-  color: #e4e4e4;
+  color: var(--text-strong);
   font-size: 14px;
 `;
 
 const Mention = styled.span`
-  color: #00b5ff;
+  color: var(--accent);
   font-weight: 700;
 `;
 
@@ -1326,7 +1326,7 @@ const GroupedMessageRow = styled.div`
   position: relative;
 
   &[data-mentions-me] {
-    background: rgba(0, 181, 255, 0.08);
+    background: var(--accent-soft);
   }
 `;
 
@@ -1341,7 +1341,7 @@ const RaiseTaskButton = styled.button`
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #767676;
+  color: var(--text-faint);
   cursor: pointer;
   opacity: 0;
 
@@ -1357,8 +1357,8 @@ const RaiseTaskButton = styled.button`
   }
 
   &:hover {
-    background: rgba(0, 181, 255, 0.12);
-    color: #00b5ff;
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 `;
 
@@ -1367,7 +1367,7 @@ const GroupedTimestamp = styled.span`
   left: -46px;
   top: 1px;
   font-size: 10px;
-  color: #767676;
+  color: var(--text-faint);
   opacity: 0;
   transition: opacity 0.1s ease;
 
@@ -1380,15 +1380,15 @@ const Composer = styled.div`
   display: flex;
   gap: 8px;
   padding: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: 1px solid var(--border-strong);
 
   input {
     flex: 1;
     padding: 10px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(0, 0, 0, 0.25);
-    color: #fff;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-sunken);
+    color: var(--text-strong);
     outline: none;
   }
 
@@ -1396,8 +1396,8 @@ const Composer = styled.div`
     padding: 10px 18px;
     border-radius: 10px;
     border: none;
-    background: #00b5ff;
-    color: #061018;
+    background: var(--accent);
+    color: var(--on-solid);
     font-weight: 700;
     cursor: pointer;
   }
@@ -1405,7 +1405,7 @@ const Composer = styled.div`
 
 const SendErrorText = styled.p`
   padding: 0 12px 12px;
-  color: #ff6767;
+  color: var(--danger);
   font-size: 12px;
 `;
 
@@ -1423,14 +1423,14 @@ const SectionTitle = styled.button`
   gap: 6px;
   border: none;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   padding: 4px 0;
 
   &:hover {
-    color: #d4d4d4;
+    color: var(--text);
   }
 `;
 
@@ -1460,7 +1460,7 @@ const IconButton = styled.button`
   justify-content: center;
   border: none;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   border-radius: 6px;
   cursor: pointer;
 
@@ -1469,8 +1469,8 @@ const IconButton = styled.button`
   }
 
   &:hover {
-    color: #00b5ff;
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--accent);
+    background: var(--surface-hover);
   }
 `;
 
@@ -1484,10 +1484,10 @@ const ChannelMenu = styled.div`
   min-width: 170px;
   padding: 6px;
   border-radius: 10px;
-  background: rgba(37, 37, 37, 0.95);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
 `;
 
 const ChannelMenuItem = styled.button`
@@ -1498,39 +1498,39 @@ const ChannelMenuItem = styled.button`
   padding: 7px 8px;
   border: none;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 13px;
   border-radius: 6px;
   cursor: pointer;
 
   > .material-symbols-outlined {
     font-size: 17px;
-    color: #767676;
+    color: var(--text-faint);
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #00b5ff;
+    background: var(--surface-hover);
+    color: var(--accent);
   }
 
   &:hover > .material-symbols-outlined {
-    color: #00b5ff;
+    color: var(--accent);
   }
 
   &[data-active] {
-    color: #00b5ff;
+    color: var(--accent);
   }
 `;
 
 const ActiveCheck = styled.span`
   margin-left: auto;
-  color: #00b5ff !important;
+  color: var(--accent) !important;
 `;
 
 const ChannelMenuDivider = styled.div`
   height: 1px;
   margin: 4px 0;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--surface-active);
 `;
 
 
@@ -1541,7 +1541,7 @@ const RadioRow = styled.div`
   display: flex;
   gap: 16px;
   font-size: 14px;
-  color: #d4d4d4;
+  color: var(--text);
 
   label {
     display: flex;
@@ -1558,9 +1558,9 @@ const MemberList = styled.div`
   overflow-y: auto;
   padding: 8px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   font-size: 14px;
-  color: #d4d4d4;
+  color: var(--text);
 
   label {
     display: flex;
@@ -1577,10 +1577,10 @@ const CheckRow = styled.label`
   padding: 6px 8px;
   border-radius: 8px;
   cursor: pointer;
-  color: #d4d4d4;
+  color: var(--text);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--surface-hover);
   }
 `;
 
@@ -1596,7 +1596,7 @@ const CheckboxBox = styled.span`
   height: 18px;
   flex-shrink: 0;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--border-strong);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1607,15 +1607,15 @@ const CheckboxBox = styled.span`
     width: 8px;
     height: 8px;
     border-radius: 2px;
-    background: #061018;
+    background: var(--on-solid);
     opacity: 0;
     transform: scale(0.6);
     transition: opacity 0.15s ease, transform 0.15s ease;
   }
 
   ${HiddenInput}:checked + & {
-    background: #00b5ff;
-    border-color: #00b5ff;
+    background: var(--accent);
+    border-color: var(--accent);
   }
 
   ${HiddenInput}:checked + &::after {
@@ -1624,7 +1624,7 @@ const CheckboxBox = styled.span`
   }
 
   ${HiddenInput}:focus-visible + & {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 `;
@@ -1650,8 +1650,8 @@ const TagChip = styled.span`
   gap: 4px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(0, 181, 255, 0.15);
-  color: #00b5ff;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 12px;
 `;
 

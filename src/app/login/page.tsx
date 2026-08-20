@@ -8,8 +8,8 @@ export const metadata = {
 
 export default function LoginPage() {
   return (
-    <main className={styles.page}>
-      <div className={styles.ambient} aria-hidden />
+    <main className={styles.appPage}>
+      <div className={styles.appAmbient} aria-hidden />
       <LoginContent />
     </main>
   );

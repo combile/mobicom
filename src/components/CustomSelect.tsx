@@ -91,26 +91,26 @@ const Trigger = styled.button`
   width: 100%;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.25);
-  color: #d4d4d4;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+  color: var(--text);
   font-size: 13px;
   cursor: pointer;
 
   .material-symbols-outlined {
     font-size: 18px;
-    color: #767676;
+    color: var(--text-faint);
     transition: transform 0.15s ease, color 0.15s ease;
     flex-shrink: 0;
   }
 
   &:hover {
-    border-color: #00b5ff;
+    border-color: var(--accent);
   }
 
   &[data-open] .material-symbols-outlined {
     transform: rotate(180deg);
-    color: #00b5ff;
+    color: var(--accent);
   }
 `;
 
@@ -132,10 +132,10 @@ const Panel = styled.div`
   overflow-y: auto;
   padding: 6px;
   border-radius: 10px;
-  background: rgba(37, 37, 37, 0.95);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
 `;
 
 const Option = styled.button`
@@ -146,7 +146,7 @@ const Option = styled.button`
   padding: 6px 8px;
   border: none;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 13px;
   border-radius: 6px;
   cursor: pointer;
@@ -155,14 +155,14 @@ const Option = styled.button`
 
   .material-symbols-outlined {
     font-size: 16px;
-    color: #00b5ff;
+    color: var(--accent);
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--surface-hover);
   }
 
   &[data-active] {
-    color: #00b5ff;
+    color: var(--accent);
   }
 `;

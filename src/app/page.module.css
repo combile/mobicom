@@ -29,3 +29,33 @@
       rgba(255, 255, 255, 0) 70%
     );
 }
+
+/* ------------------------------------------------------------------
+   Workspace shell
+
+   Separate from `.page` because the landing page is a designed dark
+   composition — a neon hero on white would be a redesign, not a theme —
+   while the workspace is the surface people stare at all day and is the
+   one that has to follow the setting.
+   ------------------------------------------------------------------ */
+.appPage {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: clip;
+  background: var(--bg);
+}
+
+.appAmbient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    60% 50% at 50% 38%,
+    var(--accent-soft) 0%,
+    transparent 70%
+  );
+  /* barely there in light, where the same wash reads as a smudge */
+  opacity: 0.5;
+}

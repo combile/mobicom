@@ -1,3 +1,137 @@
+/* ------------------------------------------------------------------
+   Theme tokens
+
+   Named by role, not by shade: `--surface` stays "the panel behind
+   content" in both themes, while #1c1c1c only means anything in one of
+   them. Light is defined on bare :root so that a page with no theme
+   attribute is still fully painted; dark overrides it in two places —
+   the system preference, and an explicit choice — so the toggle wins in
+   both directions.
+
+   Accent, danger, warn and ok keep their hue across themes and only
+   shift in lightness: they carry meaning, and a red that becomes a
+   different red on a white background stops being read as an alarm.
+   ------------------------------------------------------------------ */
+:root {
+  --bg: #f6f6f7;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #efeff1;
+  --surface-hover: rgba(0, 0, 0, 0.045);
+  --surface-active: rgba(0, 0, 0, 0.075);
+
+  --border: #e2e2e5;
+  --border-strong: #c9c9ce;
+  --border-faint: #ececef;
+
+  --text: #16181d;
+  --text-strong: #000000;
+  --text-muted: #5c6069;
+  --text-faint: #85898f;
+  --text-inverse: #ffffff;
+
+  --accent: #0077c2;
+  --accent-soft: rgba(0, 119, 194, 0.12);
+  --danger: #c0392b;
+  --danger-soft: rgba(192, 57, 43, 0.1);
+  --warn: #b45309;
+  --warn-soft: rgba(180, 83, 9, 0.12);
+  --ok: #197741;
+  --milestone: #6d5ae0;
+  --milestone-soft: rgba(109, 90, 224, 0.12);
+  --ok-soft: rgba(25, 119, 65, 0.12);
+
+  /* the workspace panels sit on a translucent wash over the page */
+  --panel-wash: rgba(255, 255, 255, 0.72);
+  --overlay: rgba(20, 22, 26, 0.42);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --selected-bg: #16181d;
+  --selected-text: #ffffff;
+  /* text sitting on a solid accent or danger fill */
+  --on-solid: #ffffff;
+  --shadow-card: 0 18px 45px rgba(0, 0, 0, 0.12);
+}
+
+/* System setting, unless an explicit light choice overrides it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --surface: #1c1c1c;
+    --surface-raised: #202020;
+    --surface-sunken: #141414;
+    --surface-hover: rgba(255, 255, 255, 0.06);
+    --surface-active: rgba(255, 255, 255, 0.1);
+
+    --border: #2a2a2a;
+    --border-strong: #3a3a3a;
+    --border-faint: #232323;
+
+    --text: #d4d4d4;
+    --text-strong: #ffffff;
+    --text-muted: #9a9a9a;
+    --text-faint: #767676;
+    --text-inverse: #141414;
+
+    --accent: #00b5ff;
+    --accent-soft: rgba(0, 181, 255, 0.12);
+    --danger: #ff6767;
+    --danger-soft: rgba(255, 103, 103, 0.14);
+    --warn: #ff9d5c;
+    --warn-soft: rgba(255, 157, 92, 0.16);
+    --ok: #4ade80;
+    --milestone: #8b7cf6;
+    --milestone-soft: rgba(139, 124, 246, 0.16);
+    --ok-soft: rgba(74, 222, 128, 0.16);
+
+    --panel-wash: rgba(37, 37, 37, 0.35);
+    --overlay: rgba(0, 0, 0, 0.6);
+    --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --selected-bg: #e0e0e0;
+    --selected-text: #141414;
+    --on-solid: #061018;
+    --shadow-card: 0 18px 45px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* Explicit dark choice, regardless of the system setting. */
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --surface: #1c1c1c;
+  --surface-raised: #202020;
+  --surface-sunken: #141414;
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-active: rgba(255, 255, 255, 0.1);
+
+  --border: #2a2a2a;
+  --border-strong: #3a3a3a;
+  --border-faint: #232323;
+
+  --text: #d4d4d4;
+  --text-strong: #ffffff;
+  --text-muted: #9a9a9a;
+  --text-faint: #767676;
+  --text-inverse: #141414;
+
+  --accent: #00b5ff;
+  --accent-soft: rgba(0, 181, 255, 0.12);
+  --danger: #ff6767;
+  --danger-soft: rgba(255, 103, 103, 0.14);
+  --warn: #ff9d5c;
+  --warn-soft: rgba(255, 157, 92, 0.16);
+  --ok: #4ade80;
+  --milestone: #8b7cf6;
+  --milestone-soft: rgba(139, 124, 246, 0.16);
+  --ok-soft: rgba(74, 222, 128, 0.16);
+
+  --panel-wash: rgba(37, 37, 37, 0.35);
+  --overlay: rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --selected-bg: #e0e0e0;
+  --selected-text: #141414;
+  --on-solid: #061018;
+  --shadow-card: 0 18px 45px rgba(0, 0, 0, 0.35);
+}
+
 *,
 *::before,
 *::after {
@@ -7,6 +141,17 @@
 }
 
 html {
+  /* light by default so form controls and scrollbars match a bare :root */
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
+}
+
+html[data-theme="dark"] {
   color-scheme: dark;
 }
 
@@ -19,8 +164,8 @@ body {
 body {
   font-family: "Pretendard Variable", Pretendard, -apple-system,
     BlinkMacSystemFont, system-ui, sans-serif;
-  background: #000;
-  color: #fff;
+  background: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

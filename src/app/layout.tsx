@@ -16,8 +16,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    /* the inline script below stamps data-theme before React boots, so the
+       server markup and the hydrated markup differ here on purpose */
+    <html lang="ko" suppressHydrationWarning>
       <head>
+        {/* Runs before the first paint, so a dark-mode user never sees a white
+            flash while React boots. Deliberately inline and dependency-free:
+            anything imported would arrive too late to prevent it. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('mobion-theme');" +
+              "if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);" +
+              "}catch(e){}})();",
+          }}
+        />
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/icon?family=Material+Icons"

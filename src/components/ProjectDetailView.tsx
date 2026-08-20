@@ -1269,14 +1269,14 @@ const TitleText = styled.button`
   font-size: 20px;
   border: none;
   background: transparent;
-  color: #f0f0f0;
+  color: var(--text-strong);
   font-weight: 600;
   line-height: 1.35;
   text-align: left;
   cursor: text;
 
   &:hover {
-    color: #fff;
+    color: var(--text-strong);
   }
 `;
 
@@ -1284,9 +1284,9 @@ const TitleInput = styled.input`
   width: 100%;
   padding: 1px 0;
   border: none;
-  border-bottom: 1px solid #454545;
+  border-bottom: 1px solid var(--border-strong);
   background: transparent;
-  color: #f0f0f0;
+  color: var(--text-strong);
   font-size: 20px;
   font-weight: 600;
   line-height: 1.35;
@@ -1299,7 +1299,7 @@ const DescriptionText = styled.button`
   padding: 0 0 2px;
   border: none;
   background: transparent;
-  color: #b4b4b4;
+  color: var(--text);
   font-size: 14px;
   line-height: 1.7;
   text-align: left;
@@ -1307,11 +1307,11 @@ const DescriptionText = styled.button`
   cursor: text;
 
   &[data-empty] {
-    color: #6a6a6a;
+    color: var(--text-faint);
   }
 
   &:hover {
-    color: #d4d4d4;
+    color: var(--text);
   }
 `;
 
@@ -1322,7 +1322,7 @@ const Props = styled.div`
   flex-direction: column;
   margin-top: 4px;
   padding-top: 12px;
-  border-top: 1px solid #2a2a2a;
+  border-top: 1px solid var(--border);
 `;
 
 const PropRow = styled.div`
@@ -1335,7 +1335,7 @@ const PropRow = styled.div`
 const PropLabel = styled.span`
   width: 82px;
   flex-shrink: 0;
-  color: #7a7a7a;
+  color: var(--text-muted);
   font-size: 13px;
 `;
 
@@ -1360,15 +1360,15 @@ const QuietButton = styled.button`
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #8a8a8a;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
 
   &:hover:not(:disabled) {
-    background: #2a2a2a;
-    color: #d4d4d4;
+    background: var(--surface-hover);
+    color: var(--text);
   }
 
   &:disabled {
@@ -1382,7 +1382,7 @@ const Main = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(37, 37, 37, 0.35);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   overflow-y: auto;
@@ -1396,33 +1396,33 @@ const EmptyState = styled.div`
   gap: 8px;
   margin: auto;
   padding: 24px 0;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 14px;
   text-align: center;
 `;
 
 const EmptyTitle = styled.span`
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 14px;
 `;
 
 const EmptyHint = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
 `;
 
 const ResetFiltersButton = styled.button`
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 181, 255, 0.28);
-  background: rgba(0, 181, 255, 0.12);
-  color: #00b5ff;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 
   &:hover {
-    background: rgba(0, 181, 255, 0.2);
+    background: var(--accent-soft);
   }
 `;
 
@@ -1432,7 +1432,7 @@ const ProjectHeader = styled.header`
   gap: 6px;
   padding-bottom: 16px;
   margin-bottom: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
 `;
 
 const ProjectTitleRow = styled.div`
@@ -1444,7 +1444,7 @@ const ProjectTitleRow = styled.div`
 const ProjectName = styled.h1`
   font-size: 20px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-strong);
 `;
 
 const EditProjectButton = styled.button`
@@ -1456,7 +1456,7 @@ const EditProjectButton = styled.button`
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #767676;
+  color: var(--text-faint);
   cursor: pointer;
 
   .material-symbols-outlined {
@@ -1464,19 +1464,19 @@ const EditProjectButton = styled.button`
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #00b5ff;
+    background: var(--surface-hover);
+    color: var(--accent);
   }
 `;
 
 const ProjectDescription = styled.p`
   font-size: 13px;
-  color: #9a9a9a;
+  color: var(--text-muted);
 `;
 
 const ProjectMeta = styled.p`
   font-size: 11px;
-  color: #767676;
+  color: var(--text-faint);
 `;
 
 const StatRow = styled.div`
@@ -1487,19 +1487,19 @@ const StatRow = styled.div`
 
 const Stat = styled.span`
   font-size: 12px;
-  color: #767676;
+  color: var(--text-faint);
 
   &[data-tone="overdue"] {
-    color: #ff6767;
+    color: var(--danger);
   }
 `;
 
 const StatValue = styled.strong`
-  color: #d4d4d4;
+  color: var(--text);
   font-weight: 700;
 
   ${Stat}[data-tone="overdue"] & {
-    color: #ff6767;
+    color: var(--danger);
   }
 `;
 
@@ -1507,22 +1507,22 @@ const ProgressTrack = styled.div`
   height: 4px;
   margin-top: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-active);
   overflow: hidden;
 `;
 
 const ProgressFill = styled.div`
   height: 100%;
   border-radius: inherit;
-  background: #00b5ff;
+  background: var(--accent);
   transition: width 0.3s ease;
 `;
 
 const MilestoneChip = styled.span`
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #9a9a9a;
+  background: var(--surface-hover);
+  color: var(--text-muted);
   font-size: 11px;
   white-space: nowrap;
 `;
@@ -1532,7 +1532,7 @@ const TabBar = styled.div`
   align-items: center;
   gap: 4px;
   margin-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
 `;
 
 const Tab = styled.button`
@@ -1543,22 +1543,22 @@ const Tab = styled.button`
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 
   &:hover {
-    color: #d4d4d4;
+    color: var(--text);
   }
 
   &[data-active] {
-    color: #fff;
-    border-bottom-color: #00b5ff;
+    color: var(--text-strong);
+    border-bottom-color: var(--accent);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 `;
@@ -1566,8 +1566,8 @@ const Tab = styled.button`
 const TabCount = styled.span`
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #9a9a9a;
+  background: var(--surface-active);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 400;
 `;
@@ -1589,7 +1589,7 @@ const DetailSectionHeader = styled.div`
 const DetailSectionTitle = styled.h2`
   font-size: 16px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-strong);
   white-space: nowrap;
 `;
 
@@ -1605,9 +1605,9 @@ const DetailAddButton = styled.button`
   flex-shrink: 0;
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 181, 255, 0.28);
-  background: rgba(0, 181, 255, 0.12);
-  color: #00b5ff;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -1617,7 +1617,7 @@ const DetailAddButton = styled.button`
   }
 
   &:hover {
-    background: rgba(0, 181, 255, 0.2);
+    background: var(--accent-soft);
   }
 `;
 
@@ -1634,16 +1634,16 @@ const MilestoneRow = styled.div`
   gap: 12px;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   cursor: pointer;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 `;
@@ -1653,7 +1653,7 @@ const LinkedTasks = styled.div`
   flex-direction: column;
   gap: 4px;
   padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border);
 `;
 
 const LinkedHeading = styled.div`
@@ -1662,7 +1662,7 @@ const LinkedHeading = styled.div`
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #9a9a9a;
+  color: var(--text-muted);
   padding: 6px 0 2px;
 `;
 
@@ -1674,24 +1674,24 @@ const LinkedTask = styled.button`
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   text-align: left;
   cursor: pointer;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #00b5ff;
+    background: var(--surface-hover);
+    color: var(--accent);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 
   &[data-done] {
-    color: #767676;
+    color: var(--text-faint);
     text-decoration: line-through;
   }
 
@@ -1708,7 +1708,7 @@ const LinkedTask = styled.button`
 
 const LinkedEmpty = styled.div`
   font-size: 12px;
-  color: #767676;
+  color: var(--text-faint);
   padding: 8px 0;
 `;
 
@@ -1725,18 +1725,18 @@ const DangerButton = styled.button`
   border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
-  color: #ff6767;
+  color: var(--danger);
   font-size: 13px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: rgba(255, 103, 103, 0.12);
+    background: var(--danger-soft);
   }
 
   &[data-armed] {
-    background: #ff6767;
-    border-color: #ff6767;
-    color: #1a0808;
+    background: var(--danger);
+    border-color: var(--danger);
+    color: var(--on-solid);
     font-weight: 700;
   }
 
@@ -1755,7 +1755,7 @@ const ConfirmGroup = styled.div`
 
 const ConfirmText = styled.span`
   font-size: 12px;
-  color: #ff9d5c;
+  color: var(--warn);
 `;
 
 const CancelDelete = styled.button`
@@ -1763,12 +1763,12 @@ const CancelDelete = styled.button`
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    color: #d4d4d4;
+    color: var(--text);
   }
 `;
 
@@ -1776,7 +1776,7 @@ const CancelDelete = styled.button`
 const RowSelect = styled(CustomSelect)``;
 
 const MilestoneTitle = styled.span`
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 14px;
 `;
 
@@ -1790,31 +1790,31 @@ const MiniTrack = styled.div`
   width: 56px;
   height: 3px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-active);
   overflow: hidden;
 `;
 
 const MiniFill = styled.div`
   height: 100%;
   border-radius: inherit;
-  background: #00b5ff;
+  background: var(--accent);
 
   &[data-complete] {
-    background: #4ade80;
+    background: var(--ok);
   }
 `;
 
 const MilestoneDate = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
 
   &[data-tone="overdue"] {
-    color: #ff6767;
+    color: var(--danger);
     font-weight: 600;
   }
 
   &[data-tone="soon"] {
-    color: #ff9d5c;
+    color: var(--warn);
   }
 `;
 
@@ -1845,17 +1845,17 @@ const SearchWrap = styled.div`
   max-width: 280px;
   padding: 0 10px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.25);
-  color: #767676;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+  color: var(--text-faint);
 
   .material-symbols-outlined {
     font-size: 16px;
   }
 
   &:focus-within {
-    border-color: #00b5ff;
-    box-shadow: 0 0 0 3px rgba(0, 181, 255, 0.15);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 `;
 
@@ -1865,19 +1865,19 @@ const SearchInput = styled.input`
   padding: 7px 0;
   border: none;
   background: transparent;
-  color: #fff;
+  color: var(--text-strong);
   font-size: 13px;
   outline: none;
 
   &::placeholder {
-    color: #767676;
+    color: var(--text-faint);
   }
 `;
 
 const ToggleCount = styled.span`
   padding: 0 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-active);
   font-size: 11px;
   font-weight: 700;
 `;
@@ -1888,9 +1888,9 @@ const GroupToggle = styled.button`
   gap: 4px;
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
@@ -1900,13 +1900,13 @@ const GroupToggle = styled.button`
   }
 
   &:hover {
-    color: #d4d4d4;
+    color: var(--text);
   }
 
   &[data-active] {
-    border-color: rgba(0, 181, 255, 0.28);
-    background: rgba(0, 181, 255, 0.12);
-    color: #00b5ff;
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 `;
 
@@ -1921,10 +1921,10 @@ const TaskGroupHeading = styled.h3`
   padding: 4px 0 8px;
   font-size: 13px;
   font-weight: 700;
-  color: #d4d4d4;
+  color: var(--text);
 
   &[data-unassigned] {
-    color: #767676;
+    color: var(--text-faint);
     font-weight: 600;
   }
 `;
@@ -1932,7 +1932,7 @@ const TaskGroupHeading = styled.h3`
 const TaskGroupCount = styled.span`
   font-size: 11px;
   font-weight: 400;
-  color: #767676;
+  color: var(--text-faint);
 `;
 
 const GroupAddButton = styled.button`
@@ -1944,7 +1944,7 @@ const GroupAddButton = styled.button`
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #767676;
+  color: var(--text-faint);
   cursor: pointer;
   opacity: 0;
 
@@ -1960,8 +1960,8 @@ const GroupAddButton = styled.button`
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #00b5ff;
+    background: var(--surface-hover);
+    color: var(--accent);
   }
 `;
 
@@ -1971,16 +1971,16 @@ const TaskRow = styled.div`
   gap: 12px;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   cursor: pointer;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 `;
@@ -2004,7 +2004,7 @@ const TicketLabel = styled.span`
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #767676;
+  color: var(--text-faint);
   text-transform: uppercase;
 `;
 
@@ -2015,13 +2015,13 @@ const TicketBadge = styled.span`
   font-weight: 700;
 
   &[data-tone="overdue"] {
-    background: rgba(255, 103, 103, 0.16);
-    color: #ff6767;
+    background: var(--danger-soft);
+    color: var(--danger);
   }
 
   &[data-tone="soon"] {
-    background: rgba(255, 157, 92, 0.16);
-    color: #ff9d5c;
+    background: var(--warn-soft);
+    color: var(--warn);
   }
 `;
 
@@ -2038,16 +2038,16 @@ const OpenLinkButton = styled.button`
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #00b5ff;
+  color: var(--accent);
   font-size: 11px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: rgba(0, 181, 255, 0.12);
+    background: var(--accent-soft);
   }
 
   &:disabled {
-    color: #767676;
+    color: var(--text-faint);
     cursor: default;
   }
 `;
@@ -2057,7 +2057,7 @@ const CommentSection = styled.section`
   flex-direction: column;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border);
 `;
 
 const CommentHeading = styled.h3`
@@ -2066,16 +2066,16 @@ const CommentHeading = styled.h3`
   gap: 5px;
   font-size: 13px;
   font-weight: 600;
-  color: #9a9a9a;
+  color: var(--text-muted);
 `;
 
 const CommentCount = styled.span`
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-active);
   font-size: 11px;
   font-weight: 700;
-  color: #d4d4d4;
+  color: var(--text);
 `;
 
 const ChecklistSection = styled.section`
@@ -2083,7 +2083,7 @@ const ChecklistSection = styled.section`
   flex-direction: column;
   gap: 2px;
   padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border);
 `;
 
 const ChecklistRow = styled.div`
@@ -2095,18 +2095,18 @@ const ChecklistRow = styled.div`
   border-radius: 4px;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--surface-hover);
   }
 `;
 
 const ChecklistLabel = styled.span`
   flex: 1;
   min-width: 0;
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 13px;
 
   &[data-done] {
-    color: #767676;
+    color: var(--text-faint);
     text-decoration: line-through;
   }
 `;
@@ -2120,7 +2120,7 @@ const ChecklistRemove = styled.button`
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #6a6a6a;
+  color: var(--text-faint);
   opacity: 0;
   cursor: pointer;
 
@@ -2134,8 +2134,8 @@ const ChecklistRemove = styled.button`
   }
 
   &:hover {
-    background: rgba(255, 103, 103, 0.14);
-    color: #ff6767;
+    background: var(--danger-soft);
+    color: var(--danger);
   }
 `;
 
@@ -2145,16 +2145,16 @@ const ChecklistAdd = styled.input`
   border: none;
   border-bottom: 1px solid transparent;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 13px;
   outline: none;
 
   &::placeholder {
-    color: #6a6a6a;
+    color: var(--text-faint);
   }
 
   &:focus {
-    border-bottom-color: #3a3a3a;
+    border-bottom-color: var(--border-strong);
   }
 `;
 
@@ -2164,8 +2164,8 @@ const ChecklistChip = styled.span`
   gap: 3px;
   padding: 1px 7px 1px 5px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #9a9a9a;
+  background: var(--surface-hover);
+  color: var(--text-muted);
   font-size: 11px;
   white-space: nowrap;
 
@@ -2174,7 +2174,7 @@ const ChecklistChip = styled.span`
   }
 
   &[data-complete] {
-    color: #4ade80;
+    color: var(--ok);
   }
 `;
 
@@ -2185,7 +2185,7 @@ const ActivityLine = styled.div`
   align-items: baseline;
   gap: 7px;
   padding: 3px 0;
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
 `;
 
@@ -2196,17 +2196,17 @@ const ActivityDot = styled.span`
   /* sits on the same left edge as the comment avatars above and below */
   margin: 0 8px;
   border-radius: 50%;
-  background: #4a4a4a;
+  background: var(--border-strong);
 `;
 
 const ActivityWho = styled.span`
-  color: #9a9a9a;
+  color: var(--text-muted);
 `;
 
 const ActivityTime = styled.span`
   margin-left: auto;
   flex-shrink: 0;
-  color: #5f5f5f;
+  color: var(--text-faint);
   font-size: 11px;
 `;
 
@@ -2227,7 +2227,7 @@ const CommentAvatar = styled.span`
   height: 26px;
   flex-shrink: 0;
   border-radius: 50%;
-  color: #fff;
+  color: var(--text-strong);
   font-size: 12px;
   font-weight: 700;
 `;
@@ -2245,18 +2245,18 @@ const CommentMeta = styled.div`
 `;
 
 const CommentAuthor = styled.span`
-  color: #e4e4e4;
+  color: var(--text-strong);
   font-size: 13px;
   font-weight: 600;
 `;
 
 const CommentTime = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 11px;
 `;
 
 const CommentBody = styled.p`
-  color: #c4c4c4;
+  color: var(--text);
   font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
@@ -2271,7 +2271,7 @@ const CommentForm = styled.div`
 `;
 
 const CommentMention = styled.span`
-  color: #00b5ff;
+  color: var(--accent);
   font-weight: 600;
 `;
 
@@ -2286,20 +2286,20 @@ const CommentInputWrap = styled.div`
     width: 100%;
     padding: 6px 2px;
     border: none;
-    border-bottom: 1px solid #2a2a2a;
+    border-bottom: 1px solid var(--border);
     background: transparent;
-    color: #d4d4d4;
+    color: var(--text);
     font: inherit;
     font-size: 13px;
     outline: none;
   }
 
   input::placeholder {
-    color: #6a6a6a;
+    color: var(--text-faint);
   }
 
   input:focus {
-    border-bottom-color: #5a5a5a;
+    border-bottom-color: var(--border-strong);
   }
 `;
 
@@ -2309,8 +2309,8 @@ const CommentSend = styled.button`
   padding: 8px 14px;
   border: none;
   border-radius: 8px;
-  background: #00b5ff;
-  color: #061018;
+  background: var(--accent);
+  color: var(--on-solid);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -2328,12 +2328,12 @@ const SourceNote = styled.div`
   gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
 
   .material-symbols-outlined {
     font-size: 15px;
-    color: #00b5ff;
+    color: var(--accent);
     flex-shrink: 0;
     margin-top: 1px;
   }
@@ -2342,7 +2342,7 @@ const SourceNote = styled.div`
 const SourceQuote = styled.span`
   flex: 1;
   min-width: 0;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.5;
   /* a long message should not push the buttons off the card */
@@ -2355,8 +2355,8 @@ const SourceQuote = styled.span`
 const MetaLine = styled.p`
   margin-top: 4px;
   padding: 10px 0 2px;
-  border-top: 1px solid #2a2a2a;
-  color: #6f6f6f;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
   font-size: 12px;
   line-height: 1.5;
 `;
@@ -2371,7 +2371,7 @@ const StepGroup = styled.div`
 const StepPosition = styled.span`
   margin-right: 6px;
   font-size: 11px;
-  color: #767676;
+  color: var(--text-faint);
 `;
 
 const StepButton = styled.button`
@@ -2383,7 +2383,7 @@ const StepButton = styled.button`
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   cursor: pointer;
 
   .material-symbols-outlined {
@@ -2391,8 +2391,8 @@ const StepButton = styled.button`
   }
 
   &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    color: #d4d4d4;
+    background: var(--surface-hover);
+    color: var(--text);
   }
 
   &:disabled {
@@ -2410,9 +2410,9 @@ const TwoUp = styled.div`
 const DescriptionArea = styled.textarea`
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.25);
-  color: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+  color: var(--text-strong);
   font: inherit;
   font-size: 14px;
   line-height: 1.5;
@@ -2420,17 +2420,17 @@ const DescriptionArea = styled.textarea`
   outline: none;
 
   &:focus {
-    border-color: #00b5ff;
-    box-shadow: 0 0 0 3px rgba(0, 181, 255, 0.15);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 `;
 
 const TaskTitle = styled.span`
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 14px;
 
   &[data-done] {
-    color: #767676;
+    color: var(--text-faint);
     text-decoration: line-through;
   }
 `;
@@ -2446,7 +2446,7 @@ const CheckBox = styled.input`
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: #00b5ff;
+  accent-color: var(--accent);
   cursor: pointer;
 `;
 
@@ -2455,8 +2455,8 @@ const ClaimButton = styled.button`
   padding: 1px 6px;
   border: none;
   border-radius: 5px;
-  background: rgba(0, 181, 255, 0.12);
-  color: #00b5ff;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 11px;
   cursor: pointer;
   opacity: 0;
@@ -2469,20 +2469,20 @@ const ClaimButton = styled.button`
   }
 
   &:hover {
-    background: rgba(0, 181, 255, 0.24);
+    background: var(--accent-soft);
   }
 `;
 
 const TaskMeta = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
 
   &[data-tone="overdue"] {
-    color: #ff6767;
+    color: var(--danger);
     font-weight: 600;
   }
 
   &[data-tone="soon"] {
-    color: #ff9d5c;
+    color: var(--warn);
   }
 `;
