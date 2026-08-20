@@ -65,6 +65,10 @@
   /* text sitting on a solid accent or danger fill */
   --on-solid: #ffffff;
   --shadow-card: 0 18px 45px rgba(16, 20, 30, 0.1);
+  /* The header's account pill. A gradient rather than a flat tint because the
+     marketing buttons beside it are gradients, and one flat pill among them
+     reads as a component that lost its finish. */
+  --brand-pill: linear-gradient(90deg, #dcecfb 0%, #ffffff 100%);
 }
 
 /* System setting, unless an explicit light choice overrides it. */
@@ -107,6 +111,7 @@
     --selected-text: #141414;
     --on-solid: #061018;
     --shadow-card: 0 18px 45px rgba(0, 0, 0, 0.35);
+  --brand-pill: linear-gradient(90deg, #04364b 0%, #000000 100%);
   }
 }
 
@@ -149,6 +154,7 @@
   --selected-text: #141414;
   --on-solid: #061018;
   --shadow-card: 0 18px 45px rgba(0, 0, 0, 0.35);
+  --brand-pill: linear-gradient(90deg, #04364b 0%, #000000 100%);
 }
 
 *,
