@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import styled from "@emotion/styled";
+import CalendarView from "./CalendarView";
 import type { ScheduleData, ScheduleItem } from "@/lib/use-schedule-data";
 import { ErrorText } from "./modal-styles";
 
@@ -18,6 +20,10 @@ export default function ScheduleView({
   data: ScheduleData;
   onOpenProject: (projectId: string) => void;
 }) {
+  // Two ways of asking about the same dates: what is next, and how the month is
+  // shaped. Neither replaces the other, so the view keeps both.
+  const [mode, setMode] = useState<"list" | "calendar">("calendar");
+
   /**
    * Tasks and milestones live in a project, so selecting one goes there.
    * A contest has no project — its useful destination is the posting itself,
@@ -36,6 +42,24 @@ export default function ScheduleView({
       <Header>
         <Title>일정</Title>
         {data.overdueCount > 0 && <OverdueTag>기한 초과 {data.overdueCount}건</OverdueTag>}
+        <ModeSwitch>
+          <ModeButton
+            type="button"
+            data-active={mode === "calendar" || undefined}
+            onClick={() => setMode("calendar")}
+            aria-pressed={mode === "calendar"}
+          >
+            캘린더
+          </ModeButton>
+          <ModeButton
+            type="button"
+            data-active={mode === "list" || undefined}
+            onClick={() => setMode("list")}
+            aria-pressed={mode === "list"}
+          >
+            목록
+          </ModeButton>
+        </ModeSwitch>
         <DoneToggle
           type="button"
           data-active={data.showDone || undefined}
@@ -46,9 +70,19 @@ export default function ScheduleView({
         </DoneToggle>
       </Header>
 
+      {mode === "calendar" && !data.loadError && (
+        <CalendarView
+          items={data.showDone ? data.items : data.items.filter((i) => i.status !== "done")}
+          onOpen={(item) => {
+            if (item.projectId) onOpenProject(item.projectId);
+            else if (item.url) window.open(item.url, "_blank", "noopener,noreferrer");
+          }}
+        />
+      )}
+
       {data.loadError && <ErrorText>{data.loadError}</ErrorText>}
 
-      {!data.loadError && data.isEmpty && !data.loading && (
+      {mode === "list" && !data.loadError && data.isEmpty && !data.loading && (
         <Empty>
           <EmptyTitle>기한이 정해진 일이 없습니다</EmptyTitle>
           <EmptyHint>태스크나 마일스톤에 날짜를 넣으면 여기 모여서 보입니다</EmptyHint>
@@ -57,14 +91,14 @@ export default function ScheduleView({
 
       {/* items exist but every one is filtered out — say that rather than
           repeating the "nothing scheduled" message */}
-      {!data.loadError && !data.isEmpty && data.buckets.length === 0 && (
+      {mode === "list" && !data.loadError && !data.isEmpty && data.buckets.length === 0 && (
         <Empty>
           <EmptyTitle>남은 일정이 없습니다</EmptyTitle>
           <EmptyHint>완료된 항목은 &lsquo;완료 포함&rsquo;으로 볼 수 있습니다</EmptyHint>
         </Empty>
       )}
 
-      {data.buckets.map((bucket) => (
+      {mode === "list" && data.buckets.map((bucket) => (
         <Bucket key={bucket.key}>
           <BucketHeading data-tone={bucket.key}>
             {bucket.title}
@@ -149,8 +183,35 @@ const OverdueTag = styled.span`
   font-weight: 700;
 `;
 
-const DoneToggle = styled.button`
+const ModeSwitch = styled.div`
+  display: flex;
+  gap: 2px;
   margin-left: auto;
+  padding: 2px;
+  border: 1px solid #333;
+  border-radius: 7px;
+`;
+
+const ModeButton = styled.button`
+  padding: 4px 12px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #8a8a8a;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    color: #d4d4d4;
+  }
+
+  &[data-active] {
+    background: #2f2f2f;
+    color: #f0f0f0;
+  }
+`;
+
+const DoneToggle = styled.button`
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);

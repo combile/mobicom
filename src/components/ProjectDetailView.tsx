@@ -1300,7 +1300,11 @@ const BareSelect = styled(CustomSelect)`
 `;
 
 const DateField = styled.input`
-  padding: 3px 6px;
+  /* the native picker draws its own text layout and indicator; hiding the
+     indicator and setting our own type keeps it consistent with the rows
+     around it while still opening the platform calendar on click */
+  padding: 4px 8px;
+  min-width: 118px;
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
@@ -1317,6 +1321,22 @@ const DateField = styled.input`
   &:focus {
     border-color: #5a5a5a;
     background: #141414;
+  }
+
+  &::-webkit-calendar-picker-indicator {
+    /* the default icon is a bright glyph that pulls the eye to every date row */
+    opacity: 0.35;
+    cursor: pointer;
+    filter: invert(1);
+  }
+
+  &:hover::-webkit-calendar-picker-indicator {
+    opacity: 0.7;
+  }
+
+  &:empty,
+  &[value=""] {
+    color: #6a6a6a;
   }
 `;
 
@@ -2195,10 +2215,12 @@ const SourceQuote = styled.span`
 `;
 
 const MetaLine = styled.p`
-  padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  color: #767676;
-  font-size: 11px;
+  margin-top: 4px;
+  padding: 10px 0 2px;
+  border-top: 1px solid #2a2a2a;
+  color: #6f6f6f;
+  font-size: 12px;
+  line-height: 1.5;
 `;
 
 const StepGroup = styled.div`
