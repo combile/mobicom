@@ -146,6 +146,9 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const [milestoneFilter, setMilestoneFilter] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState("");
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  // Kept in the hook rather than the view so switching projects does not throw
+  // away which way you were looking at the work.
+  const [detailTab, setDetailTab] = useState<"timeline" | "list">("timeline");
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("created");
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -815,6 +818,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     groupedTasks,
     groupMode,
     setGroupMode,
+    detailTab,
+    setDetailTab,
     myTasksActive,
     toggleMyTasks,
     myOpenCount,

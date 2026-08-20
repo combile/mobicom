@@ -97,27 +97,49 @@ export default function ProjectDetailView({
             </ProjectHeader>
           )}
 
-          <DetailSectionHeader>
-            <DetailSectionTitle>마일스톤</DetailSectionTitle>
-            <DetailAddButton type="button" onClick={data.openCreateMilestone}>
-              <span className="material-symbols-outlined">add</span>
-              마일스톤 추가
-            </DetailAddButton>
-          </DetailSectionHeader>
-          <GanttChart
-            milestones={data.milestones}
-            tasks={data.tasks}
-            onOpenTask={(id) => data.setSelectedTaskId(id)}
-            onOpenMilestone={(id) => data.setSelectedMilestoneId(id)}
-          />
+          <TabBar>
+            <Tab
+              type="button"
+              data-active={data.detailTab === "timeline" || undefined}
+              onClick={() => data.setDetailTab("timeline")}
+              aria-pressed={data.detailTab === "timeline"}
+            >
+              타임라인
+            </Tab>
+            <Tab
+              type="button"
+              data-active={data.detailTab === "list" || undefined}
+              onClick={() => data.setDetailTab("list")}
+              aria-pressed={data.detailTab === "list"}
+            >
+              목록
+              <TabCount>{data.tasks.length}</TabCount>
+            </Tab>
+            {/* both add buttons stay put across tabs: what you are looking at
+                should not decide what you are allowed to create */}
+            <TabActions>
+              <DetailAddButton type="button" onClick={data.openCreateMilestone}>
+                <span className="material-symbols-outlined">add</span>
+                마일스톤
+              </DetailAddButton>
+              <DetailAddButton type="button" onClick={() => data.openCreateTask()}>
+                <span className="material-symbols-outlined">add</span>
+                태스크
+              </DetailAddButton>
+            </TabActions>
+          </TabBar>
 
-          <DetailSectionHeader>
-            <DetailSectionTitle>태스크</DetailSectionTitle>
-            <DetailAddButton type="button" onClick={() => data.openCreateTask()}>
-              <span className="material-symbols-outlined">add</span>
-              태스크 추가
-            </DetailAddButton>
-          </DetailSectionHeader>
+          {data.detailTab === "timeline" && (
+            <GanttChart
+              milestones={data.milestones}
+              tasks={data.tasks}
+              onOpenTask={(id) => data.setSelectedTaskId(id)}
+              onOpenMilestone={(id) => data.setSelectedMilestoneId(id)}
+            />
+          )}
+
+          {data.detailTab === "list" && (
+          <>
           <FilterRow>
             <SearchWrap>
               <span className="material-symbols-outlined">search</span>
@@ -253,6 +275,8 @@ export default function ProjectDetailView({
                 </TaskList>
               </TaskGroup>
             ))
+          )}
+          </>
           )}
         </>
       )}
@@ -1295,6 +1319,58 @@ const MilestoneChip = styled.span`
   color: #9a9a9a;
   font-size: 11px;
   white-space: nowrap;
+`;
+
+const TabBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const Tab = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    color: #d4d4d4;
+  }
+
+  &[data-active] {
+    color: #fff;
+    border-bottom-color: #00b5ff;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #00b5ff;
+    outline-offset: -2px;
+  }
+`;
+
+const TabCount = styled.span`
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #9a9a9a;
+  font-size: 11px;
+  font-weight: 400;
+`;
+
+const TabActions = styled.div`
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  padding-bottom: 6px;
 `;
 
 const DetailSectionHeader = styled.div`
