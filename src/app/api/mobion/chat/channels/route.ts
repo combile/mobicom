@@ -68,7 +68,7 @@ export async function POST(request: Request) {
           `SELECT l.huly_account_uuid
            FROM mobion_users u
            JOIN mobion_huly_link l ON l.user_id = u.id
-           WHERE u.is_professor = true AND l.huly_account_uuid IS NOT NULL
+           WHERE u.role = 'professor' AND l.huly_account_uuid IS NOT NULL
            LIMIT 1`,
         );
         const professorAccountUuid = professorRow.rows[0]?.huly_account_uuid;
