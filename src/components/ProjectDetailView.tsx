@@ -716,6 +716,7 @@ function TaskDetailModal({
   onOpenChannel?: (channelId: string) => void;
 }) {
   const { overlayRef, cardRef } = useModalEnterAnimation();
+  useCloseOnEscape(() => close());
   const task = data.selectedTask!;
 
   const [title, setTitle] = useState(task.title);
@@ -727,14 +728,15 @@ function TaskDetailModal({
   const [startDate, setStartDate] = useState(task.startDate ?? "");
   const [draftComment, setDraftComment] = useState("");
 
-  async function submitComment() {
-    const body = draftComment.trim();
-    if (!body) return;
-    const ok = await data.addComment(task.id, body);
-    if (ok) setDraftComment("");
-  }
+  /**
+   * Which field is currently an input. Everything else renders as text.
+   *
+   * A panel where every value sits in a visible box reads as a form to fill in
+   * rather than a record to read; most visits here are to check something, not
+   * to edit it.
+   */
+  const [editing, setEditing] = useState<null | "title" | "description">(null);
 
-  useCloseOnEscape(() => close());
   const close = () => {
     data.setTaskDetailError(null);
     data.setSelectedTaskId(null);
@@ -753,12 +755,16 @@ function TaskDetailModal({
     if (ok) close();
   }
 
+  async function submitComment() {
+    const body = draftComment.trim();
+    if (!body) return;
+    const ok = await data.addComment(task.id, body);
+    if (ok) setDraftComment("");
+  }
+
   const due = dueState(dueDate || null, status);
   const nextStatus = NEXT_STATUS[status];
 
-  // Stepping to another task swaps this component's `key`, which discards the
-  // local draft. Blocking the step while there are unsaved edits is what stops
-  // that from silently throwing away typing.
   const dirty =
     title !== task.title ||
     description !== (task.description ?? "") ||
@@ -768,10 +774,15 @@ function TaskDetailModal({
     dueDate !== (task.dueDate ?? "") ||
     startDate !== (task.startDate ?? "");
 
+  const assigneeName =
+    data.allUsers.find((u) => u.id === assigneeId)?.name ?? "미배정";
+  const milestoneName =
+    data.milestones.find((m) => m.id === milestoneId)?.title ?? "없음";
+
   return createPortal(
     <ModalOverlay ref={overlayRef} onClick={close}>
-      <WideModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
-        <TicketTopRow>
+      <PanelCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
+        <PanelTop>
           <TicketLabel>태스크</TicketLabel>
           {due === "overdue" && <TicketBadge data-tone="overdue">기한 초과</TicketBadge>}
           {due === "soon" && <TicketBadge data-tone="soon">마감 임박</TicketBadge>}
@@ -786,7 +797,6 @@ function TaskDetailModal({
               onClick={() => data.prevTaskId && data.setSelectedTaskId(data.prevTaskId)}
               disabled={!data.prevTaskId || dirty}
               aria-label="이전 태스크"
-              title={dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : "이전 태스크"}
             >
               <span className="material-symbols-outlined">expand_less</span>
             </StepButton>
@@ -795,153 +805,153 @@ function TaskDetailModal({
               onClick={() => data.nextTaskId && data.setSelectedTaskId(data.nextTaskId)}
               disabled={!data.nextTaskId || dirty}
               aria-label="다음 태스크"
-              title={dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : "다음 태스크"}
             >
               <span className="material-symbols-outlined">expand_more</span>
             </StepButton>
           </StepGroup>
-        </TicketTopRow>
+        </PanelTop>
 
-        <Field>
-          <label htmlFor="task-detail-title">제목</label>
-          <input
-            id="task-detail-title"
+        {editing === "title" ? (
+          <TitleInput
+            autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => setEditing(null)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") setEditing(null);
+            }}
           />
-        </Field>
-        <Field>
-          <label htmlFor="task-detail-description">설명</label>
+        ) : (
+          <TitleText type="button" onClick={() => setEditing("title")}>
+            {title || "제목 없음"}
+          </TitleText>
+        )}
+
+        {editing === "description" ? (
           <DescriptionArea
-            id="task-detail-description"
-            rows={5}
+            autoFocus
+            rows={4}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onBlur={() => setEditing(null)}
             placeholder="이 태스크가 무엇인지 적어 두면 다른 사람이 맥락을 잡기 쉽습니다"
           />
-        </Field>
-        <TwoUp>
-          <Field>
-            <LabelRow>
-              <label>상태</label>
-              {/* one step forward is what people almost always want; the select
-                  covers moving backwards or skipping a step */}
-              {nextStatus && (
-                <OpenLinkButton
-                  type="button"
-                  onClick={() => setStatus(nextStatus.value)}
-                  title={nextStatus.hint}
-                >
-                  {nextStatus.label}
-                </OpenLinkButton>
-              )}
-            </LabelRow>
-            <CustomSelect
-              fullWidth
-              value={status}
-              onChange={setStatus}
-              options={TASK_STATUS_OPTIONS}
-            />
-          </Field>
-          <Field>
-            <LabelRow>
-              <label htmlFor="task-detail-start">시작일</label>
-              <DateShortcuts value={startDate} onChange={setStartDate} />
-            </LabelRow>
-            <input
-              id="task-detail-start"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </Field>
-          <Field>
-            <LabelRow>
-              <label htmlFor="task-detail-due">마감일</label>
-              <DateShortcuts value={dueDate} onChange={setDueDate} />
-            </LabelRow>
-            <input
-              id="task-detail-due"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
-          </Field>
-        </TwoUp>
-        <TwoUp>
-          <Field>
-            <LabelRow>
-              <label>담당자</label>
-              {/* picking yourself out of a member list is the common case, so it
-                  gets a shortcut; the select still handles everyone else */}
-              {data.currentUserId && assigneeId !== data.currentUserId && (
-                <OpenLinkButton
-                  type="button"
-                  onClick={() => setAssigneeId(data.currentUserId!)}
-                  title="나를 담당자로 지정"
-                >
-                  나에게
-                </OpenLinkButton>
-              )}
-            </LabelRow>
-            <CustomSelect
-              fullWidth
-              value={assigneeId}
-              onChange={setAssigneeId}
-              options={[
-                { value: "", label: "미배정" },
-                ...data.allUsers.map((u) => ({ value: u.id, label: u.name })),
-              ]}
-            />
-          </Field>
-          <Field>
-            <LabelRow>
-              <label>마일스톤</label>
-              {milestoneId && (
-                <OpenLinkButton
-                  type="button"
-                  disabled={dirty}
-                  title={
-                    dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : "이 마일스톤 열기"
-                  }
-                  onClick={() => {
-                    data.setSelectedTaskId(null);
-                    data.setSelectedMilestoneId(milestoneId);
-                  }}
-                >
-                  열기
-                </OpenLinkButton>
-              )}
-            </LabelRow>
-            <CustomSelect
-              fullWidth
-              value={milestoneId}
-              onChange={setMilestoneId}
-              options={[
-                { value: "", label: "없음" },
-                ...data.milestones.map((m) => ({ value: m.id, label: m.title })),
-              ]}
-            />
-          </Field>
-        </TwoUp>
+        ) : (
+          <DescriptionText
+            type="button"
+            onClick={() => setEditing("description")}
+            data-empty={!description || undefined}
+          >
+            {description || "설명 추가"}
+          </DescriptionText>
+        )}
 
         {task.sourceChannelId && (
           <SourceNote>
             <span className="material-symbols-outlined">forum</span>
             <SourceQuote>{task.sourceExcerpt}</SourceQuote>
-            <OpenLinkButton
+            <QuietButton
               type="button"
               disabled={dirty}
-              title={dirty ? "저장하거나 닫은 뒤 이동할 수 있습니다" : "이 대화 열기"}
               onClick={() => {
                 data.setSelectedTaskId(null);
                 onOpenChannel?.(task.sourceChannelId!);
               }}
             >
               대화 보기
-            </OpenLinkButton>
+            </QuietButton>
           </SourceNote>
         )}
+
+        <Props>
+          <PropRow>
+            <PropLabel>상태</PropLabel>
+            <PropValue>
+              <BareSelect value={status} onChange={setStatus} options={TASK_STATUS_OPTIONS} />
+              {nextStatus && (
+                <QuietButton type="button" onClick={() => setStatus(nextStatus.value)}>
+                  {nextStatus.label}
+                </QuietButton>
+              )}
+            </PropValue>
+          </PropRow>
+          <PropRow>
+            <PropLabel>담당자</PropLabel>
+            <PropValue>
+              <BareSelect
+                value={assigneeId}
+                onChange={setAssigneeId}
+                options={[
+                  { value: "", label: "미배정" },
+                  ...data.allUsers.map((u) => ({ value: u.id, label: u.name })),
+                ]}
+              />
+              {data.currentUserId && assigneeId !== data.currentUserId && (
+                <QuietButton
+                  type="button"
+                  onClick={() => setAssigneeId(data.currentUserId!)}
+                  title={`${assigneeName} → 나`}
+                >
+                  나에게
+                </QuietButton>
+              )}
+            </PropValue>
+          </PropRow>
+          <PropRow>
+            <PropLabel>마일스톤</PropLabel>
+            <PropValue>
+              <BareSelect
+                value={milestoneId}
+                onChange={setMilestoneId}
+                options={[
+                  { value: "", label: "없음" },
+                  ...data.milestones.map((m) => ({ value: m.id, label: m.title })),
+                ]}
+              />
+              {milestoneId && (
+                <QuietButton
+                  type="button"
+                  disabled={dirty}
+                  title={`${milestoneName} 열기`}
+                  onClick={() => {
+                    data.setSelectedTaskId(null);
+                    data.setSelectedMilestoneId(milestoneId);
+                  }}
+                >
+                  열기
+                </QuietButton>
+              )}
+            </PropValue>
+          </PropRow>
+          <PropRow>
+            <PropLabel>시작일</PropLabel>
+            <PropValue>
+              <DateField
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </PropValue>
+          </PropRow>
+          <PropRow>
+            <PropLabel>마감일</PropLabel>
+            <PropValue>
+              <DateField
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+              {/* one shortcut, not four: the rest are a picker away, and a row
+                  of buttons beside every date field is noise */}
+              <QuietButton type="button" onClick={() => setDueDate(todayISO())}>
+                오늘
+              </QuietButton>
+              <QuietButton type="button" onClick={() => setDueDate(shiftISO(7))}>
+                +7일
+              </QuietButton>
+            </PropValue>
+          </PropRow>
+        </Props>
 
         <MetaLine>
           {task.createdByName ?? "알 수 없는 사용자"}님이 {formatCreatedAt(task.createdAt)}에 등록
@@ -950,16 +960,8 @@ function TaskDetailModal({
         <CommentSection>
           <CommentHeading>
             논의
-            {data.comments.length > 0 && <CommentCount>{data.comments.length}</CommentCount>}
+            <CommentCount>· {data.comments.length}</CommentCount>
           </CommentHeading>
-
-          {data.commentsLoading && <CommentEmpty>불러오는 중...</CommentEmpty>}
-
-          {!data.commentsLoading && data.comments.length === 0 && (
-            <CommentEmpty>
-              막히는 지점이나 정한 내용을 여기 남기면 태스크에 함께 남습니다
-            </CommentEmpty>
-          )}
 
           {data.comments.map((c) => (
             <Comment key={c.id}>
@@ -981,23 +983,21 @@ function TaskDetailModal({
 
           <CommentForm>
             <CommentInputWrap>
-              {/* the same input chat uses: naming someone here should work the
-                  way it already does everywhere else, and Enter still sends */}
               <MentionInput
                 value={draftComment}
                 onChange={setDraftComment}
                 onSend={submitComment}
                 users={data.allUsers}
-                placeholder="논의 남기기 (@로 멘션)"
+                placeholder="댓글을 남겨주세요..."
               />
             </CommentInputWrap>
-            <CommentSend
+            <QuietButton
               type="button"
               onClick={submitComment}
               disabled={data.postingComment || !draftComment.trim()}
             >
-              {data.postingComment ? "남기는 중..." : "남기기"}
-            </CommentSend>
+              전송
+            </QuietButton>
           </CommentForm>
         </CommentSection>
 
@@ -1020,15 +1020,13 @@ function TaskDetailModal({
             </button>
           </ModalActions>
         </FooterRow>
-      </WideModalCard>
+      </PanelCard>
     </ModalOverlay>,
     document.body,
   );
 }
 
-// Module scope for the same reason as CreateProjectModal: a component defined
-// inside the parent remounts on every parent render and steals focus from the
-// input being typed into.
+/** Milestone counterpart to TaskDetailModal; same local-draft and `key` rules. */
 function CreateMilestoneModal({ data }: { data: TasksData }) {
   const { overlayRef, cardRef } = useModalEnterAnimation();
   useCloseOnEscape(() => data.setShowCreateMilestone(false));
@@ -1176,6 +1174,155 @@ function CreateTaskModal({ data }: { data: TasksData }) {
     document.body,
   );
 }
+
+/** Slightly narrower than the create dialogs: this is a record to read, and a
+ *  shorter measure keeps the property rows scannable. */
+const PanelCard = styled(ModalCard)`
+  width: min(420px, calc(100% - 48px));
+  gap: 10px;
+`;
+
+const PanelTop = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+/* Title and description read as content, not as fields, until clicked. */
+const TitleText = styled.button`
+  display: block;
+  width: 100%;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: #f0f0f0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  cursor: text;
+
+  &:hover {
+    color: #fff;
+  }
+`;
+
+const TitleInput = styled.input`
+  width: 100%;
+  padding: 1px 0;
+  border: none;
+  border-bottom: 1px solid #454545;
+  background: transparent;
+  color: #f0f0f0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  outline: none;
+`;
+
+const DescriptionText = styled.button`
+  display: block;
+  width: 100%;
+  padding: 0 0 2px;
+  border: none;
+  background: transparent;
+  color: #b4b4b4;
+  font-size: 13px;
+  line-height: 1.65;
+  text-align: left;
+  white-space: pre-wrap;
+  cursor: text;
+
+  &[data-empty] {
+    color: #6a6a6a;
+  }
+
+  &:hover {
+    color: #d4d4d4;
+  }
+`;
+
+/* Label and value on one line, repeated — denser than a stack of boxed fields
+   and closer to how these values are actually read. */
+const Props = styled.div`
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid #2a2a2a;
+`;
+
+const PropRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+`;
+
+const PropLabel = styled.span`
+  width: 68px;
+  flex-shrink: 0;
+  color: #7a7a7a;
+  font-size: 12px;
+`;
+
+const PropValue = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+`;
+
+/* No box until you interact with it. */
+const BareSelect = styled(CustomSelect)`
+  min-width: 0;
+`;
+
+const DateField = styled.input`
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #d4d4d4;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  color-scheme: dark;
+
+  &:hover {
+    border-color: #333;
+  }
+
+  &:focus {
+    border-color: #5a5a5a;
+    background: #141414;
+  }
+`;
+
+/* Secondary actions: legible, but not competing with the values they sit next
+   to. Previously every one of these was accent blue. */
+const QuietButton = styled.button`
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #8a8a8a;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    background: #2a2a2a;
+    color: #d4d4d4;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+`;
 
 const Main = styled.div`
   flex: 1;
