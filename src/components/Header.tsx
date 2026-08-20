@@ -262,7 +262,7 @@ const LoginButton = styled.button`
   padding: 10px 22px;
   border-radius: 90px;
   border: 1px solid var(--accent);
-  background: var(--accent-soft);
+  background: var(--brand-pill);
   font-size: 16px;
   font-weight: 600;
   color: var(--accent);
