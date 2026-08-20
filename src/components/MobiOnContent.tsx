@@ -927,7 +927,7 @@ function CreateChannelModal(props: CreateChannelModalProps) {
               props.addTag();
             }
           }}
-          placeholder="태그 입력 후 Enter"
+          placeholder="태그 입력 후 엔터"
         />
         {props.tags.length > 0 && (
           <TagChipRow>
