@@ -5,6 +5,13 @@ import { query } from "@/lib/mobion-db";
 
 const VALID_STATUSES = ["planned", "in_progress", "done"];
 
+/**
+ * The kinds a milestone can be. Exported so the create route validates against
+ * the same list — a kind that can be created but not saved again would be a
+ * value the edit panel refuses to round-trip.
+ */
+export const VALID_KINDS = ["checkpoint", "deliverable", "approval", "review", "event"];
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -46,6 +53,9 @@ export async function PATCH(
     if (body.status !== undefined && !VALID_STATUSES.includes(String(body.status))) {
       return NextResponse.json({ error: "올바르지 않은 상태 값입니다." }, { status: 400 });
     }
+    if (body.kind !== undefined && !VALID_KINDS.includes(String(body.kind))) {
+      return NextResponse.json({ error: "올바르지 않은 마일스톤 유형입니다." }, { status: 400 });
+    }
 
     const title = body.title != null ? String(body.title).trim().slice(0, 150) : undefined;
     if (title !== undefined && !title) {
@@ -58,14 +68,28 @@ export async function PATCH(
     const targetDate =
       body.targetDate !== undefined ? (body.targetDate ? String(body.targetDate) : null) : undefined;
 
-    const result = await query<{ id: string; title: string; target_date: string | null; status: string }>(
+    const result = await query<{
+      id: string;
+      title: string;
+      target_date: string | null;
+      status: string;
+      kind: string;
+    }>(
       `UPDATE mobion_milestones SET
          title = COALESCE($2, title),
          target_date = CASE WHEN $3::boolean THEN $4::date ELSE target_date END,
-         status = COALESCE($5, status)
+         status = COALESCE($5, status),
+         kind = COALESCE($6, kind)
        WHERE id = $1
-       RETURNING id, title, target_date, status`,
-      [id, title ?? null, targetDate !== undefined, targetDate ?? null, body.status ?? null],
+       RETURNING id, title, target_date, status, kind`,
+      [
+        id,
+        title ?? null,
+        targetDate !== undefined,
+        targetDate ?? null,
+        body.status ?? null,
+        body.kind ?? null,
+      ],
     );
 
     const m = result.rows[0];
@@ -74,7 +98,13 @@ export async function PATCH(
     }
 
     return NextResponse.json({
-      milestone: { id: m.id, title: m.title, targetDate: m.target_date, status: m.status },
+      milestone: {
+        id: m.id,
+        title: m.title,
+        targetDate: m.target_date,
+        status: m.status,
+        kind: m.kind,
+      },
     });
   } catch (error) {
     return mobionApiError(error, "마일스톤 수정 실패");

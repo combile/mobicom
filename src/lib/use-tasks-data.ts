@@ -392,7 +392,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   /** Milestone counterpart to `updateTask`; same null-vs-undefined contract. */
   async function updateMilestone(
     milestoneId: string,
-    patch: { title?: string; targetDate?: string | null; status?: string },
+    patch: { title?: string; targetDate?: string | null; status?: string; kind?: string },
   ) {
     if (!selectedProjectId) return false;
     setSavingMilestone(true);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
+import { VALID_KINDS } from "@/app/api/mobion/milestones/[id]/route";
 
 export async function POST(
   request: Request,
@@ -12,9 +13,12 @@ export async function POST(
     const { id: projectId } = await params;
     const body = await request.json();
     const title = String(body.title ?? "").trim().slice(0, 150);
-    const kind = body.kind ? String(body.kind).slice(0, 30) : 'checkpoint';
+    const kind = body.kind ? String(body.kind) : "checkpoint";
     const targetDate = body.targetDate ? String(body.targetDate) : null;
 
+    if (!VALID_KINDS.includes(kind)) {
+      return NextResponse.json({ error: "올바르지 않은 마일스톤 유형입니다." }, { status: 400 });
+    }
     if (!targetDate) {
       return NextResponse.json(
         { error: "마일스톤에는 목표 날짜가 필요합니다." },
