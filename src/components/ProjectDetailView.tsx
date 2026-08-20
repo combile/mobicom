@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import styled from "@emotion/styled";
 import CustomSelect from "./CustomSelect";
 import GanttChart from "./GanttChart";
+import MentionInput from "./MentionInput";
+import { parseMentionSegments } from "@/lib/mobion-mentions";
 import {
   MILESTONE_KINDS,
   MILESTONE_STATUS_OPTIONS,
@@ -965,26 +967,30 @@ function TaskDetailModal({
                 <CommentAuthor>{c.authorName ?? "알 수 없는 사용자"}</CommentAuthor>
                 <CommentTime>{formatCreatedAt(c.createdAt)}</CommentTime>
               </CommentMeta>
-              <CommentBody>{c.body}</CommentBody>
+              <CommentBody>
+                {parseMentionSegments(c.body).map((seg, i) =>
+                  seg.type === "mention" ? (
+                    <CommentMention key={i}>@{seg.name}</CommentMention>
+                  ) : (
+                    <span key={i}>{seg.content}</span>
+                  ),
+                )}
+              </CommentBody>
             </Comment>
           ))}
 
           <CommentForm>
-            <CommentInput
-              rows={2}
-              value={draftComment}
-              onChange={(e) => setDraftComment(e.target.value)}
-              placeholder="논의 남기기"
-              onKeyDown={(e) => {
-                // Enter sends, Shift+Enter breaks the line: the box is for
-                // short remarks, and reaching for the button each time slows
-                // a back-and-forth down
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  submitComment();
-                }
-              }}
-            />
+            <CommentInputWrap>
+              {/* the same input chat uses: naming someone here should work the
+                  way it already does everywhere else, and Enter still sends */}
+              <MentionInput
+                value={draftComment}
+                onChange={setDraftComment}
+                onSend={submitComment}
+                users={data.allUsers}
+                placeholder="논의 남기기 (@로 멘션)"
+              />
+            </CommentInputWrap>
             <CommentSend
               type="button"
               onClick={submitComment}
@@ -1921,6 +1927,16 @@ const CommentForm = styled.div`
   display: flex;
   align-items: flex-end;
   gap: 8px;
+`;
+
+const CommentMention = styled.span`
+  color: #00b5ff;
+  font-weight: 600;
+`;
+
+const CommentInputWrap = styled.div`
+  flex: 1;
+  min-width: 0;
 `;
 
 const CommentInput = styled.textarea`

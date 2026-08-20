@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
+import { parseMentionSegments } from "@/lib/mobion-mentions";
 
 type CommentRow = {
   id: string;
@@ -83,9 +84,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       [id, user.id, body],
     );
 
-    // Tell the assignee someone replied. Skipped when they wrote it themselves,
-    // and when nobody is assigned there is no one to tell.
-    if (task.assignee_id && task.assignee_id !== user.id) {
+    // Being named is a direct request, so mentions notify regardless of who is
+    // assigned. Self-mentions are dropped, and the set removes duplicates so
+    // naming someone twice in one comment does not notify them twice.
+    const mentioned = new Set(
+      parseMentionSegments(body)
+        .filter((seg) => seg.type === "mention" && seg.userId !== user.id)
+        .map((seg) => (seg as { userId: string }).userId),
+    );
+
+    for (const userId of mentioned) {
+      await query(
+        `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
+         VALUES ($1, 'comment', $2, $3, $4)`,
+        [userId, id, user.id, body.slice(0, 200)],
+      );
+    }
+
+    // Then the assignee, unless they wrote it or were already named — one
+    // comment should not arrive twice.
+    if (task.assignee_id && task.assignee_id !== user.id && !mentioned.has(task.assignee_id)) {
       await query(
         `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
          VALUES ($1, 'comment', $2, $3, $4)`,
