@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 16;
+const MOBION_SCHEMA_VERSION = 18;
 
 export const pool =
   globalThis.mobionPool ??
@@ -291,6 +291,33 @@ export async function ensureMobionSchema() {
         CREATE INDEX IF NOT EXISTS mobion_task_activity_task_idx
           ON mobion_task_activity (task_id, created_at)
       `);
+      // How far into each conversation a person has read. Kept here rather
+      // than in Huly because it is per-user state this app owns, and Huly's
+      // own notification model is not what this UI reads from.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_channel_reads (
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          -- a Huly space id, so no foreign key is possible from here
+          channel_id TEXT NOT NULL,
+          -- epoch milliseconds, matching ChatMessage.createdOn exactly so the
+          -- comparison needs no conversion and cannot drift by a timezone
+          last_read_on BIGINT NOT NULL,
+          PRIMARY KEY (user_id, channel_id)
+        )
+      `);
+      // 'due_soon' joins the original two. The constraint is replaced rather
+      // than the column left unchecked: the set is small and closed, and an
+      // unconstrained kind is how a typo becomes a notification nobody can
+      // render.
+      await pool.query(
+        `ALTER TABLE mobion_notifications
+           DROP CONSTRAINT IF EXISTS mobion_notifications_kind_check`,
+      );
+      await pool.query(
+        `ALTER TABLE mobion_notifications
+           ADD CONSTRAINT mobion_notifications_kind_check
+           CHECK (kind IN ('comment', 'assigned', 'due_soon'))`,
+      );
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
       globalThis.mobionSchemaVersion = undefined;

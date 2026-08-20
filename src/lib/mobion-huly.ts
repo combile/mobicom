@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { getClient as getAccountClient } from "@hcengineering/account-client";
 import { connect } from "@hcengineering/api-client";
 import getClientResources from "@hcengineering/client-resources";
-import { AccountRole, TxOperations } from "@hcengineering/core";
+import { AccountRole, SortingOrder, TxOperations } from "@hcengineering/core";
 import { encryptSecret, decryptSecret } from "./mobion-crypto";
 import { query } from "./mobion-db";
 
@@ -12,6 +12,8 @@ import { query } from "./mobion-db";
 // (node_modules/@hcengineering/platform/lib/platform.js) generates IDs as
 // `${pluginId}:${category}:${Key}`, so these are exact and stable as long as
 // chunter's plugin id ('chunter') and class key names don't change upstream.
+export { SortingOrder };
+
 export const CHUNTER_CLASS = {
   Channel: "chunter:class:Channel",
   DirectMessage: "chunter:class:DirectMessage",
@@ -260,8 +262,14 @@ async function buildWorkspaceClient(link: HulyLink) {
   // reference it directly — see the "still resolves to THIS built client"
   // comment.
   const client = {
-    findAll: <T,>(_class: string, query: Record<string, unknown>) =>
-      evictOnFailure(raw.findAll<T>(_class as any, query as any)),
+    // `options` carries limit/sort straight through to Huly. Without it every
+    // caller has to fetch a class in full and cut it down locally, which is
+    // exactly what the chat snapshot was doing to the whole message history.
+    findAll: <T,>(
+      _class: string,
+      query: Record<string, unknown>,
+      options?: { limit?: number; sort?: Record<string, SortingOrder> },
+    ) => evictOnFailure(raw.findAll<T>(_class as any, query as any, options as any)),
     addCollection: (params: {
       _class: string;
       space: string;

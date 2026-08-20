@@ -15,7 +15,7 @@ export type HomeTask = {
 
 export type Notification = {
   id: string;
-  kind: "comment" | "assigned";
+  kind: "comment" | "assigned" | "due_soon";
   body: string;
   createdAt: string;
   actorName: string | null;
@@ -31,6 +31,13 @@ export type HomeContest = {
   deadline: string;
   url: string;
 };
+
+/**
+ * Slow enough to be free, quick enough that a notification does not feel lost.
+ * The deadline sweep rides along on the same request (see the notifications
+ * route), so this is also how often reminders get a chance to appear.
+ */
+const POLL_MS = 45_000;
 
 export function useHomeData(enabled: boolean) {
   const [userName, setUserName] = useState("");
@@ -58,20 +65,51 @@ export function useHomeData(enabled: boolean) {
       .catch(() => setLoadError("홈 정보를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
 
-    fetch("/api/mobion/notifications")
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => {
-        setNotifications(
-          (data.notifications ?? []).map((n: Notification & { readAt?: string | null }) => ({
-            ...n,
-            read: false,
-          })),
-        );
-        setUnreadCount(data.unreadCount ?? 0);
-      })
-      // notifications failing should not take the rest of home down with it
-      .catch(() => setNotifications([]));
   }, [enabled]);
+
+  /**
+   * Notifications are fetched whether or not the home view is open, and on a
+   * timer.
+   *
+   * They were loaded once, when home mounted, so leaving the workspace open —
+   * which is the normal way to use it — meant never being told anything again.
+   * Polling rather than riding the chat stream: that stream closes itself when
+   * Huly is unreachable, and coupling the two would put notifications back
+   * behind chat's availability, which is the failure this app already had once.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    function load() {
+      fetch("/api/mobion/notifications")
+        .then((res) => (res.ok ? res.json() : Promise.reject()))
+        .then((data) => {
+          if (cancelled) return;
+          setNotifications(
+            (data.notifications ?? []).map((n: Notification & { readAt?: string | null }) => ({
+              ...n,
+              read: false,
+            })),
+          );
+          setUnreadCount(data.unreadCount ?? 0);
+        })
+        // notifications failing should not take the rest of home down with it
+        .catch(() => {});
+    }
+
+    load();
+    const timer = setInterval(load, POLL_MS);
+    // coming back to the tab should not wait out the rest of the interval
+    function onVisible() {
+      if (document.visibilityState === "visible") load();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   /**
    * Marks read locally as soon as it is acted on, so the row does not linger

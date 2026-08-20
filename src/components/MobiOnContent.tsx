@@ -105,6 +105,15 @@ export default function MobiOnContent() {
   const homeData = useHomeData(mode === "home");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  // Which conversations have been read back to their first message, so the
+  // "older" control disappears instead of fetching an empty page forever.
+  const [exhausted, setExhausted] = useState<Record<string, boolean>>({});
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  // channelId -> createdOn of the newest message this person has seen there
+  const [reads, setReads] = useState<Record<string, number>>({});
+  // how many messages per conversation the snapshot carried, so a count that
+  // hits the cap can say "50+" instead of claiming to be exact
+  const [perSpaceLimit, setPerSpaceLimit] = useState(0);
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
@@ -192,10 +201,22 @@ export default function MobiOnContent() {
     function connect() {
       es = new EventSource("/api/mobion/chat/stream");
 
+      // Read marks live in this app's own Postgres, not in Huly, so this is
+      // deliberately outside the stream — it must not wait on a chat connection
+      // that may never open.
+      fetch("/api/mobion/chat/reads")
+        .then((res) => (res.ok ? res.json() : { reads: {} }))
+        .then((data: { reads?: Record<string, number> }) => setReads(data.reads ?? {}))
+        .catch(() => {});
+
       es.addEventListener("snapshot", (e) => {
         const data = JSON.parse((e as MessageEvent).data);
         setChannels(data.channels);
         setMessages(data.messages);
+        // a reconnect re-snapshots the recent end only, so anything paged in
+        // before is gone and those conversations can have more above again
+        setExhausted({});
+        setPerSpaceLimit(data.perSpaceLimit ?? 0);
         setActiveChannelId((prev) => prev ?? data.channels[0]?.id ?? null);
         setConnectionError(null);
         setReconnecting(false);
@@ -404,16 +425,94 @@ export default function MobiOnContent() {
   }
 
   const messageListRef = useRef<HTMLDivElement>(null);
+
+  const activeMessages = messages
+    .filter((m) => m.channelId === activeChannelId)
+    .sort((a, b) => a.createdOn - b.createdOn);
+
+  // Keyed on the newest message rather than the array: paging older ones in
+  // changes `messages` too, and scrolling to the bottom for that would throw
+  // away the position of whoever is reading backwards.
+  const newestMessageId = activeMessages[activeMessages.length - 1]?.id ?? null;
+  const newestMessageOn = activeMessages[activeMessages.length - 1]?.createdOn ?? 0;
   // `mode` belongs in here: switching to projects unmounts the message list, so
   // coming back remounts it scrolled to the top unless this runs again.
   useEffect(() => {
     const el = messageListRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, activeChannelId, mode]);
+  }, [newestMessageId, activeChannelId, mode]);
 
-  const activeMessages = messages
-    .filter((m) => m.channelId === activeChannelId)
-    .sort((a, b) => a.createdOn - b.createdOn);
+  /**
+   * Mark a conversation read up to its newest message.
+   *
+   * Applied locally first and never awaited by the caller: the badge
+   * disappearing is the whole feedback, and making it wait on a round trip
+   * would leave a stale count sitting under the cursor after the click.
+   */
+  function markRead(channelId: string, upTo: number) {
+    if (!upTo || (reads[channelId] ?? 0) >= upTo) return;
+    setReads((prev) => ({ ...prev, [channelId]: Math.max(prev[channelId] ?? 0, upTo) }));
+    fetch("/api/mobion/chat/reads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channelId, lastReadOn: upTo }),
+    }).catch(() => {});
+  }
+
+  // Reading is looking at it: whatever is open and on screen counts as read,
+  // including messages that arrive while it stays open.
+  useEffect(() => {
+    if (mode !== "chat" || !activeChannelId || !newestMessageOn) return;
+    markRead(activeChannelId, newestMessageOn);
+    // markRead is a no-op once the mark has caught up, so leaving `reads` out
+    // is what stops this from re-running itself
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, activeChannelId, newestMessageOn]);
+
+  function unreadCount(channelId: string) {
+    if (channelId === activeChannelId && mode === "chat") return 0;
+    const since = reads[channelId] ?? 0;
+    return messages.filter((m) => m.channelId === channelId && m.createdOn > since).length;
+  }
+
+  function unreadLabel(count: number) {
+    // the snapshot only carried so much, so a count at the cap is a floor
+    return perSpaceLimit > 0 && count >= perSpaceLimit ? `${perSpaceLimit}+` : String(count);
+  }
+
+  async function loadOlderMessages() {
+    if (!activeChannelId || loadingOlder) return;
+    const channelId = activeChannelId;
+    const el = messageListRef.current;
+    const heightBefore = el?.scrollHeight ?? 0;
+    setLoadingOlder(true);
+    try {
+      const params = new URLSearchParams({ channelId });
+      const oldest = activeMessages[0];
+      if (oldest) params.set("before", String(oldest.createdOn));
+      const res = await fetch(`/api/mobion/chat/messages?${params}`);
+      if (!res.ok) throw new Error("failed");
+      const data = await res.json();
+      const older = (data.messages ?? []) as Message[];
+      if (data.exhausted) setExhausted((prev) => ({ ...prev, [channelId]: true }));
+      if (older.length > 0) {
+        setMessages((prev) => {
+          const seen = new Set(prev.map((m) => m.id));
+          return [...older.filter((m) => !seen.has(m.id)), ...prev];
+        });
+        // the list just grew above the viewport; without this the reader is
+        // pushed down by exactly the height of what was added
+        requestAnimationFrame(() => {
+          const node = messageListRef.current;
+          if (node) node.scrollTop += node.scrollHeight - heightBefore;
+        });
+      }
+    } catch {
+      setSendError("이전 메시지를 불러오지 못했습니다.");
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
   const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
   const messageGroups = groupMessages(activeMessages);
   const knownUserIds = new Set(mentionUsers.map((u) => u.id));
@@ -427,10 +526,16 @@ export default function MobiOnContent() {
             type="button"
             data-active={mode === "home" || undefined}
             onClick={() => setMode("home")}
-            aria-label="홈"
+            aria-label={
+              homeData.unreadCount > 0 ? `홈 (읽지 않은 알림 ${homeData.unreadCount}건)` : "홈"
+            }
             title="홈"
           >
             <span className="material-symbols-outlined">home</span>
+            {/* a dot, not a count: the rail is 40px wide and the number is on
+                the home screen anyway — what the rail has to answer is only
+                whether there is anything there */}
+            {homeData.unreadCount > 0 && <RailDot />}
           </RailButton>
           <RailButton
             type="button"
@@ -609,6 +714,9 @@ export default function MobiOnContent() {
                 }}
               >
                 # {c.name}
+                {unreadCount(c.id) > 0 && (
+                  <UnreadBadge>{unreadLabel(unreadCount(c.id))}</UnreadBadge>
+                )}
               </ChannelItem>
             ))}
 
@@ -638,6 +746,9 @@ export default function MobiOnContent() {
               >
                 <PresenceDot data-online={c.online || undefined} />
                 {c.name}
+                {unreadCount(c.id) > 0 && (
+                  <UnreadBadge>{unreadLabel(unreadCount(c.id))}</UnreadBadge>
+                )}
               </ChannelItem>
             ))}
         </Sidebar>
@@ -659,6 +770,15 @@ export default function MobiOnContent() {
             )}
           </ChannelHeader>
           <MessageList ref={messageListRef}>
+            {/* A button rather than a scroll trigger: loading on scroll fights
+                the auto-scroll above and fires on every bounce at the top. */}
+            {activeChannel && !exhausted[activeChannel.id] && activeMessages.length > 0 && (
+              <LoadOlderRow>
+                <LoadOlderButton type="button" onClick={loadOlderMessages} disabled={loadingOlder}>
+                  {loadingOlder ? "불러오는 중..." : "이전 메시지 더 보기"}
+                </LoadOlderButton>
+              </LoadOlderRow>
+            )}
             {messageGroups.map((g, gi) => (
               <MessageGroupBlock key={gi}>
                 {g.authorAvatarUrl ? (
@@ -951,7 +1071,18 @@ const IconRail = styled.nav`
   border-right: 1px solid rgba(255, 255, 255, 0.1);
 `;
 
+const RailDot = styled.span`
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff9d5c;
+`;
+
 const RailButton = styled.button`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -993,6 +1124,9 @@ const Sidebar = styled.div`
 `;
 
 const ChannelItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: 8px;
   color: #d4d4d4;
@@ -1080,6 +1214,42 @@ const ChannelHeaderDescription = styled.div`
   margin-top: 2px;
   font-size: 12px;
   color: #9a9a9a;
+`;
+
+const UnreadBadge = styled.span`
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e0e0e0;
+  color: #141414;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+`;
+
+const LoadOlderRow = styled.div`
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 10px;
+`;
+
+const LoadOlderButton = styled.button`
+  padding: 4px 12px;
+  border: 1px solid #333;
+  border-radius: 999px;
+  background: transparent;
+  color: #8a8a8a;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: #4a4a4a;
+    color: #d4d4d4;
+  }
+
+  &:disabled {
+    cursor: default;
+  }
 `;
 
 const MessageList = styled.div`
