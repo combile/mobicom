@@ -46,6 +46,15 @@ export type Task = {
   /** Set when the task was raised from a chat message. */
   sourceChannelId: string | null;
   sourceExcerpt: string | null;
+  checklistTotal: number;
+  checklistDone: number;
+};
+
+export type ChecklistItem = {
+  id: string;
+  label: string;
+  done: boolean;
+  position: number;
 };
 
 export const TASK_STATUS_OPTIONS = [
@@ -168,6 +177,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const pendingTaskRef = useRef<string | null>(null);
   const [comments, setComments] = useState<TaskComment[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
@@ -223,6 +233,17 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
 
   useEffect(() => {
     if (!selectedTaskId) {
+      setChecklist([]);
+      return;
+    }
+    fetch(`/api/mobion/tasks/${selectedTaskId}/checklist`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setChecklist(data.items ?? []))
+      .catch(() => setChecklist([]));
+  }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (!selectedTaskId) {
       setComments([]);
       return;
     }
@@ -261,6 +282,64 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
       return false;
     } finally {
       setPostingComment(false);
+    }
+  }
+
+  async function addChecklistItem(taskId: string, label: string) {
+    setTaskDetailError(null);
+    try {
+      const res = await fetch(`/api/mobion/tasks/${taskId}/checklist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTaskDetailError(data.error ?? "할 일을 추가하지 못했습니다.");
+        return false;
+      }
+      setChecklist((prev) => [...prev, data.item]);
+      // the row badge counts these, and the count lives on the task list
+      if (selectedProjectId) loadProjectDetail(selectedProjectId);
+      return true;
+    } catch {
+      setTaskDetailError("할 일을 추가하지 못했습니다.");
+      return false;
+    }
+  }
+
+  /**
+   * Ticking a box shows immediately and reverts on failure. The alternative —
+   * waiting for the server before the tick appears — makes a checklist feel
+   * broken precisely when someone is running down it quickly.
+   */
+  async function toggleChecklistItem(itemId: string, done: boolean) {
+    const previous = checklist;
+    setChecklist((prev) => prev.map((i) => (i.id === itemId ? { ...i, done } : i)));
+    try {
+      const res = await fetch(`/api/mobion/checklist/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ done }),
+      });
+      if (!res.ok) throw new Error("failed");
+      if (selectedProjectId) loadProjectDetail(selectedProjectId);
+    } catch {
+      setChecklist(previous);
+      setTaskDetailError("할 일을 수정하지 못했습니다.");
+    }
+  }
+
+  async function deleteChecklistItem(itemId: string) {
+    const previous = checklist;
+    setChecklist((prev) => prev.filter((i) => i.id !== itemId));
+    try {
+      const res = await fetch(`/api/mobion/checklist/${itemId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("failed");
+      if (selectedProjectId) loadProjectDetail(selectedProjectId);
+    } catch {
+      setChecklist(previous);
+      setTaskDetailError("할 일을 삭제하지 못했습니다.");
     }
   }
 
@@ -895,6 +974,10 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     taskDetailError,
     setTaskDetailError,
     updateTask,
+    checklist,
+    addChecklistItem,
+    toggleChecklistItem,
+    deleteChecklistItem,
     comments,
     commentsLoading,
     postingComment,

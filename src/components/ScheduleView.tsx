@@ -95,6 +95,7 @@ export default function ScheduleView({
             else if (item.url) window.open(item.url, "_blank", "noopener,noreferrer");
           }}
           onCreate={data.openCreate}
+          onReschedule={data.reschedule}
         />
       )}
 

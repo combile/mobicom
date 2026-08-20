@@ -72,6 +72,42 @@ export function useScheduleData(enabled: boolean) {
       .catch(() => setProjects([]));
   }, [enabled]);
 
+  /**
+   * Move an item to another day.
+   *
+   * Applied locally first: a card that snaps back to where it was for the
+   * length of a round trip reads as a failed drag, not a pending one. A real
+   * failure puts it back and says why.
+   *
+   * Contests are not ours to move — they are crawled postings whose deadline
+   * belongs to the organiser — so the caller does not offer the affordance and
+   * this refuses one that arrives anyway.
+   */
+  async function reschedule(item: ScheduleItem, date: string) {
+    if (item.kind === "contest" || item.date === date) return;
+    const previous = items;
+    setItems((list) =>
+      list.map((i) => (i.kind === item.kind && i.id === item.id ? { ...i, date } : i)),
+    );
+    try {
+      const res = await fetch(
+        item.kind === "task"
+          ? `/api/mobion/tasks/${item.id}`
+          : `/api/mobion/milestones/${item.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.kind === "task" ? { dueDate: date } : { targetDate: date }),
+        },
+      );
+      if (!res.ok) throw new Error("failed");
+      setLoadError(null);
+    } catch {
+      setItems(previous);
+      setLoadError("날짜를 옮기지 못했습니다.");
+    }
+  }
+
   // Creating from the schedule: the date is known (a day was clicked), the
   // project is not, so that is the one field with no sensible default.
   const [createDate, setCreateDate] = useState<string | null>(null);
@@ -181,6 +217,7 @@ export function useScheduleData(enabled: boolean) {
     buckets,
     projects,
     reload,
+    reschedule,
     createDate,
     openCreate,
     setCreateDate,

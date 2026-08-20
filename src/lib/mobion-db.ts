@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 14;
+const MOBION_SCHEMA_VERSION = 15;
 
 export const pool =
   globalThis.mobionPool ??
@@ -248,6 +248,26 @@ export async function ensureMobionSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
           PRIMARY KEY (contest_id, user_id)
         )
+      `);
+      // The steps a task breaks down into. CASCADE rather than SET NULL, the
+      // opposite of comments: a step has no meaning apart from the task it
+      // belongs to, while a discussion is a record worth keeping.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_task_checklist (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          task_id UUID NOT NULL REFERENCES mobion_tasks(id) ON DELETE CASCADE,
+          label TEXT NOT NULL,
+          done BOOLEAN NOT NULL DEFAULT false,
+          -- explicit rather than ordering by created_at: steps get inserted
+          -- between existing ones, and a checklist read out of order is wrong
+          -- in a way a comment thread never is
+          position INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_task_checklist_task_idx
+          ON mobion_task_checklist (task_id, position, created_at)
       `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
