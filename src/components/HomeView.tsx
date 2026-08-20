@@ -84,7 +84,12 @@ export default function HomeView({
                 )}
                 {n.taskTitle && <NotifTask>{n.taskTitle}</NotifTask>}
               </NotifTop>
-              <NotifBody>{n.body}</NotifBody>
+              {/* The top line already names the task, and for an assignment
+                  that is the whole event — the stored body is a copy of the
+                  title, so printing it here says the same thing twice. It is
+                  still written: it records what the task was called at the
+                  time, which the live title above stops being after a rename. */}
+              {n.kind !== "assigned" && <NotifBody>{n.body}</NotifBody>}
             </NotificationRow>
           ))}
         </Section>
