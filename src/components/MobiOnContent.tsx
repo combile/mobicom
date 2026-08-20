@@ -891,11 +891,11 @@ type CreateChannelModalProps = {
  * mid-typing and dropping input focus.
  */
 function CreateChannelModal(props: CreateChannelModalProps) {
-  const { overlayRef, cardRef } = useModalEnterAnimation();
-  useCloseOnEscape(props.onClose);
+  const { overlayRef, cardRef, close } = useModalEnterAnimation(props.onClose);
+  useCloseOnEscape(close);
 
   return (
-        <ModalOverlay ref={overlayRef} onClick={props.onClose}>
+        <ModalOverlay ref={overlayRef} onClick={close}>
           <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
             <ModalTitle>새 채널 만들기</ModalTitle>
       <Field>

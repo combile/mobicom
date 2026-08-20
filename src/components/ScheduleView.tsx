@@ -170,11 +170,11 @@ export default function ScheduleView({
  * decides which one gets called, not two separate forms.
  */
 function CreateScheduleModal({ data }: { data: ScheduleData }) {
-  const { overlayRef, cardRef } = useModalEnterAnimation();
-  useCloseOnEscape(data.closeCreate);
+  const { overlayRef, cardRef, close } = useModalEnterAnimation(data.closeCreate);
+  useCloseOnEscape(close);
 
   return createPortal(
-    <ModalOverlay ref={overlayRef} onClick={data.closeCreate}>
+    <ModalOverlay ref={overlayRef} onClick={close}>
       <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
         <ModalTitle>일정 추가</ModalTitle>
         <Field>
@@ -221,7 +221,7 @@ function CreateScheduleModal({ data }: { data: ScheduleData }) {
         </Field>
         {data.createError && <ErrorText>{data.createError}</ErrorText>}
         <ModalActions>
-          <button type="button" onClick={data.closeCreate}>
+          <button type="button" onClick={close}>
             취소
           </button>
           <button

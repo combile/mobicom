@@ -13,43 +13,51 @@
    different red on a white background stops being read as an alarm.
    ------------------------------------------------------------------ */
 :root {
-  --bg: #f6f6f7;
+  /* The page is meaningfully darker than the panels on it. First attempt had
+     both at near-white, so the workspace container dissolved into its own
+     background and the whole screen read as one flat sheet. */
+  --bg: #eceef3;
   --surface: #ffffff;
   --surface-raised: #ffffff;
-  --surface-sunken: #efeff1;
-  --surface-hover: rgba(0, 0, 0, 0.045);
-  --surface-active: rgba(0, 0, 0, 0.075);
+  --surface-sunken: #f3f4f8;
+  /* tinted toward the text colour rather than pure black: a grey hover on a
+     cool white reads as dirt */
+  --surface-hover: rgba(24, 31, 47, 0.05);
+  --surface-active: rgba(24, 31, 47, 0.09);
 
-  --border: #e2e2e5;
-  --border-strong: #c9c9ce;
-  --border-faint: #ececef;
+  --border: #dde0e8;
+  --border-strong: #bcc1cd;
+  --border-faint: #e8eaf0;
 
-  --text: #16181d;
-  --text-strong: #000000;
-  --text-muted: #5c6069;
-  --text-faint: #85898f;
+  --text: #1a1f2b;
+  --text-strong: #0a0d14;
+  --text-muted: #596174;
+  --text-faint: #878e9e;
   --text-inverse: #ffffff;
 
-  --accent: #0077c2;
-  --accent-soft: rgba(0, 119, 194, 0.12);
-  --danger: #c0392b;
-  --danger-soft: rgba(192, 57, 43, 0.1);
-  --warn: #b45309;
-  --warn-soft: rgba(180, 83, 9, 0.12);
-  --ok: #197741;
-  --milestone: #6d5ae0;
-  --milestone-soft: rgba(109, 90, 224, 0.12);
-  --ok-soft: rgba(25, 119, 65, 0.12);
+  /* Darkened from the brand #00b5ff, which on white is a pale wash that fails
+     against body text. The hue is kept so the app still reads as the same
+     product in either theme. */
+  --accent: #0071c9;
+  --accent-soft: rgba(0, 113, 201, 0.1);
+  --danger: #c2352b;
+  --danger-soft: rgba(194, 53, 43, 0.09);
+  --warn: #a45c06;
+  --warn-soft: rgba(164, 92, 6, 0.11);
+  --ok: #10703c;
+  --milestone: #5b46cf;
+  --milestone-soft: rgba(91, 70, 207, 0.1);
+  --ok-soft: rgba(16, 112, 60, 0.1);
 
   /* the workspace panels sit on a translucent wash over the page */
-  --panel-wash: rgba(255, 255, 255, 0.72);
-  --overlay: rgba(20, 22, 26, 0.42);
-  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.16);
-  --selected-bg: #16181d;
+  --panel-wash: rgba(255, 255, 255, 0.82);
+  --overlay: rgba(16, 20, 30, 0.34);
+  --shadow-pop: 0 10px 28px rgba(16, 20, 30, 0.14);
+  --selected-bg: #1a1f2b;
   --selected-text: #ffffff;
   /* text sitting on a solid accent or danger fill */
   --on-solid: #ffffff;
-  --shadow-card: 0 18px 45px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 18px 45px rgba(16, 20, 30, 0.1);
 }
 
 /* System setting, unless an explicit light choice overrides it. */

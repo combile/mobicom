@@ -304,17 +304,16 @@ export default function ProjectDetailView({
 
 /** Rename a project or fix its description; same draft rules as the others. */
 function EditProjectModal({ data }: { data: TasksData }) {
-  const { overlayRef, cardRef } = useModalEnterAnimation();
+  const { overlayRef, cardRef, close } = useModalEnterAnimation(() => {
+    data.setProjectDetailError(null);
+    data.setEditingProject(false);
+  });
   const project = data.selectedProject!;
 
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
 
-  useCloseOnEscape(() => close());
-  const close = () => {
-    data.setProjectDetailError(null);
-    data.setEditingProject(false);
-  };
+  useCloseOnEscape(close);
 
   async function save() {
     const ok = await data.updateProject(project.id, { name, description });
@@ -563,7 +562,10 @@ function DeleteButton({
 
 /** Milestone counterpart to TaskDetailModal; same local-draft and `key` rules. */
 function MilestoneDetailModal({ data }: { data: TasksData }) {
-  const { overlayRef, cardRef } = useModalEnterAnimation();
+  const { overlayRef, cardRef, close } = useModalEnterAnimation(() => {
+    data.setMilestoneDetailError(null);
+    data.setSelectedMilestoneId(null);
+  });
   const milestone = data.selectedMilestone!;
 
   const [title, setTitle] = useState(milestone.title);
@@ -571,11 +573,7 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
   const [kind, setKind] = useState(milestone.kind);
   const [targetDate, setTargetDate] = useState(milestone.targetDate ?? "");
 
-  useCloseOnEscape(() => close());
-  const close = () => {
-    data.setMilestoneDetailError(null);
-    data.setSelectedMilestoneId(null);
-  };
+  useCloseOnEscape(close);
 
   async function save() {
     const ok = await data.updateMilestone(milestone.id, {
@@ -742,8 +740,11 @@ function TaskDetailModal({
   data: TasksData;
   onOpenChannel?: (channelId: string) => void;
 }) {
-  const { overlayRef, cardRef } = useModalEnterAnimation();
-  useCloseOnEscape(() => close());
+  const { overlayRef, cardRef, close } = useModalEnterAnimation(() => {
+    data.setTaskDetailError(null);
+    data.setSelectedTaskId(null);
+  });
+  useCloseOnEscape(close);
   const task = data.selectedTask!;
 
   const [title, setTitle] = useState(task.title);
@@ -765,10 +766,6 @@ function TaskDetailModal({
   const [editing, setEditing] = useState<null | "title" | "description">(null);
   const [newStep, setNewStep] = useState("");
 
-  const close = () => {
-    data.setTaskDetailError(null);
-    data.setSelectedTaskId(null);
-  };
 
   async function save() {
     const ok = await data.updateTask(task.id, {
@@ -1108,11 +1105,13 @@ function TaskDetailModal({
 
 /** Milestone counterpart to TaskDetailModal; same local-draft and `key` rules. */
 function CreateMilestoneModal({ data }: { data: TasksData }) {
-  const { overlayRef, cardRef } = useModalEnterAnimation();
-  useCloseOnEscape(() => data.setShowCreateMilestone(false));
+  const { overlayRef, cardRef, close } = useModalEnterAnimation(() =>
+    data.setShowCreateMilestone(false),
+  );
+  useCloseOnEscape(close);
 
   return createPortal(
-    <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateMilestone(false)}>
+    <ModalOverlay ref={overlayRef} onClick={close}>
       <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
         <ModalTitle>새 마일스톤 만들기</ModalTitle>
         <Field>
@@ -1167,11 +1166,13 @@ function CreateMilestoneModal({ data }: { data: TasksData }) {
 }
 
 function CreateTaskModal({ data }: { data: TasksData }) {
-  const { overlayRef, cardRef } = useModalEnterAnimation();
-  useCloseOnEscape(() => data.setShowCreateTask(false));
+  const { overlayRef, cardRef, close } = useModalEnterAnimation(() =>
+    data.setShowCreateTask(false),
+  );
+  useCloseOnEscape(close);
 
   return createPortal(
-    <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateTask(false)}>
+    <ModalOverlay ref={overlayRef} onClick={close}>
       <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
         <ModalTitle>새 태스크 만들기</ModalTitle>
         {/* raised from chat: show what it came from so the title can be edited
@@ -1594,30 +1595,64 @@ const DetailSectionTitle = styled.h2`
 `;
 
 /**
- * Tonal fill, unlike the sidebar's AddButton. This one sits in a section
- * header rather than at the end of a list, so blending it into the rows below
- * would misread it as one of them.
+ * Outlined and neutral, at the control radius the rest of the panel uses.
+ *
+ * It was a full pill filled and outlined in the accent colour, which made two
+ * ordinary "add something" controls the loudest thing on the screen — and its
+ * hover set the background to the value it already had, so pressing it gave
+ * no answer at all.
+ *
+ * The `+` starts dimmer than the label and comes up to meet it on hover: the
+ * word says what the button makes, the sign only says it makes one.
  */
 const DetailAddButton = styled.button`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-shrink: 0;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
+  padding: 5px 11px 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease,
+    transform 0.08s ease;
 
   .material-symbols-outlined {
     font-size: 16px;
+    color: var(--text-faint);
+    transition: color 0.12s ease;
   }
 
   &:hover {
-    background: var(--accent-soft);
+    background: var(--surface-hover);
+    border-color: var(--text-faint);
+  }
+
+  &:hover .material-symbols-outlined {
+    color: var(--text);
+  }
+
+  /* the press itself, which nothing here acknowledged before */
+  &:active {
+    transform: translateY(1px);
+    background: var(--surface-active);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:active {
+      transform: none;
+    }
   }
 `;
 
@@ -1947,6 +1982,7 @@ const GroupAddButton = styled.button`
   color: var(--text-faint);
   cursor: pointer;
   opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
 
   .material-symbols-outlined {
     font-size: 16px;
