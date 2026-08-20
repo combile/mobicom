@@ -249,7 +249,7 @@ const Main = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(37, 37, 37, 0.35);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   overflow-y: auto;
@@ -262,20 +262,20 @@ const Header = styled.header`
   gap: 10px;
   padding-bottom: 16px;
   margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
 `;
 
 const Title = styled.h1`
   font-size: 20px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-strong);
 `;
 
 const OverdueTag = styled.span`
   padding: 2px 10px;
   border-radius: 999px;
-  background: rgba(255, 103, 103, 0.16);
-  color: #ff6767;
+  background: var(--danger-soft);
+  color: var(--danger);
   font-size: 11px;
   font-weight: 700;
 `;
@@ -285,7 +285,7 @@ const ModeSwitch = styled.div`
   gap: 2px;
   margin-left: auto;
   padding: 2px;
-  border: 1px solid #333;
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
 `;
 
@@ -294,17 +294,17 @@ const ModeButton = styled.button`
   border: none;
   border-radius: 5px;
   background: transparent;
-  color: #8a8a8a;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
 
   &:hover {
-    color: #d4d4d4;
+    color: var(--text);
   }
 
   &[data-active] {
-    background: #2f2f2f;
-    color: #f0f0f0;
+    background: var(--surface-active);
+    color: var(--text-strong);
   }
 `;
 
@@ -313,10 +313,10 @@ const AddScheduleButton = styled.button`
   align-items: center;
   gap: 4px;
   padding: 6px 12px 6px 9px;
-  border: 1px solid #333;
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 12px;
   cursor: pointer;
 
@@ -325,28 +325,28 @@ const AddScheduleButton = styled.button`
   }
 
   &:hover {
-    border-color: #4a4a4a;
-    background: #2a2a2a;
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
   }
 `;
 
 const DoneToggle = styled.button`
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
 
   &:hover {
-    color: #d4d4d4;
+    color: var(--text);
   }
 
   &[data-active] {
-    border-color: rgba(0, 181, 255, 0.28);
-    background: rgba(0, 181, 255, 0.12);
-    color: #00b5ff;
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 `;
 
@@ -361,25 +361,25 @@ const BucketHeading = styled.h2`
   padding: 4px 0 8px;
   font-size: 13px;
   font-weight: 700;
-  color: #d4d4d4;
+  color: var(--text);
 
   &[data-tone="overdue"] {
-    color: #ff6767;
+    color: var(--danger);
   }
 
   &[data-tone="today"] {
-    color: #ff9d5c;
+    color: var(--warn);
   }
 
   &[data-tone="done"] {
-    color: #767676;
+    color: var(--text-faint);
   }
 `;
 
 const BucketCount = styled.span`
   font-size: 11px;
   font-weight: 400;
-  color: #767676;
+  color: var(--text-faint);
 `;
 
 const Row = styled.div`
@@ -389,16 +389,16 @@ const Row = styled.div`
   padding: 8px 12px;
   margin-bottom: 6px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   cursor: pointer;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 `;
@@ -406,30 +406,30 @@ const Row = styled.div`
 const KindMark = styled.span`
   display: inline-flex;
   align-items: center;
-  color: #767676;
+  color: var(--text-faint);
 
   .material-symbols-outlined {
     font-size: 16px;
   }
 
   &[data-kind="milestone"] {
-    color: #8b7cf6;
+    color: var(--milestone);
   }
 
   &[data-kind="contest"] {
-    color: #e5c76b;
+    color: var(--warn);
   }
 `;
 
 const RowTitle = styled.span`
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   &[data-done] {
-    color: #767676;
+    color: var(--text-faint);
     text-decoration: line-through;
   }
 `;
@@ -437,31 +437,31 @@ const RowTitle = styled.span`
 const ProjectTag = styled.span`
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #9a9a9a;
+  background: var(--surface-hover);
+  color: var(--text-muted);
   font-size: 11px;
   white-space: nowrap;
 `;
 
 const Meta = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
   white-space: nowrap;
 `;
 
 const DateText = styled.span`
   margin-left: auto;
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
   white-space: nowrap;
 
   &[data-tone="overdue"] {
-    color: #ff6767;
+    color: var(--danger);
     font-weight: 600;
   }
 
   &[data-tone="today"] {
-    color: #ff9d5c;
+    color: var(--warn);
     font-weight: 600;
   }
 `;
@@ -476,11 +476,11 @@ const Empty = styled.div`
 `;
 
 const EmptyTitle = styled.span`
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 14px;
 `;
 
 const EmptyHint = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
 `;

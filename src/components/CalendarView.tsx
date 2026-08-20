@@ -200,11 +200,11 @@ const Toolbar = styled.div`
 const MonthLabel = styled.h2`
   font-size: 15px;
   font-weight: 600;
-  color: #f0f0f0;
+  color: var(--text-strong);
 `;
 
 const MonthCount = styled.span`
-  color: #7a7a7a;
+  color: var(--text-muted);
   font-size: 12px;
 `;
 
@@ -221,7 +221,7 @@ const NavButton = styled.button`
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #8a8a8a;
+  color: var(--text-muted);
   cursor: pointer;
 
   .material-symbols-outlined {
@@ -229,43 +229,43 @@ const NavButton = styled.button`
   }
 
   &:hover {
-    background: #2a2a2a;
-    color: #d4d4d4;
+    background: var(--surface-hover);
+    color: var(--text);
   }
 `;
 
 const TodayButton = styled.button`
   padding: 4px 10px;
-  border: 1px solid #333;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
 
   &:hover {
-    color: #d4d4d4;
-    border-color: #4a4a4a;
+    color: var(--text);
+    border-color: var(--border-strong);
   }
 `;
 
 const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  border-top: 1px solid #2a2a2a;
-  border-left: 1px solid #2a2a2a;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
 `;
 
 const WeekdayCell = styled.div`
   padding: 6px 8px;
-  border-right: 1px solid #2a2a2a;
-  border-bottom: 1px solid #2a2a2a;
-  color: #7a7a7a;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
 
   &[data-weekend] {
-    color: #5f5f5f;
+    color: var(--text-faint);
   }
 `;
 
@@ -275,12 +275,12 @@ const DayNumber = styled.span`
   padding: 1px 5px;
   align-self: flex-start;
   border-radius: 4px;
-  color: #8a8a8a;
+  color: var(--text-muted);
   font-size: 11px;
 
   &[data-today] {
-    background: #e0e0e0;
-    color: #141414;
+    background: var(--selected-bg);
+    color: var(--text-inverse);
     font-weight: 700;
   }
 `;
@@ -294,17 +294,17 @@ const Entry = styled.button`
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #c4c4c4;
+  color: var(--text);
   font-size: 11px;
   text-align: left;
   cursor: pointer;
 
   &:hover {
-    background: #2a2a2a;
+    background: var(--surface-hover);
   }
 
   &[data-done] {
-    color: #6a6a6a;
+    color: var(--text-faint);
     text-decoration: line-through;
   }
 
@@ -322,16 +322,16 @@ const Dot = styled.span`
   height: 5px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: #6a9fd4;
+  background: var(--accent);
 
   &[data-kind="milestone"] {
     border-radius: 1px;
     transform: rotate(45deg);
-    background: #8b7cf6;
+    background: var(--milestone);
   }
 
   &[data-kind="contest"] {
-    background: #d4a94a;
+    background: var(--warn);
   }
 `;
 
@@ -343,7 +343,7 @@ const EntryText = styled.span`
 
 const More = styled.span`
   padding: 0 4px;
-  color: #6a6a6a;
+  color: var(--text-faint);
   font-size: 10px;
 `;
 
@@ -354,17 +354,17 @@ const DayCell = styled.div`
   gap: 2px;
   min-height: 92px;
   padding: 5px 5px 7px;
-  border-right: 1px solid #2a2a2a;
-  border-bottom: 1px solid #2a2a2a;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 
   &[data-outside] {
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--surface-sunken);
   }
 
   &[data-over] {
     /* inset so the highlight does not shift the grid by a pixel */
-    box-shadow: inset 0 0 0 1px #6a9fd4;
-    background: rgba(106, 159, 212, 0.1);
+    box-shadow: inset 0 0 0 1px var(--accent);
+    background: var(--accent-soft);
   }
 
   /* neighbouring months stay visible so weeks read as weeks, just recessed
@@ -391,7 +391,7 @@ const AddButton = styled.button`
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #8a8a8a;
+  color: var(--text-muted);
   opacity: 0;
   cursor: pointer;
 
@@ -406,7 +406,7 @@ const AddButton = styled.button`
   &:hover,
   &:focus-visible {
     opacity: 1;
-    background: #2f2f2f;
-    color: #e0e0e0;
+    background: var(--surface-active);
+    color: var(--text);
   }
 `;

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import styled from "@emotion/styled";
+import ThemeSetting from "./ThemeSetting";
 
 const AVATAR_SIZE = 128;
 
@@ -143,6 +144,8 @@ export default function ProfileContent({ initialName }: { initialName: string })
         {error && <ErrorText>{error}</ErrorText>}
         {success && <Success>{success}</Success>}
 
+        <ThemeSetting />
+
         <Submit type="submit" disabled={saving}>
           {saving ? "저장 중..." : "저장"}
         </Submit>
@@ -168,18 +171,18 @@ const Card = styled.form`
   gap: 18px;
   padding: 40px 32px;
   border-radius: 24px;
-  background: rgba(37, 37, 37, 0.35);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-card);
 `;
 
 const Title = styled.h1`
   font-family: "Pretendard Variable", Pretendard, sans-serif;
   font-weight: 700;
   font-size: 24px;
-  color: #fff;
+  color: var(--text-strong);
   text-align: center;
   margin-bottom: 8px;
 `;
@@ -199,12 +202,12 @@ const AvatarPreview = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 181, 255, 0.15);
-  color: #00b5ff;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 28px;
   font-weight: 700;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
 
   img {
     width: 100%;
@@ -215,7 +218,7 @@ const AvatarPreview = styled.div`
 
 const AvatarHint = styled.span`
   font-size: 12px;
-  color: #9a9a9a;
+  color: var(--text-muted);
 `;
 
 const Field = styled.div`
@@ -225,34 +228,34 @@ const Field = styled.div`
 
   label {
     font-size: 13px;
-    color: #9a9a9a;
+    color: var(--text-muted);
   }
 
   input {
     padding: 12px 14px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(0, 0, 0, 0.25);
-    color: #fff;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-sunken);
+    color: var(--text-strong);
     font-size: 15px;
     outline: none;
     transition: border-color 0.2s ease;
 
     &:focus {
-      border-color: #00b5ff;
+      border-color: var(--accent);
     }
   }
 `;
 
 const ErrorText = styled.p`
   font-size: 13px;
-  color: #ff6767;
+  color: var(--danger);
   text-align: center;
 `;
 
 const Success = styled.p`
   font-size: 13px;
-  color: #4ade80;
+  color: var(--ok);
   text-align: center;
 `;
 
@@ -260,8 +263,8 @@ const Submit = styled.button`
   padding: 12px 0;
   border-radius: 12px;
   border: none;
-  background: #00b5ff;
-  color: #061018;
+  background: var(--accent);
+  color: var(--on-solid);
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;

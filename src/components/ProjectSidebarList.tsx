@@ -105,7 +105,7 @@ function CreateProjectModal({ data }: { data: TasksData }) {
 const Sidebar = styled.div`
   width: 240px;
   flex-shrink: 0;
-  background: rgba(37, 37, 37, 0.35);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   padding: 12px;
@@ -113,7 +113,7 @@ const Sidebar = styled.div`
 `;
 
 const SectionTitle = styled.div`
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
   padding: 4px 0 8px;
@@ -131,14 +131,14 @@ const ProjectItemMeta = styled.span`
   gap: 5px;
   flex-shrink: 0;
   font-size: 11px;
-  color: #767676;
+  color: var(--text-faint);
 `;
 
 const OverdueDot = styled.span`
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #ff6767;
+  background: var(--danger);
 `;
 
 const ProjectItem = styled.div`
@@ -148,22 +148,22 @@ const ProjectItem = styled.div`
   gap: 8px;
   padding: 8px 12px;
   border-radius: 8px;
-  color: #d4d4d4;
+  color: var(--text);
   cursor: pointer;
   font-size: 14px;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--surface-hover);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 
   &[data-active] {
-    background: rgba(0, 181, 255, 0.15);
-    color: #00b5ff;
+    background: var(--accent-soft);
+    color: var(--accent);
   }
 `;
 
@@ -182,7 +182,7 @@ const AddButton = styled.button`
   border-radius: 8px;
   border: none;
   background: transparent;
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 14px;
   cursor: pointer;
   text-align: left;
@@ -192,7 +192,7 @@ const AddButton = styled.button`
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #00b5ff;
+    background: var(--surface-hover);
+    color: var(--accent);
   }
 `;

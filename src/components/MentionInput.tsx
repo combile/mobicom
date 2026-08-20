@@ -134,17 +134,17 @@ const Dropdown = styled.div`
   overflow-y: auto;
   padding: 6px;
   border-radius: 10px;
-  background: rgba(37, 37, 37, 0.95);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border-strong);
 `;
 
 const Candidate = styled.button`
   padding: 7px 10px;
   border: none;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 13px;
   border-radius: 6px;
   cursor: pointer;
@@ -152,7 +152,7 @@ const Candidate = styled.button`
 
   &:hover,
   &[data-active] {
-    background: rgba(255, 255, 255, 0.08);
-    color: #00b5ff;
+    background: var(--surface-hover);
+    color: var(--accent);
   }
 `;

@@ -84,7 +84,12 @@ export default function HomeView({
                 )}
                 {n.taskTitle && <NotifTask>{n.taskTitle}</NotifTask>}
               </NotifTop>
-              <NotifBody>{n.body}</NotifBody>
+              {/* The top line already names the task, and for an assignment
+                  that is the whole event — the stored body is a copy of the
+                  title, so printing it here says the same thing twice. It is
+                  still written: it records what the task was called at the
+                  time, which the live title above stops being after a rename. */}
+              {n.kind !== "assigned" && <NotifBody>{n.body}</NotifBody>}
             </NotificationRow>
           ))}
         </Section>
@@ -160,7 +165,7 @@ const Main = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(37, 37, 37, 0.35);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   overflow-y: auto;
@@ -174,13 +179,13 @@ const Header = styled.header`
   flex-wrap: wrap;
   padding-bottom: 16px;
   margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border);
 `;
 
 const Greeting = styled.h1`
   font-size: 20px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-strong);
 `;
 
 const Counts = styled.div`
@@ -192,19 +197,19 @@ const Counts = styled.div`
 const Count = styled.span`
   padding: 2px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #9a9a9a;
+  background: var(--surface-hover);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
 
   &[data-tone="overdue"] {
-    background: rgba(255, 103, 103, 0.16);
-    color: #ff6767;
+    background: var(--danger-soft);
+    color: var(--danger);
   }
 
   &[data-tone="today"] {
-    background: rgba(255, 157, 92, 0.16);
-    color: #ff9d5c;
+    background: var(--warn-soft);
+    color: var(--warn);
   }
 `;
 
@@ -219,21 +224,21 @@ const SectionTitle = styled.h2`
   padding: 4px 0 8px;
   font-size: 13px;
   font-weight: 700;
-  color: #d4d4d4;
+  color: var(--text);
 
   &[data-tone="overdue"] {
-    color: #ff6767;
+    color: var(--danger);
   }
 
   &[data-tone="today"] {
-    color: #ff9d5c;
+    color: var(--warn);
   }
 `;
 
 const SectionCount = styled.span`
   font-size: 11px;
   font-weight: 400;
-  color: #767676;
+  color: var(--text-faint);
 `;
 
 const rowBase = `
@@ -243,16 +248,16 @@ const rowBase = `
   padding: 9px 12px;
   margin-bottom: 6px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   cursor: pointer;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 `;
@@ -262,7 +267,7 @@ const TaskRow = styled.div`
 `;
 
 const TaskTitle = styled.span`
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -272,8 +277,8 @@ const TaskTitle = styled.span`
 const ProjectTag = styled.span`
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #9a9a9a;
+  background: var(--surface-hover);
+  color: var(--text-muted);
   font-size: 11px;
   white-space: nowrap;
 `;
@@ -281,25 +286,25 @@ const ProjectTag = styled.span`
 const StatusTag = styled.span`
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(0, 181, 255, 0.12);
-  color: #00b5ff;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 11px;
   white-space: nowrap;
 `;
 
 const Due = styled.span`
   margin-left: auto;
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
   white-space: nowrap;
 
   &[data-tone="overdue"] {
-    color: #ff6767;
+    color: var(--danger);
     font-weight: 600;
   }
 
   &[data-tone="today"] {
-    color: #ff9d5c;
+    color: var(--warn);
     font-weight: 600;
   }
 `;
@@ -307,8 +312,8 @@ const Due = styled.span`
 const UnreadDot = styled.span`
   padding: 0 7px;
   border-radius: 999px;
-  background: #00b5ff;
-  color: #061018;
+  background: var(--accent);
+  color: var(--on-solid);
   font-size: 11px;
   font-weight: 700;
 `;
@@ -317,12 +322,12 @@ const MarkAll = styled.button`
   margin-left: auto;
   border: none;
   background: transparent;
-  color: #767676;
+  color: var(--text-faint);
   font-size: 11px;
   cursor: pointer;
 
   &:hover {
-    color: #00b5ff;
+    color: var(--accent);
   }
 `;
 
@@ -333,12 +338,12 @@ const NotificationRow = styled.div`
   gap: 4px;
   /* unread reads as a filled card rather than a marked one; a coloured rule
      down the side competed with the rail and the section headings */
-  background: rgba(0, 181, 255, 0.06);
-  border-color: rgba(0, 181, 255, 0.22);
+  background: var(--accent-soft);
+  border-color: var(--accent);
 
   &[data-read] {
     background: transparent;
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: var(--border);
     opacity: 0.55;
   }
 `;
@@ -353,32 +358,32 @@ const NotifTop = styled.div`
 const NotifKind = styled.span`
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(0, 181, 255, 0.12);
-  color: #00b5ff;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 10px;
   font-weight: 700;
   flex-shrink: 0;
 
   &[data-kind="assigned"] {
-    background: rgba(139, 124, 246, 0.16);
-    color: #8b7cf6;
+    background: var(--milestone-soft);
+    color: var(--milestone);
   }
 
   &[data-kind="due_soon"] {
-    background: rgba(255, 157, 92, 0.16);
-    color: #ff9d5c;
+    background: var(--warn-soft);
+    color: var(--warn);
   }
 `;
 
 const NotifActor = styled.span`
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
 `;
 
 const NotifTask = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -386,7 +391,7 @@ const NotifTask = styled.span`
 `;
 
 const NotifBody = styled.p`
-  color: #9a9a9a;
+  color: var(--text-muted);
   font-size: 13px;
   line-height: 1.5;
   display: -webkit-box;
@@ -407,25 +412,25 @@ const ContestRow = styled.a`
   padding: 9px 12px;
   margin-bottom: 6px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #d4d4d4;
+  border: 1px solid var(--border);
+  color: var(--text);
   font-size: 14px;
   text-decoration: none;
 
   &:hover {
-    border-color: rgba(0, 181, 255, 0.4);
-    color: #00b5ff;
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   &:focus-visible {
-    outline: 2px solid #00b5ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 `;
 
 const ContestDate = styled.span`
   margin-left: auto;
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
 `;
 
@@ -440,12 +445,12 @@ const Clear = styled.div`
 `;
 
 const ClearTitle = styled.span`
-  color: #d4d4d4;
+  color: var(--text);
   font-size: 14px;
 `;
 
 const ClearHint = styled.span`
-  color: #767676;
+  color: var(--text-faint);
   font-size: 12px;
   line-height: 1.6;
 `;

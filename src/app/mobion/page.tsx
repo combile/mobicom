@@ -18,8 +18,8 @@ export default async function MobiOnPage() {
   }
 
   return (
-    <main className={styles.page}>
-      <div className={styles.ambient} aria-hidden />
+    <main className={styles.appPage}>
+      <div className={styles.appAmbient} aria-hidden />
       <MobiOnContent />
     </main>
   );

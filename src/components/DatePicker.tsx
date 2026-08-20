@@ -207,29 +207,29 @@ const Trigger = styled.button`
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #d4d4d4;
+  color: var(--text);
   font: inherit;
   font-size: 14px;
   cursor: pointer;
 
   &[data-empty] {
-    color: #6a6a6a;
+    color: var(--text-faint);
   }
 
   &[data-block] {
     flex: 1;
     padding: 8px 10px;
-    border-color: #333;
+    border-color: var(--border-strong);
     border-radius: 6px;
     text-align: left;
   }
 
   &:hover {
-    border-color: #333;
+    border-color: var(--border-strong);
   }
 
   &:focus-visible {
-    outline: 1px solid #5a5a5a;
+    outline: 1px solid var(--border-strong);
     outline-offset: 1px;
   }
 `;
@@ -240,10 +240,10 @@ const Pop = styled.div`
   z-index: 70;
   width: ${POP_WIDTH}px;
   padding: 10px;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  background: #202020;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
 `;
 
 const PopHead = styled.div`
@@ -256,7 +256,7 @@ const PopHead = styled.div`
 const PopMonth = styled.span`
   flex: 1;
   text-align: center;
-  color: #e4e4e4;
+  color: var(--text-strong);
   font-size: 13px;
   font-weight: 600;
 `;
@@ -270,7 +270,7 @@ const NavButton = styled.button`
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #8a8a8a;
+  color: var(--text-muted);
   cursor: pointer;
 
   .material-symbols-outlined {
@@ -278,8 +278,8 @@ const NavButton = styled.button`
   }
 
   &:hover {
-    background: #2f2f2f;
-    color: #d4d4d4;
+    background: var(--surface-active);
+    color: var(--text);
   }
 `;
 
@@ -291,7 +291,7 @@ const PopGrid = styled.div`
 
 const PopWeekday = styled.span`
   padding-bottom: 4px;
-  color: #6a6a6a;
+  color: var(--text-faint);
   font-size: 10px;
   text-align: center;
 `;
@@ -301,26 +301,26 @@ const PopDay = styled.button`
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #c4c4c4;
+  color: var(--text);
   font-size: 12px;
   cursor: pointer;
 
   &[data-outside] {
-    color: #565656;
+    color: var(--text-faint);
   }
 
   &:hover {
-    background: #2f2f2f;
+    background: var(--surface-active);
   }
 
   /* today is an outline so it never competes with the actual selection */
   &[data-today] {
-    box-shadow: inset 0 0 0 1px #4a4a4a;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
   }
 
   &[data-selected] {
-    background: #e0e0e0;
-    color: #141414;
+    background: var(--selected-bg);
+    color: var(--text-inverse);
     font-weight: 700;
   }
 `;
@@ -330,7 +330,7 @@ const PopFoot = styled.div`
   gap: 4px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #2f2f2f;
+  border-top: 1px solid var(--border-strong);
 `;
 
 const PopAction = styled.button`
@@ -338,12 +338,12 @@ const PopAction = styled.button`
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #8a8a8a;
+  color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
 
   &:hover {
-    background: #2f2f2f;
-    color: #d4d4d4;
+    background: var(--surface-active);
+    color: var(--text);
   }
 `;

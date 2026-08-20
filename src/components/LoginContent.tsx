@@ -85,18 +85,18 @@ const Card = styled.form`
   gap: 18px;
   padding: 40px 32px;
   border-radius: 24px;
-  background: rgba(37, 37, 37, 0.35);
+  background: var(--panel-wash);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-card);
 `;
 
 const Title = styled.h1`
   font-family: "Pretendard Variable", Pretendard, sans-serif;
   font-weight: 700;
   font-size: 24px;
-  color: #fff;
+  color: var(--text-strong);
   text-align: center;
   margin-bottom: 8px;
 `;
@@ -108,28 +108,28 @@ const Field = styled.div`
 
   label {
     font-size: 13px;
-    color: #9a9a9a;
+    color: var(--text-muted);
   }
 
   input {
     padding: 12px 14px;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(0, 0, 0, 0.25);
-    color: #fff;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-sunken);
+    color: var(--text-strong);
     font-size: 15px;
     outline: none;
     transition: border-color 0.2s ease;
 
     &:focus {
-      border-color: #00b5ff;
+      border-color: var(--accent);
     }
   }
 `;
 
 const Error = styled.p`
   font-size: 13px;
-  color: #ff6767;
+  color: var(--danger);
   text-align: center;
 `;
 
@@ -137,8 +137,8 @@ const Submit = styled.button`
   padding: 12px 0;
   border-radius: 12px;
   border: none;
-  background: #00b5ff;
-  color: #061018;
+  background: var(--accent);
+  color: var(--on-solid);
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;

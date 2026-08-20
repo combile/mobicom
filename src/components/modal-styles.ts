@@ -15,7 +15,7 @@ export const ModalOverlay = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay);
 `;
 
 /**
@@ -33,16 +33,16 @@ export const ModalCard = styled.div`
   gap: 14px;
   padding: 22px;
   border-radius: 10px;
-  background: #1c1c1c;
+  background: var(--surface);
   /* a neutral hairline: an accent-coloured outline round the whole dialog
      announces itself far louder than a dialog needs to */
-  border: 1px solid #333;
+  border: 1px solid var(--border-strong);
 `;
 
 export const ModalTitle = styled.h2`
   font-size: 15px;
   font-weight: 600;
-  color: #f0f0f0;
+  color: var(--text-strong);
 `;
 
 export const Field = styled.div`
@@ -52,15 +52,15 @@ export const Field = styled.div`
 
   label {
     font-size: 12px;
-    color: #8a8a8a;
+    color: var(--text-muted);
   }
 
   input {
     padding: 7px 10px;
     border-radius: 6px;
-    border: 1px solid #333;
-    background: #141414;
-    color: #fff;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-sunken);
+    color: var(--text-strong);
     font-size: 13px;
     outline: none;
   }
@@ -68,12 +68,12 @@ export const Field = styled.div`
   /* outline is off above, so focus needs its own affordance — a border shift
      is enough; the glow was doing the work of a much louder signal */
   input:focus {
-    border-color: #5a5a5a;
+    border-color: var(--border-strong);
   }
 `;
 
 export const ErrorText = styled.p`
-  color: #ff6767;
+  color: var(--danger);
   font-size: 12px;
 `;
 
@@ -92,19 +92,19 @@ export const ModalActions = styled.div`
 
   button:first-of-type {
     background: transparent;
-    color: #9a9a9a;
+    color: var(--text-muted);
   }
 
   /* the confirm action leads without shouting: a filled neutral surface reads
      as primary next to a plain one, without a saturated block of colour */
   button:last-of-type {
-    background: #2f2f2f;
-    border-color: #454545;
-    color: #f0f0f0;
+    background: var(--surface-active);
+    border-color: var(--border-strong);
+    color: var(--text-strong);
     font-weight: 600;
 
     &:hover:not(:disabled) {
-      background: #3a3a3a;
+      background: var(--border-strong);
     }
 
     &:disabled {
