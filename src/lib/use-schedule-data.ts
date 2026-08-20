@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { dueState, todayISO } from "./use-tasks-data";
 
 export type ScheduleItem = {
@@ -16,6 +16,8 @@ export type ScheduleItem = {
   /** Set for contests only — where the posting can be read. */
   url: string | null;
 };
+
+export type ScheduleProject = { id: string; name: string };
 
 export type ScheduleBucket = {
   key: string;
@@ -38,10 +40,9 @@ export function useScheduleData(enabled: boolean) {
   const [showDone, setShowDone] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!enabled) return;
+  const reload = useCallback(() => {
     setLoading(true);
-    fetch("/api/mobion/schedule")
+    return fetch("/api/mobion/schedule")
       .then((res) => {
         if (!res.ok) throw new Error("failed");
         return res.json();
@@ -52,7 +53,84 @@ export function useScheduleData(enabled: boolean) {
       })
       .catch(() => setLoadError("일정을 불러오지 못했습니다."))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    reload();
+  }, [enabled, reload]);
+
+  // A new item needs a project to live in, and the schedule spans all of them,
+  // so the list is fetched here rather than borrowed from the projects view —
+  // which may never have been opened.
+  const [projects, setProjects] = useState<ScheduleProject[]>([]);
+  useEffect(() => {
+    if (!enabled) return;
+    fetch("/api/mobion/projects")
+      .then((res) => (res.ok ? res.json() : { projects: [] }))
+      .then((data: { projects?: ScheduleProject[] }) => setProjects(data.projects ?? []))
+      .catch(() => setProjects([]));
   }, [enabled]);
+
+  // Creating from the schedule: the date is known (a day was clicked), the
+  // project is not, so that is the one field with no sensible default.
+  const [createDate, setCreateDate] = useState<string | null>(null);
+  const [newKind, setNewKind] = useState<"task" | "milestone">("task");
+  const [newTitle, setNewTitle] = useState("");
+  const [newProjectId, setNewProjectId] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  function openCreate(date: string) {
+    setCreateDate(date);
+    setNewKind("task");
+    setNewTitle("");
+    // one project is not a choice; more than one has no right answer
+    setNewProjectId(projects.length === 1 ? projects[0].id : "");
+    setCreateError(null);
+  }
+
+  async function handleCreate() {
+    if (!createDate) return;
+    const title = newTitle.trim();
+    if (!title) {
+      setCreateError("제목을 입력해 주세요.");
+      return;
+    }
+    if (!newProjectId) {
+      setCreateError("프로젝트를 선택해 주세요.");
+      return;
+    }
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch(
+        newKind === "task"
+          ? `/api/mobion/projects/${newProjectId}/tasks`
+          : `/api/mobion/projects/${newProjectId}/milestones`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            newKind === "task"
+              ? { title, dueDate: createDate }
+              : { title, targetDate: createDate },
+          ),
+        },
+      );
+      const body = await res.json();
+      if (!res.ok) {
+        setCreateError(body.error ?? "만들지 못했습니다.");
+        return;
+      }
+      setCreateDate(null);
+      await reload();
+    } catch {
+      setCreateError("만들지 못했습니다.");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   // Finished work is hidden by default: a schedule answers "what is left", and
   // completed items would crowd out the ones that still need doing.
@@ -101,6 +179,21 @@ export function useScheduleData(enabled: boolean) {
   return {
     items,
     buckets,
+    projects,
+    reload,
+    createDate,
+    openCreate,
+    setCreateDate,
+    closeCreate: () => setCreateDate(null),
+    newKind,
+    setNewKind,
+    newTitle,
+    setNewTitle,
+    newProjectId,
+    setNewProjectId,
+    creating,
+    createError,
+    handleCreate,
     loadError,
     loading,
     showDone,

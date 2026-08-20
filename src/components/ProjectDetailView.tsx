@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import styled from "@emotion/styled";
 import CustomSelect from "./CustomSelect";
+import DatePicker from "./DatePicker";
 import GanttChart from "./GanttChart";
 import MentionInput from "./MentionInput";
 import { parseMentionSegments } from "@/lib/mobion-mentions";
@@ -13,8 +14,6 @@ import {
   SORT_OPTIONS,
   TASK_STATUS_OPTIONS,
   dueState,
-  shiftISO,
-  todayISO,
   type SortMode,
   type Task,
   type TasksData,
@@ -399,33 +398,6 @@ const NEXT_MILESTONE_STATUS: Record<string, { value: string; label: string; hint
   done: { value: "planned", label: "다시 열기", hint: "상태를 계획으로" },
 };
 
-/**
- * Relative shortcuts for a date field.
- *
- * Typing a date for "by tomorrow" is more work than the decision itself. The
- * picker beside these still handles any other date.
- */
-function DateShortcuts({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <DueShortcuts>
-      <OpenLinkButton type="button" onClick={() => onChange(todayISO())}>
-        오늘
-      </OpenLinkButton>
-      <OpenLinkButton type="button" onClick={() => onChange(shiftISO(1))}>
-        내일
-      </OpenLinkButton>
-      <OpenLinkButton type="button" onClick={() => onChange(shiftISO(7))}>
-        +7일
-      </OpenLinkButton>
-      {value && (
-        <OpenLinkButton type="button" onClick={() => onChange("")} title="날짜 제거">
-          지우기
-        </OpenLinkButton>
-      )}
-    </DueShortcuts>
-  );
-}
-
 /** One task row, shared by the flat list and the grouped view. */
 function TaskRowItem({
   task,
@@ -623,15 +595,9 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
           </Field>
           <Field>
             <LabelRow>
-              <label htmlFor="milestone-detail-date">목표 날짜</label>
-              <DateShortcuts value={targetDate} onChange={setTargetDate} />
+              <label>목표 날짜</label>
             </LabelRow>
-            <input
-              id="milestone-detail-date"
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-            />
+            <DatePicker block value={targetDate} onChange={setTargetDate} />
           </Field>
         </TwoUp>
 
@@ -935,29 +901,13 @@ function TaskDetailModal({
           <PropRow>
             <PropLabel>시작일</PropLabel>
             <PropValue>
-              <DateField
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+              <DatePicker value={startDate} onChange={setStartDate} />
             </PropValue>
           </PropRow>
           <PropRow>
             <PropLabel>마감일</PropLabel>
             <PropValue>
-              <DateField
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-              {/* one shortcut, not four: the rest are a picker away, and a row
-                  of buttons beside every date field is noise */}
-              <QuietButton type="button" onClick={() => setDueDate(todayISO())}>
-                오늘
-              </QuietButton>
-              <QuietButton type="button" onClick={() => setDueDate(shiftISO(7))}>
-                +7일
-              </QuietButton>
+              <DatePicker value={dueDate} onChange={setDueDate} />
             </PropValue>
           </PropRow>
         </Props>
@@ -1070,17 +1020,12 @@ function CreateMilestoneModal({ data }: { data: TasksData }) {
         </Field>
         <Field>
           <LabelRow>
-            <label htmlFor="new-milestone-date">목표 날짜 (필수)</label>
-            <DateShortcuts
-              value={data.newMilestoneTargetDate}
-              onChange={data.setNewMilestoneTargetDate}
-            />
+            <label>목표 날짜 (필수)</label>
           </LabelRow>
-          <input
-            id="new-milestone-date"
-            type="date"
+          <DatePicker
+            block
             value={data.newMilestoneTargetDate}
-            onChange={(e) => data.setNewMilestoneTargetDate(e.target.value)}
+            onChange={data.setNewMilestoneTargetDate}
           />
         </Field>
         {data.createMilestoneError && <ErrorText>{data.createMilestoneError}</ErrorText>}
@@ -1166,15 +1111,9 @@ function CreateTaskModal({ data }: { data: TasksData }) {
         </Field>
         <Field>
           <LabelRow>
-            <label htmlFor="new-task-due-date">마감일</label>
-            <DateShortcuts value={data.newTaskDueDate} onChange={data.setNewTaskDueDate} />
+            <label>마감일</label>
           </LabelRow>
-          <input
-            id="new-task-due-date"
-            type="date"
-            value={data.newTaskDueDate}
-            onChange={(e) => data.setNewTaskDueDate(e.target.value)}
-          />
+          <DatePicker block value={data.newTaskDueDate} onChange={data.setNewTaskDueDate} />
         </Field>
         {data.createTaskError && <ErrorText>{data.createTaskError}</ErrorText>}
         <ModalActions>
@@ -1299,46 +1238,6 @@ const BareSelect = styled(CustomSelect)`
   min-width: 0;
 `;
 
-const DateField = styled.input`
-  /* the native picker draws its own text layout and indicator; hiding the
-     indicator and setting our own type keeps it consistent with the rows
-     around it while still opening the platform calendar on click */
-  padding: 4px 8px;
-  min-width: 118px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: #d4d4d4;
-  font: inherit;
-  font-size: 14px;
-  outline: none;
-  color-scheme: dark;
-
-  &:hover {
-    border-color: #333;
-  }
-
-  &:focus {
-    border-color: #5a5a5a;
-    background: #141414;
-  }
-
-  &::-webkit-calendar-picker-indicator {
-    /* the default icon is a bright glyph that pulls the eye to every date row */
-    opacity: 0.35;
-    cursor: pointer;
-    filter: invert(1);
-  }
-
-  &:hover::-webkit-calendar-picker-indicator {
-    opacity: 0.7;
-  }
-
-  &:empty,
-  &[value=""] {
-    color: #6a6a6a;
-  }
-`;
 
 /* Secondary actions: legible, but not competing with the values they sit next
    to. Previously every one of these was accent blue. */
@@ -2012,11 +1911,6 @@ const TicketBadge = styled.span`
   }
 `;
 
-const DueShortcuts = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-`;
 
 const LabelRow = styled.div`
   display: flex;
