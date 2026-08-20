@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 13;
+const MOBION_SCHEMA_VERSION = 14;
 
 export const pool =
   globalThis.mobionPool ??
@@ -193,6 +193,19 @@ export async function ensureMobionSchema() {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS mobion_task_comments_task_idx
           ON mobion_task_comments (task_id, created_at)
+      `);
+      // A milestone is a checkpoint, so what kind of checkpoint it is carries
+      // real meaning — an approval and a deliverable are read differently even
+      // when they fall on the same date.
+      await pool.query(`
+        ALTER TABLE mobion_milestones
+          ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'checkpoint'
+      `);
+      // Tasks span time on a gantt chart; without a start they can only be
+      // drawn as a point on their due date.
+      await pool.query(`
+        ALTER TABLE mobion_tasks
+          ADD COLUMN IF NOT EXISTS start_date DATE
       `);
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_notifications (

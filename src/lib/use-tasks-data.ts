@@ -14,7 +14,21 @@ export type Project = {
   taskOverdue: number;
 };
 
-export type Milestone = { id: string; title: string; targetDate: string | null; status: string };
+export const MILESTONE_KINDS = [
+  { value: "checkpoint", label: "체크포인트" },
+  { value: "deliverable", label: "산출물" },
+  { value: "approval", label: "승인" },
+  { value: "review", label: "검토" },
+  { value: "event", label: "회의·행사" },
+];
+
+export type Milestone = {
+  id: string;
+  title: string;
+  targetDate: string | null;
+  status: string;
+  kind: string;
+};
 
 export type Task = {
   id: string;
@@ -22,6 +36,7 @@ export type Task = {
   description: string;
   status: string;
   dueDate: string | null;
+  startDate: string | null;
   milestoneId: string | null;
   assigneeId: string | null;
   assigneeName: string | null;
@@ -122,6 +137,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const [showCreateMilestone, setShowCreateMilestone] = useState(false);
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneTargetDate, setNewMilestoneTargetDate] = useState("");
+  const [newMilestoneKind, setNewMilestoneKind] = useState("checkpoint");
   const [createMilestoneError, setCreateMilestoneError] = useState<string | null>(null);
   const [creatingMilestone, setCreatingMilestone] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -338,6 +354,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     setCreateMilestoneError(null);
     setNewMilestoneTitle("");
     setNewMilestoneTargetDate("");
+    setNewMilestoneKind("checkpoint");
     setShowCreateMilestone(true);
   }
 
@@ -352,6 +369,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
         body: JSON.stringify({
           title: newMilestoneTitle,
           targetDate: newMilestoneTargetDate || null,
+          kind: newMilestoneKind,
         }),
       });
       if (!res.ok) {
@@ -560,6 +578,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
       assigneeId?: string | null;
       milestoneId?: string | null;
       dueDate?: string | null;
+      startDate?: string | null;
     },
   ) {
     if (!selectedProjectId) return false;
@@ -833,6 +852,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     setNewMilestoneTitle,
     newMilestoneTargetDate,
     setNewMilestoneTargetDate,
+    newMilestoneKind,
+    setNewMilestoneKind,
     createMilestoneError,
     creatingMilestone,
     openCreateMilestone,

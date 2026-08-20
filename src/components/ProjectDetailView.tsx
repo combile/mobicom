@@ -4,7 +4,9 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import styled from "@emotion/styled";
 import CustomSelect from "./CustomSelect";
+import GanttChart from "./GanttChart";
 import {
+  MILESTONE_KINDS,
   MILESTONE_STATUS_OPTIONS,
   SORT_OPTIONS,
   TASK_STATUS_OPTIONS,
@@ -102,57 +104,12 @@ export default function ProjectDetailView({
               마일스톤 추가
             </DetailAddButton>
           </DetailSectionHeader>
-          <MilestoneList>
-            {data.milestones.length === 0 && <EmptyState>아직 마일스톤이 없습니다</EmptyState>}
-            {data.milestones.map((m) => (
-              <MilestoneRow
-                key={m.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => data.setSelectedMilestoneId(m.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    data.setSelectedMilestoneId(m.id);
-                  }
-                }}
-              >
-                <MilestoneTitle>{m.title}</MilestoneTitle>
-                {m.targetDate && (
-                  <MilestoneDate data-tone={dueState(m.targetDate, m.status) ?? undefined}>
-                    {m.targetDate}
-                  </MilestoneDate>
-                )}
-                {(() => {
-                  const p = data.milestoneProgress.get(m.id);
-                  if (!p || p.total === 0) return null;
-                  return (
-                    <MilestoneProgress>
-                      <MiniTrack
-                        role="progressbar"
-                        aria-valuenow={p.percent}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-label={`${m.title} 진행률`}
-                      >
-                        <MiniFill data-complete={p.done === p.total || undefined} style={{ width: `${p.percent}%` }} />
-                      </MiniTrack>
-                      <MilestoneDate>
-                        {p.done}/{p.total}
-                      </MilestoneDate>
-                    </MilestoneProgress>
-                  );
-                })()}
-                <RowControl onClick={(e) => e.stopPropagation()}>
-                  <RowSelect
-                    value={m.status}
-                    onChange={(v) => data.updateMilestoneStatus(m.id, v)}
-                    options={MILESTONE_STATUS_OPTIONS}
-                  />
-                </RowControl>
-              </MilestoneRow>
-            ))}
-          </MilestoneList>
+          <GanttChart
+            milestones={data.milestones}
+            tasks={data.tasks}
+            onOpenTask={(id) => data.setSelectedTaskId(id)}
+            onOpenMilestone={(id) => data.setSelectedMilestoneId(id)}
+          />
 
           <DetailSectionHeader>
             <DetailSectionTitle>태스크</DetailSectionTitle>
@@ -741,6 +698,7 @@ function TaskDetailModal({
   const [assigneeId, setAssigneeId] = useState(task.assigneeId ?? "");
   const [milestoneId, setMilestoneId] = useState(task.milestoneId ?? "");
   const [dueDate, setDueDate] = useState(task.dueDate ?? "");
+  const [startDate, setStartDate] = useState(task.startDate ?? "");
   const [draftComment, setDraftComment] = useState("");
 
   async function submitComment() {
@@ -764,6 +722,7 @@ function TaskDetailModal({
       assigneeId: assigneeId || null,
       milestoneId: milestoneId || null,
       dueDate: dueDate || null,
+      startDate: startDate || null,
     });
     if (ok) close();
   }
@@ -780,7 +739,8 @@ function TaskDetailModal({
     status !== task.status ||
     assigneeId !== (task.assigneeId ?? "") ||
     milestoneId !== (task.milestoneId ?? "") ||
-    dueDate !== (task.dueDate ?? "");
+    dueDate !== (task.dueDate ?? "") ||
+    startDate !== (task.startDate ?? "");
 
   return createPortal(
     <ModalOverlay ref={overlayRef} onClick={close}>
@@ -855,6 +815,18 @@ function TaskDetailModal({
               value={status}
               onChange={setStatus}
               options={TASK_STATUS_OPTIONS}
+            />
+          </Field>
+          <Field>
+            <LabelRow>
+              <label htmlFor="task-detail-start">시작일</label>
+              <DateShortcuts value={startDate} onChange={setStartDate} />
+            </LabelRow>
+            <input
+              id="task-detail-start"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
             />
           </Field>
           <Field>
@@ -1044,8 +1016,17 @@ function CreateMilestoneModal({ data }: { data: TasksData }) {
           />
         </Field>
         <Field>
+          <label>유형</label>
+          <CustomSelect
+            fullWidth
+            value={data.newMilestoneKind}
+            onChange={data.setNewMilestoneKind}
+            options={MILESTONE_KINDS}
+          />
+        </Field>
+        <Field>
           <LabelRow>
-            <label htmlFor="new-milestone-date">목표 날짜</label>
+            <label htmlFor="new-milestone-date">목표 날짜 (필수)</label>
             <DateShortcuts
               value={data.newMilestoneTargetDate}
               onChange={data.setNewMilestoneTargetDate}
@@ -1066,7 +1047,12 @@ function CreateMilestoneModal({ data }: { data: TasksData }) {
           <button
             type="button"
             onClick={data.handleCreateMilestone}
-            disabled={data.creatingMilestone}
+            disabled={
+              data.creatingMilestone ||
+              !data.newMilestoneTitle.trim() ||
+              // a checkpoint without a date cannot sit on a timeline
+              !data.newMilestoneTargetDate
+            }
           >
             {data.creatingMilestone ? "만드는 중..." : "만들기"}
           </button>
@@ -1904,8 +1890,8 @@ const SourceNote = styled.div`
   gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  border-left: 2px solid rgba(0, 181, 255, 0.5);
-  background: rgba(0, 181, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
 
   .material-symbols-outlined {
     font-size: 15px;
