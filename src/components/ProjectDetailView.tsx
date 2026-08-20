@@ -365,6 +365,15 @@ function EditProjectModal({ data }: { data: TasksData }) {
  * Runs client-side only: the panel opens on click, so this never renders during
  * SSR where the server's locale and timezone could disagree with the browser's.
  */
+const AVATAR_TINTS = ["#3b5bdb", "#2f7a5a", "#8b5cf6", "#b45309", "#0e7490", "#9d174d"];
+
+/** Stable colour per person so the same name keeps the same chip across views. */
+function avatarTint(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return AVATAR_TINTS[Math.abs(hash) % AVATAR_TINTS.length];
+}
+
 function formatCreatedAt(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -965,19 +974,26 @@ function TaskDetailModal({
 
           {data.comments.map((c) => (
             <Comment key={c.id}>
-              <CommentMeta>
-                <CommentAuthor>{c.authorName ?? "알 수 없는 사용자"}</CommentAuthor>
-                <CommentTime>{formatCreatedAt(c.createdAt)}</CommentTime>
-              </CommentMeta>
-              <CommentBody>
-                {parseMentionSegments(c.body).map((seg, i) =>
-                  seg.type === "mention" ? (
-                    <CommentMention key={i}>@{seg.name}</CommentMention>
-                  ) : (
-                    <span key={i}>{seg.content}</span>
-                  ),
-                )}
-              </CommentBody>
+              {/* an initial is enough to tell speakers apart at a glance, which
+                  is what a thread needs more than a boxed card per remark */}
+              <CommentAvatar style={{ background: avatarTint(c.authorName ?? "?") }}>
+                {(c.authorName ?? "?").charAt(0)}
+              </CommentAvatar>
+              <CommentMain>
+                <CommentMeta>
+                  <CommentAuthor>{c.authorName ?? "알 수 없는 사용자"}</CommentAuthor>
+                  <CommentTime>{formatCreatedAt(c.createdAt)}</CommentTime>
+                </CommentMeta>
+                <CommentBody>
+                  {parseMentionSegments(c.body).map((seg, i) =>
+                    seg.type === "mention" ? (
+                      <CommentMention key={i}>@{seg.name}</CommentMention>
+                    ) : (
+                      <span key={i}>{seg.content}</span>
+                    ),
+                  )}
+                </CommentBody>
+              </CommentMain>
             </Comment>
           ))}
 
@@ -1178,8 +1194,12 @@ function CreateTaskModal({ data }: { data: TasksData }) {
 /** Slightly narrower than the create dialogs: this is a record to read, and a
  *  shorter measure keeps the property rows scannable. */
 const PanelCard = styled(ModalCard)`
-  width: min(420px, calc(100% - 48px));
-  gap: 10px;
+  /* 420px packed the property rows and the thread into a column too narrow to
+     scan; this is a working surface, not a confirm dialog */
+  width: min(620px, calc(100% - 64px));
+  max-height: 84vh;
+  gap: 14px;
+  padding: 26px 28px;
 `;
 
 const PanelTop = styled.div`
@@ -1193,10 +1213,10 @@ const TitleText = styled.button`
   display: block;
   width: 100%;
   padding: 2px 0;
+  font-size: 20px;
   border: none;
   background: transparent;
   color: #f0f0f0;
-  font-size: 17px;
   font-weight: 600;
   line-height: 1.35;
   text-align: left;
@@ -1214,7 +1234,7 @@ const TitleInput = styled.input`
   border-bottom: 1px solid #454545;
   background: transparent;
   color: #f0f0f0;
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.35;
   outline: none;
@@ -1227,8 +1247,8 @@ const DescriptionText = styled.button`
   border: none;
   background: transparent;
   color: #b4b4b4;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.7;
   text-align: left;
   white-space: pre-wrap;
   cursor: text;
@@ -1247,23 +1267,23 @@ const DescriptionText = styled.button`
 const Props = styled.div`
   display: flex;
   flex-direction: column;
-  margin-top: 2px;
-  padding-top: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
   border-top: 1px solid #2a2a2a;
 `;
 
 const PropRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 26px;
+  gap: 10px;
+  min-height: 32px;
 `;
 
 const PropLabel = styled.span`
-  width: 68px;
+  width: 82px;
   flex-shrink: 0;
   color: #7a7a7a;
-  font-size: 12px;
+  font-size: 13px;
 `;
 
 const PropValue = styled.div`
@@ -1280,13 +1300,13 @@ const BareSelect = styled(CustomSelect)`
 `;
 
 const DateField = styled.input`
-  padding: 2px 4px;
+  padding: 3px 6px;
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
   color: #d4d4d4;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   outline: none;
   color-scheme: dark;
 
@@ -1303,12 +1323,12 @@ const DateField = styled.input`
 /* Secondary actions: legible, but not competing with the values they sit next
    to. Previously every one of these was accent blue. */
 const QuietButton = styled.button`
-  padding: 2px 7px;
+  padding: 3px 9px;
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
   color: #8a8a8a;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
@@ -2015,9 +2035,9 @@ const CommentSection = styled.section`
 const CommentHeading = styled.h3`
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
   color: #9a9a9a;
 `;
 
@@ -2036,25 +2056,43 @@ const CommentEmpty = styled.p`
   padding: 2px 0 4px;
 `;
 
+/* No card per comment: a thread is a sequence of remarks, and boxing each one
+   turns a short exchange into a stack of panels. */
 const Comment = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  gap: 10px;
+  padding: 8px 0;
+`;
+
+const CommentAvatar = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const CommentMain = styled.div`
+  flex: 1;
+  min-width: 0;
 `;
 
 const CommentMeta = styled.div`
   display: flex;
   align-items: baseline;
   gap: 8px;
+  margin-bottom: 2px;
 `;
 
 const CommentAuthor = styled.span`
-  color: #d4d4d4;
-  font-size: 12px;
-  font-weight: 700;
+  color: #e4e4e4;
+  font-size: 13px;
+  font-weight: 600;
 `;
 
 const CommentTime = styled.span`
@@ -2063,17 +2101,20 @@ const CommentTime = styled.span`
 `;
 
 const CommentBody = styled.p`
-  color: #d4d4d4;
-  font-size: 13px;
-  line-height: 1.6;
+  color: #c4c4c4;
+  font-size: 14px;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
 `;
 
 const CommentForm = styled.div`
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #2a2a2a;
 `;
 
 const CommentMention = styled.span`
