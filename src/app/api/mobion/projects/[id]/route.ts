@@ -24,6 +24,8 @@ type TaskRow = {
   created_by_name: string | null;
   source_channel_id: string | null;
   source_excerpt: string | null;
+  checklist_total: string;
+  checklist_done: string;
 };
 
 export async function GET(
@@ -53,7 +55,13 @@ export async function GET(
       `SELECT t.id, t.title, t.description, t.status, t.due_date, t.start_date,
               t.milestone_id, t.assignee_id, u.name AS assignee_name,
               t.created_at, c.name AS created_by_name,
-              t.source_channel_id, t.source_excerpt
+              t.source_channel_id, t.source_excerpt,
+              -- counted here so a row can show its progress without the list
+              -- issuing one checklist request per task
+              (SELECT COUNT(*) FROM mobion_task_checklist cl WHERE cl.task_id = t.id)
+                AS checklist_total,
+              (SELECT COUNT(*) FROM mobion_task_checklist cl
+                WHERE cl.task_id = t.id AND cl.done) AS checklist_done
        FROM mobion_tasks t
        LEFT JOIN mobion_users u ON u.id = t.assignee_id
        LEFT JOIN mobion_users c ON c.id = t.created_by
@@ -84,6 +92,9 @@ export async function GET(
         createdByName: t.created_by_name,
         sourceChannelId: t.source_channel_id,
         sourceExcerpt: t.source_excerpt,
+        // pg returns COUNT as a string
+        checklistTotal: Number(t.checklist_total),
+        checklistDone: Number(t.checklist_done),
       })),
     });
   } catch (error) {

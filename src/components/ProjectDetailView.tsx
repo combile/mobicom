@@ -430,6 +430,17 @@ function TaskRowItem({
         />
       </CheckControl>
       <TaskTitle data-done={task.status === "done" || undefined}>{task.title}</TaskTitle>
+      {/* a task with steps left is not the same as one without, and opening
+          each row to find that out is the thing the badge saves */}
+      {task.checklistTotal > 0 && (
+        <ChecklistChip
+          data-complete={task.checklistDone === task.checklistTotal || undefined}
+          title={`체크리스트 ${task.checklistDone}/${task.checklistTotal} 완료`}
+        >
+          <span className="material-symbols-outlined">checklist</span>
+          {task.checklistDone}/{task.checklistTotal}
+        </ChecklistChip>
+      )}
       {/* redundant under a milestone heading, so the grouped view turns it off */}
       {showMilestone && task.milestoneId && (
         <MilestoneChip>
@@ -720,6 +731,7 @@ function TaskDetailModal({
    * to edit it.
    */
   const [editing, setEditing] = useState<null | "title" | "description">(null);
+  const [newStep, setNewStep] = useState("");
 
   const close = () => {
     data.setTaskDetailError(null);
@@ -920,6 +932,52 @@ function TaskDetailModal({
             </PropValue>
           </PropRow>
         </Props>
+
+        <ChecklistSection>
+          <CommentHeading>
+            체크리스트
+            {data.checklist.length > 0 && (
+              <CommentCount>
+                {data.checklist.filter((i) => i.done).length}/{data.checklist.length}
+              </CommentCount>
+            )}
+          </CommentHeading>
+
+          {data.checklist.map((item) => (
+            <ChecklistRow key={item.id}>
+              <CheckBox
+                type="checkbox"
+                checked={item.done}
+                onChange={(e) => data.toggleChecklistItem(item.id, e.target.checked)}
+                aria-label={`${item.label} 완료 표시`}
+              />
+              <ChecklistLabel data-done={item.done || undefined}>{item.label}</ChecklistLabel>
+              {/* only on hover: a delete control beside every step turns a
+                  checklist into a column of buttons */}
+              <ChecklistRemove
+                type="button"
+                onClick={() => data.deleteChecklistItem(item.id)}
+                title={`${item.label} 삭제`}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </ChecklistRemove>
+            </ChecklistRow>
+          ))}
+
+          <ChecklistAdd
+            value={newStep}
+            placeholder="할 일 추가"
+            onChange={(e) => setNewStep(e.target.value)}
+            onKeyDown={async (e) => {
+              // Enter rather than a button: steps are usually written several
+              // at a time, and reaching for a button between each breaks that
+              if (e.key !== "Enter" || !newStep.trim()) return;
+              e.preventDefault();
+              const ok = await data.addChecklistItem(task.id, newStep.trim());
+              if (ok) setNewStep("");
+            }}
+          />
+        </ChecklistSection>
 
         <MetaLine>
           {task.createdByName ?? "알 수 없는 사용자"}님이 {formatCreatedAt(task.createdAt)}에 등록
@@ -1971,6 +2029,106 @@ const CommentCount = styled.span`
   font-size: 11px;
   font-weight: 700;
   color: #d4d4d4;
+`;
+
+const ChecklistSection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const ChecklistRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px;
+  margin: 0 -4px;
+  border-radius: 4px;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+`;
+
+const ChecklistLabel = styled.span`
+  flex: 1;
+  min-width: 0;
+  color: #d4d4d4;
+  font-size: 13px;
+
+  &[data-done] {
+    color: #767676;
+    text-decoration: line-through;
+  }
+`;
+
+const ChecklistRemove = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #6a6a6a;
+  opacity: 0;
+  cursor: pointer;
+
+  .material-symbols-outlined {
+    font-size: 14px;
+  }
+
+  ${ChecklistRow}:hover &,
+  &:focus-visible {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: rgba(255, 103, 103, 0.14);
+    color: #ff6767;
+  }
+`;
+
+const ChecklistAdd = styled.input`
+  margin-top: 4px;
+  padding: 5px 4px;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 13px;
+  outline: none;
+
+  &::placeholder {
+    color: #6a6a6a;
+  }
+
+  &:focus {
+    border-bottom-color: #3a3a3a;
+  }
+`;
+
+const ChecklistChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #9a9a9a;
+  font-size: 11px;
+  white-space: nowrap;
+
+  .material-symbols-outlined {
+    font-size: 13px;
+  }
+
+  &[data-complete] {
+    color: #4ade80;
+  }
 `;
 
 const CommentEmpty = styled.p`
