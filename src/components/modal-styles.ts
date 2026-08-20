@@ -90,26 +90,52 @@ export const ModalActions = styled.div`
     cursor: pointer;
   }
 
+  button {
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease,
+      transform 0.08s ease;
+  }
+
+  button:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
   button:first-of-type {
     background: transparent;
     color: var(--text-muted);
   }
 
-  /* the confirm action leads without shouting: a filled neutral surface reads
-     as primary next to a plain one, without a saturated block of colour */
+  button:first-of-type:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+
+  /* The confirm action is a solid block of the text colour rather than a
+     tinted surface. The tint worked against a dark panel and vanished against
+     a white one, which left the primary action as the faintest thing in the
+     footer. Inverting text and ground carries the same weight in either. */
   button:last-of-type {
-    background: var(--surface-active);
-    border-color: var(--border-strong);
-    color: var(--text-strong);
+    background: var(--selected-bg);
+    border-color: var(--selected-bg);
+    color: var(--selected-text);
     font-weight: 600;
 
     &:hover:not(:disabled) {
-      background: var(--border-strong);
+      opacity: 0.85;
     }
 
     &:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: default;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button {
+      transition: none;
+    }
+
+    button:active:not(:disabled) {
+      transform: none;
     }
   }
 `;

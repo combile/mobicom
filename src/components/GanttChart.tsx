@@ -286,7 +286,9 @@ const SummaryBar = styled.div`
   top: 8px;
   height: 4px;
   border-radius: 999px;
-  background: var(--surface-active);
+  /* the group's span, behind the individual bars — a hairline of structure,
+     not a fill competing with them */
+  background: var(--border-strong);
 `;
 
 const Diamond = styled.span`
@@ -339,13 +341,15 @@ const Bar = styled.div`
   height: 8px;
   min-width: 8px;
   border-radius: 999px;
-  background: var(--accent-soft);
+  /* Solid, not the soft tints: a bar on a chart is the content being read,
+     and a ten-percent wash of it disappears against a light background. */
+  background: var(--accent);
 
   &[data-status="done"] {
-    background: var(--ok-soft);
+    background: var(--ok);
   }
 
   &[data-status="todo"] {
-    background: var(--surface-active);
+    background: var(--border-strong);
   }
 `;

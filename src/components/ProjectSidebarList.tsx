@@ -63,11 +63,13 @@ export default function ProjectSidebarList({ data }: { data: TasksData }) {
  * is also what lets the enter animation fire at the right moment.
  */
 function CreateProjectModal({ data }: { data: TasksData }) {
-  const { overlayRef, cardRef } = useModalEnterAnimation();
-  useCloseOnEscape(() => data.setShowCreateProject(false));
+  const { overlayRef, cardRef, close } = useModalEnterAnimation(() =>
+    data.setShowCreateProject(false),
+  );
+  useCloseOnEscape(close);
 
   return createPortal(
-    <ModalOverlay ref={overlayRef} onClick={() => data.setShowCreateProject(false)}>
+    <ModalOverlay ref={overlayRef} onClick={close}>
       <ModalCard ref={cardRef} onClick={(e) => e.stopPropagation()}>
         <ModalTitle>새 프로젝트 만들기</ModalTitle>
         <Field>
@@ -186,6 +188,7 @@ const AddButton = styled.button`
   font-size: 14px;
   cursor: pointer;
   text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
 
   .material-symbols-outlined {
     font-size: 16px;
@@ -193,6 +196,19 @@ const AddButton = styled.button`
 
   &:hover {
     background: var(--surface-hover);
-    color: var(--accent);
+    color: var(--text);
+  }
+
+  &:active {
+    background: var(--surface-active);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 `;

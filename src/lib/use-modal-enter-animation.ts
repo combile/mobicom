@@ -28,15 +28,17 @@ export function useCloseOnEscape(onClose: () => void) {
 }
 
 /**
- * Entrance animation shared by every create modal.
+ * Enter and exit animation shared by every modal.
  *
  * Attach `overlayRef` to the overlay and `cardRef` to the card. The hook must
  * live in a component that mounts when the modal opens — calling it from a
  * parent that stays mounted means the animation only ever runs once, on page
  * load, while the modal is still hidden.
  *
- * Exit animation is deliberately absent: it would need extra state to delay
- * unmounting past the tween.
+ * `close` wraps the caller's own close so the card can play out before it
+ * unmounts. That is the piece that was missing: the modal arrived softly and
+ * then vanished between two frames, which reads as a glitch rather than a
+ * dismissal.
  */
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -92,9 +94,15 @@ export function useModalFocus(cardRef: React.RefObject<HTMLDivElement | null>) {
   }, [cardRef]);
 }
 
-export function useModalEnterAnimation() {
+export function useModalEnterAnimation(onClose?: () => void) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  // guards against a second dismissal landing mid-tween — a click on the
+  // backdrop while Escape is already playing out would otherwise start the
+  // exit twice and unmount early
+  const closing = useRef(false);
+  const closeHandler = useRef(onClose);
+  closeHandler.current = onClose;
 
   // every modal already calls this hook, so trapping focus here covers all of
   // them without touching a single call site
@@ -112,10 +120,38 @@ export function useModalEnterAnimation() {
       gsap.fromTo(
         cardRef.current,
         { opacity: 0, scale: 0.96, y: 8 },
-        { opacity: 1, scale: 1, y: 0, duration: 0.18, ease: "power2.out" },
+        { opacity: 1, scale: 1, y: 0, duration: 0.22, ease: "back.out(1.4)" },
       );
     }
   }, []);
 
-  return { overlayRef, cardRef };
+  /**
+   * Plays the card out, then unmounts.
+   *
+   * Shorter than the entrance on purpose: arriving is worth a moment, leaving
+   * is something the user already decided and should not have to wait for.
+   */
+  function close() {
+    const handler = closeHandler.current;
+    if (!handler) return;
+    if (closing.current) return;
+    closing.current = true;
+
+    const card = cardRef.current;
+    const overlay = overlayRef.current;
+    if (!card || !overlay) {
+      handler();
+      return;
+    }
+
+    gsap.to(card, { opacity: 0, scale: 0.97, y: 4, duration: 0.12, ease: "power2.in" });
+    gsap.to(overlay, {
+      opacity: 0,
+      duration: 0.12,
+      ease: "power1.in",
+      onComplete: handler,
+    });
+  }
+
+  return { overlayRef, cardRef, close };
 }
