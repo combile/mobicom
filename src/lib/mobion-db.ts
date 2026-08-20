@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 19;
+const MOBION_SCHEMA_VERSION = 20;
 
 export const pool =
   globalThis.mobionPool ??
@@ -48,10 +48,6 @@ export async function ensureMobionSchema() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
-      await pool.query(
-        `ALTER TABLE mobion_users
-         ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`,
-      );
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_sessions (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -99,14 +95,6 @@ export async function ensureMobionSchema() {
       await pool.query(
         `ALTER TABLE mobion_huly_link
          ADD COLUMN IF NOT EXISTS huly_account_uuid TEXT`,
-      );
-      // Exactly one account in the lab is the professor — set directly via SQL on
-      // that account, the same one-time-bootstrap pattern already used for is_admin.
-      // Used by channel creation to auto-add the professor when a private channel's
-      // creator toggles "교수님에게 공개".
-      await pool.query(
-        `ALTER TABLE mobion_users
-         ADD COLUMN IF NOT EXISTS is_professor BOOLEAN NOT NULL DEFAULT false`,
       );
       // Relative path under public/ (e.g. /uploads/avatars/<userId>.png), NULL until
       // the user uploads one. See mobion-avatar.ts.
@@ -320,13 +308,45 @@ export async function ensureMobionSchema() {
            ADD CONSTRAINT mobion_users_role_check
            CHECK (role IN ('member', 'lead', 'professor'))`,
       );
-      // One-time carry-over of the old flag. Guarded on "nobody is a lead yet"
-      // so it cannot undo a later demotion by running again.
+      // Carry-over of the two old flags, then the flags go.
+      //
+      // Wrapped in a column-exists check because this script re-runs in full on
+      // every version change: once the columns are dropped below, a statement
+      // naming them is not a no-op, it is an error that takes the whole
+      // bootstrap down.
+      //
+      // The lead carry-over is guarded on "nobody is a lead yet" so it cannot
+      // undo a later demotion; the professor carry-over only touches members,
+      // so a lead who also carried the professor flag stays a lead.
       await pool.query(`
-        UPDATE mobion_users SET role = 'lead'
-        WHERE is_admin = true
-          AND NOT EXISTS (SELECT 1 FROM mobion_users WHERE role <> 'member')
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'mobion_users' AND column_name = 'is_admin'
+          ) THEN
+            UPDATE mobion_users SET role = 'lead'
+            WHERE is_admin = true
+              AND NOT EXISTS (SELECT 1 FROM mobion_users WHERE role <> 'member');
+          END IF;
+
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'mobion_users' AND column_name = 'is_professor'
+          ) THEN
+            UPDATE mobion_users SET role = 'professor'
+            WHERE is_professor = true AND role = 'member';
+          END IF;
+        END $$;
       `);
+      // Both flags answered questions `role` now answers, and two columns
+      // answering one question is how they end up disagreeing — `is_professor`
+      // had already drifted out of step with `role` before this ran.
+      await pool.query(
+        `ALTER TABLE mobion_users
+           DROP COLUMN IF EXISTS is_admin,
+           DROP COLUMN IF EXISTS is_professor`,
+      );
       // When someone was here. `first_seen_at` is what the server observed and
       // never changes; `checked_in_at` is the person's own correction. Keeping
       // both is the record of the correction — a separate audit table would

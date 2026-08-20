@@ -12,7 +12,7 @@ export async function GET() {
       `SELECT u.id, u.name
        FROM mobion_users u
        JOIN mobion_huly_link l ON l.user_id = u.id
-       WHERE l.huly_social_id IS NOT NULL AND u.is_professor = false
+       WHERE l.huly_social_id IS NOT NULL AND u.role <> 'professor'
        ORDER BY u.name`,
     );
     return NextResponse.json({ users: result.rows });
