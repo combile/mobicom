@@ -42,30 +42,46 @@ export default function HomeView({
         </Clear>
       )}
 
-      {/* replies lead: a deadline is known in advance, but someone waiting on
-          an answer is not */}
-      {data.replies.length > 0 && (
+      {/* notifications lead: a deadline is known in advance and can be planned
+          around, but someone waiting on you is not */}
+      {data.notifications.length > 0 && (
         <Section>
-          <SectionTitle>답변 기다리는 논의</SectionTitle>
-          {data.replies.map((r) => (
-            <ReplyRow
-              key={r.id}
+          <SectionTitle>
+            알림
+            {data.unreadCount > 0 && <UnreadDot>{data.unreadCount}</UnreadDot>}
+            {data.unreadCount > 0 && (
+              <MarkAll type="button" onClick={data.markAllRead}>
+                모두 읽음
+              </MarkAll>
+            )}
+          </SectionTitle>
+          {data.notifications.map((n) => (
+            <NotificationRow
+              key={n.id}
               role="button"
               tabIndex={0}
-              onClick={() => onOpenTask(r.projectId, r.taskId)}
+              data-read={n.read || undefined}
+              onClick={() => {
+                data.markRead(n.id);
+                if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onOpenTask(r.projectId, r.taskId);
+                  data.markRead(n.id);
+                  if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId);
                 }
               }}
             >
-              <ReplyTop>
-                <ReplyAuthor>{r.authorName ?? "알 수 없는 사용자"}</ReplyAuthor>
-                <ReplyTask>{r.taskTitle}</ReplyTask>
-              </ReplyTop>
-              <ReplyBody>{r.body}</ReplyBody>
-            </ReplyRow>
+              <NotifTop>
+                <NotifKind data-kind={n.kind}>
+                  {n.kind === "assigned" ? "배정" : "답글"}
+                </NotifKind>
+                <NotifActor>{n.actorName ?? "알 수 없는 사용자"}</NotifActor>
+                {n.taskTitle && <NotifTask>{n.taskTitle}</NotifTask>}
+              </NotifTop>
+              <NotifBody>{n.body}</NotifBody>
+            </NotificationRow>
           ))}
         </Section>
       )}
@@ -284,29 +300,72 @@ const Due = styled.span`
   }
 `;
 
-const ReplyRow = styled.div`
+const UnreadDot = styled.span`
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #00b5ff;
+  color: #061018;
+  font-size: 11px;
+  font-weight: 700;
+`;
+
+const MarkAll = styled.button`
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: #767676;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover {
+    color: #00b5ff;
+  }
+`;
+
+const NotificationRow = styled.div`
   ${rowBase}
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
-  border-left: 2px solid rgba(0, 181, 255, 0.5);
+  border-left: 2px solid #00b5ff;
+
+  /* read items stay visible for a few days but stop competing for attention */
+  &[data-read] {
+    border-left-color: rgba(255, 255, 255, 0.14);
+    opacity: 0.55;
+  }
 `;
 
-const ReplyTop = styled.div`
+const NotifTop = styled.div`
   display: flex;
   align-items: baseline;
   gap: 8px;
   min-width: 0;
 `;
 
-const ReplyAuthor = styled.span`
+const NotifKind = styled.span`
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(0, 181, 255, 0.12);
+  color: #00b5ff;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+
+  &[data-kind="assigned"] {
+    background: rgba(139, 124, 246, 0.16);
+    color: #8b7cf6;
+  }
+`;
+
+const NotifActor = styled.span`
   color: #d4d4d4;
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
 `;
 
-const ReplyTask = styled.span`
+const NotifTask = styled.span`
   color: #767676;
   font-size: 11px;
   overflow: hidden;
@@ -314,7 +373,7 @@ const ReplyTask = styled.span`
   white-space: nowrap;
 `;
 
-const ReplyBody = styled.p`
+const NotifBody = styled.p`
   color: #9a9a9a;
   font-size: 13px;
   line-height: 1.5;
@@ -323,6 +382,11 @@ const ReplyBody = styled.p`
   -webkit-box-orient: vertical;
   overflow: hidden;
 `;
+
+
+
+
+
 
 const ContestRow = styled.a`
   display: flex;

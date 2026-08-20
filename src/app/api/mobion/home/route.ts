@@ -12,15 +12,6 @@ type MyTaskRow = {
   project_name: string;
 };
 
-type ReplyRow = {
-  id: string;
-  body: string;
-  created_at: string;
-  author_name: string | null;
-  task_id: string;
-  task_title: string;
-  project_id: string;
-};
 
 type ContestRow = {
   id: string;
@@ -52,20 +43,6 @@ export async function GET() {
       [user.id],
     );
 
-    // Replies from other people on work assigned to this person — the one item
-    // here that is genuinely waiting on them rather than merely scheduled.
-    const replies = await query<ReplyRow>(
-      `SELECT c.id, c.body, c.created_at, u.name AS author_name,
-              t.id AS task_id, t.title AS task_title, t.project_id
-       FROM mobion_task_comments c
-       JOIN mobion_tasks t ON t.id = c.task_id
-       LEFT JOIN mobion_users u ON u.id = c.user_id
-       WHERE t.assignee_id = $1
-         AND (c.user_id IS NULL OR c.user_id <> $1)
-       ORDER BY c.created_at DESC
-       LIMIT 8`,
-      [user.id],
-    );
 
     const contests = await query<ContestRow>(
       `SELECT c.id, c.title, c.deadline::text AS deadline, c.url
@@ -86,15 +63,6 @@ export async function GET() {
         dueDate: r.due_date,
         projectId: r.project_id,
         projectName: r.project_name,
-      })),
-      replies: replies.rows.map((r) => ({
-        id: r.id,
-        body: r.body,
-        createdAt: r.created_at,
-        authorName: r.author_name,
-        taskId: r.task_id,
-        taskTitle: r.task_title,
-        projectId: r.project_id,
       })),
       contests: contests.rows.map((r) => ({
         id: r.id,

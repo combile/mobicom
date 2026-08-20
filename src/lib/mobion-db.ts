@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 12;
+const MOBION_SCHEMA_VERSION = 13;
 
 export const pool =
   globalThis.mobionPool ??
@@ -193,6 +193,24 @@ export async function ensureMobionSchema() {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS mobion_task_comments_task_idx
           ON mobion_task_comments (task_id, created_at)
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_notifications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL CHECK (kind IN ('comment', 'assigned')),
+          task_id UUID REFERENCES mobion_tasks(id) ON DELETE CASCADE,
+          actor_id UUID REFERENCES mobion_users(id) ON DELETE SET NULL,
+          -- wording is stored rather than rebuilt at read time, so a
+          -- notification still says what happened after the task is renamed
+          body TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          read_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_notifications_inbox_idx
+          ON mobion_notifications (user_id, read_at, created_at DESC)
       `);
       await pool.query(`
         CREATE TABLE IF NOT EXISTS mobion_contests (
