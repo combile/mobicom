@@ -75,9 +75,13 @@ export default function HomeView({
             >
               <NotifTop>
                 <NotifKind data-kind={n.kind}>
-                  {n.kind === "assigned" ? "배정" : "답글"}
+                  {n.kind === "assigned" ? "배정" : n.kind === "due_soon" ? "마감" : "답글"}
                 </NotifKind>
-                <NotifActor>{n.actorName ?? "알 수 없는 사용자"}</NotifActor>
+                {/* nobody did this one — it is the calendar talking, and
+                    "알 수 없는 사용자" would read as a bug */}
+                {n.kind !== "due_soon" && (
+                  <NotifActor>{n.actorName ?? "알 수 없는 사용자"}</NotifActor>
+                )}
                 {n.taskTitle && <NotifTask>{n.taskTitle}</NotifTask>}
               </NotifTop>
               <NotifBody>{n.body}</NotifBody>
@@ -358,6 +362,11 @@ const NotifKind = styled.span`
   &[data-kind="assigned"] {
     background: rgba(139, 124, 246, 0.16);
     color: #8b7cf6;
+  }
+
+  &[data-kind="due_soon"] {
+    background: rgba(255, 157, 92, 0.16);
+    color: #ff9d5c;
   }
 `;
 

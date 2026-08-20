@@ -4,6 +4,14 @@
 // source (node_modules/@hcengineering/*/src/*.ts) exactly.
 
 declare module "@hcengineering/core" {
+  // Matches node_modules/@hcengineering/core/src/storage.ts:187 exactly. The
+  // values are the wire-level sort direction Huly passes through to storage,
+  // so they are part of the protocol rather than an internal detail.
+  export enum SortingOrder {
+    Ascending = 1,
+    Descending = -1,
+  }
+
   export enum AccountRole {
     ReadOnlyGuest = "READONLYGUEST",
     DocGuest = "DocGuest",
@@ -112,7 +120,14 @@ declare module "@hcengineering/api-client" {
 
 declare module "@hcengineering/client-resources" {
   export interface RawClient {
-    findAll: <T>(_class: string, query: Record<string, unknown>) => Promise<T[]>;
+    // The third parameter is FindOptions in the real Storage interface
+    // (node_modules/@hcengineering/core/src/storage.ts:290); only the two
+    // fields mobion-huly.ts passes are declared here.
+    findAll: <T>(
+      _class: string,
+      query: Record<string, unknown>,
+      options?: { limit?: number; sort?: Record<string, number> },
+    ) => Promise<T[]>;
     findOne: <T>(_class: string, query: Record<string, unknown>) => Promise<T | undefined>;
     close: () => Promise<void>;
     notify?: (...tx: unknown[]) => void;

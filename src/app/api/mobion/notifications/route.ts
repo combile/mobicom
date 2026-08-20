@@ -5,7 +5,7 @@ import { query } from "@/lib/mobion-db";
 
 type NotificationRow = {
   id: string;
-  kind: "comment" | "assigned";
+  kind: "comment" | "assigned" | "due_soon";
   body: string;
   created_at: string;
   actor_name: string | null;
@@ -21,9 +21,50 @@ type NotificationRow = {
  * they had been dealt with, which teaches people to ignore the section — the
  * opposite of what it is for.
  */
+/** How far ahead a deadline starts being worth a notification. */
+const DUE_SOON_DAYS = 2;
+
+/**
+ * Raise deadline notifications that are due but not yet written.
+ *
+ * Generated on read rather than by a scheduler because there is no scheduler
+ * to run it — one server, no cron. Since the client polls this endpoint while
+ * the app is open, "whenever someone looks" turns out to be often enough, and
+ * nothing has to stay running for reminders to appear.
+ *
+ * At most one per task per day: the NOT EXISTS is what keeps a poll every
+ * forty-five seconds from producing a notification every forty-five seconds.
+ * Overdue tasks keep reminding daily, which is the point of the reminder.
+ */
+async function raiseDueSoonNotifications(userId: string) {
+  await query(
+    `INSERT INTO mobion_notifications (user_id, kind, task_id, body)
+     -- the date, not the title: the row already prints the task's name beside
+     -- this, and repeating it there says nothing the reader cannot see
+     SELECT t.assignee_id, 'due_soon', t.id, t.due_date::text
+     FROM mobion_tasks t
+     WHERE t.assignee_id = $1
+       AND t.status <> 'done'
+       AND t.due_date IS NOT NULL
+       AND t.due_date <= CURRENT_DATE + $2::int
+       AND NOT EXISTS (
+         SELECT 1 FROM mobion_notifications n
+         WHERE n.user_id = t.assignee_id
+           AND n.task_id = t.id
+           AND n.kind = 'due_soon'
+           AND n.created_at >= CURRENT_DATE
+       )`,
+    [userId, DUE_SOON_DAYS],
+  );
+}
+
 export async function GET() {
   try {
     const user = await requireCurrentUser();
+
+    // Best-effort: a failure here must not cost the caller the notifications
+    // that already exist.
+    await raiseDueSoonNotifications(user.id).catch(() => {});
 
     const result = await query<NotificationRow>(
       `SELECT n.id, n.kind, n.body, n.created_at,

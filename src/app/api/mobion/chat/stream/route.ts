@@ -1,5 +1,5 @@
 import { requireCurrentUser } from "@/lib/mobion-auth";
-import { getWorkspaceClient, CHUNTER_CLASS, CORE_CLASS } from "@/lib/mobion-huly";
+import { getWorkspaceClient, CHUNTER_CLASS, CORE_CLASS, SortingOrder } from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 
@@ -99,6 +99,15 @@ function isUserStatusTx(tx: RawTx) {
 
 type AuthorRow = { huly_social_id: string | null; name: string; avatar_url: string | null };
 
+/**
+ * How much of each conversation the snapshot carries.
+ *
+ * Per space rather than as one total: a single busy channel would otherwise
+ * consume the whole budget and every other channel would open blank. Older
+ * messages are fetched on demand by GET /api/mobion/chat/messages.
+ */
+const SNAPSHOT_PER_SPACE = 50;
+
 export async function GET() {
   try {
     const user = await requireCurrentUser();
@@ -145,14 +154,12 @@ export async function GET() {
 
         let channels: ChunterSpace[];
         let dms: ChunterSpace[];
-        let messages: ChatMessage[];
         let authorRows: AuthorRow[];
         try {
           [channels, dms] = await Promise.all([
             client.findAll<ChunterSpace>(CHUNTER_CLASS.Channel, {}),
             client.findAll<ChunterSpace>(CHUNTER_CLASS.DirectMessage, {}),
           ]);
-          messages = await client.findAll<ChatMessage>(CHUNTER_CLASS.ChatMessage, {});
         } catch {
           send("error", { message: "huly_unavailable" });
           controller.close();
@@ -171,6 +178,31 @@ export async function GET() {
         const channelPrivacy = new Map(
           channels.map((c) => [c._id, { private: c.private, members: c.members }]),
         );
+
+        // Scoped and capped. This previously read every ChatMessage in the
+        // workspace with no filter and no limit and shipped the lot to the
+        // browser on every connect, so the cost of opening the app grew with
+        // the entire history of every conversation — including channels this
+        // account cannot even see.
+        let messages: ChatMessage[];
+        try {
+          const perSpace = await Promise.all(
+            [...visibleChannels, ...dms].map((space) =>
+              client.findAll<ChatMessage>(
+                CHUNTER_CLASS.ChatMessage,
+                { attachedTo: space._id },
+                { limit: SNAPSHOT_PER_SPACE, sort: { createdOn: SortingOrder.Descending } },
+              ),
+            ),
+          );
+          // newest-first per space above, so that the limit keeps the recent
+          // end; flipped back to reading order before it goes out
+          messages = perSpace.flat().sort((a, b) => a.createdOn - b.createdOn);
+        } catch {
+          send("error", { message: "huly_unavailable" });
+          controller.close();
+          return;
+        }
         // Best-effort, same reasoning as authorRows/tagRows below: a presence
         // lookup failure must never block the stream from opening — DMs just
         // render with no online dot until the next successful snapshot.
@@ -239,6 +271,8 @@ export async function GET() {
 
         send("snapshot", {
           channels: spaces,
+          // tells the client which conversations may have more above the top
+          perSpaceLimit: SNAPSHOT_PER_SPACE,
           messages: messages.map((m) => ({
             id: m._id,
             channelId: m.attachedTo,
