@@ -120,14 +120,14 @@ export default function ProjectDetailView({
             {/* both add buttons stay put across tabs: what you are looking at
                 should not decide what you are allowed to create */}
             <TabActions>
-              <DetailAddButton type="button" onClick={data.openCreateMilestone}>
+              <MilestoneAddButton type="button" onClick={data.openCreateMilestone}>
                 <span className="material-symbols-outlined">add</span>
                 마일스톤
-              </DetailAddButton>
-              <DetailAddButton type="button" onClick={() => data.openCreateTask()}>
+              </MilestoneAddButton>
+              <TaskAddButton type="button" onClick={() => data.openCreateTask()}>
                 <span className="material-symbols-outlined">add</span>
                 태스크
-              </DetailAddButton>
+              </TaskAddButton>
             </TabActions>
           </TabBar>
 
@@ -1595,65 +1595,90 @@ const DetailSectionTitle = styled.h2`
 `;
 
 /**
- * Outlined and neutral, at the control radius the rest of the panel uses.
+ * Each button wears the colour of the thing it makes.
  *
- * It was a full pill filled and outlined in the accent colour, which made two
- * ordinary "add something" controls the loudest thing on the screen — and its
- * hover set the background to the value it already had, so pressing it gave
- * no answer at all.
+ * A milestone is already a lavender diamond on the timeline and a task is
+ * already a blue bar under it, so the buttons are not being decorated — they
+ * are quoting their own output. That is also why they are not the same colour
+ * as each other: two identical grey controls said "add something" twice and
+ * left the reader to find out which.
  *
- * The `+` starts dimmer than the label and comes up to meet it on hover: the
- * word says what the button makes, the sign only says it makes one.
+ * Pastel fill with no border. The earlier version was filled *and* outlined in
+ * a saturated accent, which is what made two ordinary controls the loudest
+ * thing on screen; a soft ground with a deeper label carries the same identity
+ * at a fraction of the volume.
  */
 const DetailAddButton = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  padding: 5px 11px 5px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text);
+  padding: 6px 12px 6px 9px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: var(--tint-soft);
+  color: var(--tint);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease,
-    transform 0.08s ease;
+  transition: transform 0.14s cubic-bezier(0.34, 1.3, 0.64, 1), box-shadow 0.14s ease,
+    border-color 0.14s ease;
 
   .material-symbols-outlined {
     font-size: 16px;
-    color: var(--text-faint);
-    transition: color 0.12s ease;
+    /* the sign turns into the thing it opens */
+    transition: transform 0.22s cubic-bezier(0.34, 1.3, 0.64, 1);
   }
 
   &:hover {
-    background: var(--surface-hover);
-    border-color: var(--text-faint);
+    transform: translateY(-1px);
+    border-color: var(--tint);
+    box-shadow: 0 3px 10px var(--tint-soft);
   }
 
   &:hover .material-symbols-outlined {
-    color: var(--text);
+    transform: rotate(90deg);
   }
 
-  /* the press itself, which nothing here acknowledged before */
   &:active {
-    transform: translateY(1px);
-    background: var(--surface-active);
+    transform: translateY(0);
+    box-shadow: none;
   }
 
   &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    outline: 2px solid var(--tint);
+    outline-offset: 2px;
   }
 
   @media (prefers-reduced-motion: reduce) {
     transition: none;
 
+    &,
+    &:hover,
     &:active {
       transform: none;
     }
+
+    .material-symbols-outlined {
+      transition: none;
+    }
+
+    &:hover .material-symbols-outlined {
+      transform: none;
+    }
   }
+`;
+
+/** Lavender, matching the diamond this button puts on the timeline. */
+const MilestoneAddButton = styled(DetailAddButton)`
+  --tint: var(--milestone);
+  --tint-soft: var(--milestone-soft);
+`;
+
+/** Blue, matching the bars that hang under a milestone. */
+const TaskAddButton = styled(DetailAddButton)`
+  --tint: var(--accent);
+  --tint-soft: var(--accent-soft);
 `;
 
 const MilestoneList = styled.div`
