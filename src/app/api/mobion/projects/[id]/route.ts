@@ -3,13 +3,20 @@ import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 
-type MilestoneRow = { id: string; title: string; target_date: string | null; status: string };
+type MilestoneRow = {
+  id: string;
+  title: string;
+  target_date: string | null;
+  status: string;
+  kind: string;
+};
 type TaskRow = {
   id: string;
   title: string;
   description: string;
   status: string;
   due_date: string | null;
+  start_date: string | null;
   milestone_id: string | null;
   assignee_id: string | null;
   assignee_name: string | null;
@@ -37,13 +44,13 @@ export async function GET(
     }
 
     const milestonesResult = await query<MilestoneRow>(
-      `SELECT id, title, target_date, status FROM mobion_milestones
+      `SELECT id, title, target_date, status, kind FROM mobion_milestones
        WHERE project_id = $1 ORDER BY created_at ASC`,
       [id],
     );
 
     const tasksResult = await query<TaskRow>(
-      `SELECT t.id, t.title, t.description, t.status, t.due_date,
+      `SELECT t.id, t.title, t.description, t.status, t.due_date, t.start_date,
               t.milestone_id, t.assignee_id, u.name AS assignee_name,
               t.created_at, c.name AS created_by_name,
               t.source_channel_id, t.source_excerpt
@@ -61,6 +68,7 @@ export async function GET(
         title: m.title,
         targetDate: m.target_date,
         status: m.status,
+        kind: m.kind,
       })),
       tasks: tasksResult.rows.map((t) => ({
         id: t.id,
@@ -68,6 +76,7 @@ export async function GET(
         description: t.description,
         status: t.status,
         dueDate: t.due_date,
+        startDate: t.start_date,
         milestoneId: t.milestone_id,
         assigneeId: t.assignee_id,
         assigneeName: t.assignee_name,

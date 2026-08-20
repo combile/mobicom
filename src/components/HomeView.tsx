@@ -327,11 +327,14 @@ const NotificationRow = styled.div`
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
-  border-left: 2px solid #00b5ff;
+  /* unread reads as a filled card rather than a marked one; a coloured rule
+     down the side competed with the rail and the section headings */
+  background: rgba(0, 181, 255, 0.06);
+  border-color: rgba(0, 181, 255, 0.22);
 
-  /* read items stay visible for a few days but stop competing for attention */
   &[data-read] {
-    border-left-color: rgba(255, 255, 255, 0.14);
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.1);
     opacity: 0.55;
   }
 `;

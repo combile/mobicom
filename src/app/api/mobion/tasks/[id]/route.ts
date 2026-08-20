@@ -53,6 +53,8 @@ export async function PATCH(
     const assigneeId = body.assigneeId !== undefined ? (body.assigneeId ? String(body.assigneeId) : null) : undefined;
     const milestoneId = body.milestoneId !== undefined ? (body.milestoneId ? String(body.milestoneId) : null) : undefined;
     const dueDate = body.dueDate !== undefined ? (body.dueDate ? String(body.dueDate) : null) : undefined;
+    const startDate =
+      body.startDate !== undefined ? (body.startDate ? String(body.startDate) : null) : undefined;
 
     // Read the current assignee first: a notification should follow a genuine
     // change of hands, which cannot be told from the update alone.
@@ -76,7 +78,8 @@ export async function PATCH(
          status = COALESCE($4, status),
          assignee_id = CASE WHEN $5::boolean THEN $6::uuid ELSE assignee_id END,
          milestone_id = CASE WHEN $7::boolean THEN $8::uuid ELSE milestone_id END,
-         due_date = CASE WHEN $9::boolean THEN $10::date ELSE due_date END
+         due_date = CASE WHEN $9::boolean THEN $10::date ELSE due_date END,
+         start_date = CASE WHEN $11::boolean THEN $12::date ELSE start_date END
        WHERE id = $1
        RETURNING id, title, description, status, due_date, milestone_id, assignee_id`,
       [
@@ -90,6 +93,8 @@ export async function PATCH(
         milestoneId ?? null,
         dueDate !== undefined,
         dueDate ?? null,
+        startDate !== undefined,
+        startDate ?? null,
       ],
     );
 
