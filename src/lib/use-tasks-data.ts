@@ -198,6 +198,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   } | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const pendingTaskRef = useRef<string | null>(null);
+  /** Milestone counterpart to pendingTaskRef; see the project-switch reset. */
+  const pendingMilestoneRef = useRef<string | null>(null);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [activity, setActivity] = useState<TaskActivity[]>([]);
@@ -401,7 +403,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     // stale ones. Carrying it through the switch keeps both behaviours.
     setSelectedTaskId(pendingTaskRef.current);
     pendingTaskRef.current = null;
-    setSelectedMilestoneId(null);
+    setSelectedMilestoneId(pendingMilestoneRef.current);
+    pendingMilestoneRef.current = null;
     setEditingProject(false);
   }, [selectedProjectId]);
 
@@ -689,6 +692,16 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
       return;
     }
     pendingTaskRef.current = taskId;
+    setSelectedProjectId(projectId);
+  }
+
+  /** Milestone counterpart to openTaskInProject, for search results. */
+  function openMilestoneInProject(projectId: string, milestoneId: string) {
+    if (projectId === selectedProjectId) {
+      setSelectedMilestoneId(milestoneId);
+      return;
+    }
+    pendingMilestoneRef.current = milestoneId;
     setSelectedProjectId(projectId);
   }
 
@@ -1026,6 +1039,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     selectedTaskId,
     setSelectedTaskId,
     openTaskInProject,
+    openMilestoneInProject,
     openTaskIndex,
     prevTaskId,
     nextTaskId,
