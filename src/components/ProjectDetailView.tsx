@@ -32,10 +32,13 @@ import {
 export default function ProjectDetailView({
   data,
   onOpenChannel,
+  canDelete = false,
 }: {
   data: TasksData;
   /** Switches the workspace back to the conversation a task came from. */
   onOpenChannel?: (channelId: string) => void;
+  /** Lead only. Hidden rather than disabled, the same as the overview rail. */
+  canDelete?: boolean;
 }) {
   return (
     <Main>
@@ -290,10 +293,15 @@ export default function ProjectDetailView({
           key={data.selectedTask.id}
           data={data}
           onOpenChannel={onOpenChannel}
+          canDelete={canDelete}
         />
       )}
       {data.selectedMilestone && (
-        <MilestoneDetailModal key={data.selectedMilestone.id} data={data} />
+        <MilestoneDetailModal
+          key={data.selectedMilestone.id}
+          data={data}
+          canDelete={canDelete}
+        />
       )}
       {data.editingProject && data.selectedProject && (
         <EditProjectModal key={data.selectedProject.id} data={data} />
@@ -561,7 +569,13 @@ function DeleteButton({
 }
 
 /** Milestone counterpart to TaskDetailModal; same local-draft and `key` rules. */
-function MilestoneDetailModal({ data }: { data: TasksData }) {
+function MilestoneDetailModal({
+  data,
+  canDelete,
+}: {
+  data: TasksData;
+  canDelete: boolean;
+}) {
   const { overlayRef, cardRef, close } = useModalEnterAnimation(() => {
     data.setMilestoneDetailError(null);
     data.setSelectedMilestoneId(null);
@@ -699,6 +713,7 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
 
         {data.milestoneDetailError && <ErrorText>{data.milestoneDetailError}</ErrorText>}
         <FooterRow>
+          {canDelete && (
           <DeleteButton
             busy={data.savingMilestone}
             label="마일스톤 삭제"
@@ -710,6 +725,7 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
               if (ok) close();
             }}
           />
+          )}
           <ModalActions>
             <button type="button" onClick={close}>
               닫기
@@ -736,9 +752,11 @@ function MilestoneDetailModal({ data }: { data: TasksData }) {
 function TaskDetailModal({
   data,
   onOpenChannel,
+  canDelete,
 }: {
   data: TasksData;
   onOpenChannel?: (channelId: string) => void;
+  canDelete: boolean;
 }) {
   const { overlayRef, cardRef, close } = useModalEnterAnimation(() => {
     data.setTaskDetailError(null);
@@ -1080,6 +1098,7 @@ function TaskDetailModal({
 
         {data.taskDetailError && <ErrorText>{data.taskDetailError}</ErrorText>}
         <FooterRow>
+          {canDelete && (
           <DeleteButton
             busy={data.savingTask}
             label="태스크 삭제"
@@ -1088,6 +1107,7 @@ function TaskDetailModal({
               if (ok) close();
             }}
           />
+          )}
           <ModalActions>
             <button type="button" onClick={close}>
               닫기

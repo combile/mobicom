@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireCurrentUser } from "@/lib/mobion-auth";
+import { canAdminister, requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 
@@ -17,7 +17,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireCurrentUser();
+    const user = await requireCurrentUser();
+    // Unlinks every task filed under it as a side effect, so the blast radius
+    // is wider than the single row being removed.
+    if (!canAdminister(user)) {
+      return NextResponse.json(
+        { error: "삭제 권한이 없습니다. 랩장에게 요청해 주세요." },
+        { status: 403 },
+      );
+    }
     const { id } = await params;
 
     // Detach tasks before removing the milestone. Deleting them alongside it

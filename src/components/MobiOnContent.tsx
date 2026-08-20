@@ -602,6 +602,7 @@ export default function MobiOnContent() {
             <ProjectSidebarList data={tasksData} />
             <ProjectDetailView
               data={tasksData}
+              canDelete={role === "lead"}
               onOpenChannel={(channelId) => {
                 setActiveChannelId(channelId);
                 setMode("chat");
