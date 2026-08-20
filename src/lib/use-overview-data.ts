@@ -31,7 +31,7 @@ export type OverviewActivity = {
 export const ROLE_LABELS: Record<OverviewRole, string> = {
   member: "연구원",
   lead: "랩장",
-  professor: "교수",
+  professor: "교수님",
 };
 
 /**
