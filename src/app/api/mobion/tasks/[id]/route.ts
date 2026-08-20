@@ -32,7 +32,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireCurrentUser();
+    const user = await requireCurrentUser();
     const { id } = await params;
     const body = await request.json();
 
@@ -53,6 +53,13 @@ export async function PATCH(
     const assigneeId = body.assigneeId !== undefined ? (body.assigneeId ? String(body.assigneeId) : null) : undefined;
     const milestoneId = body.milestoneId !== undefined ? (body.milestoneId ? String(body.milestoneId) : null) : undefined;
     const dueDate = body.dueDate !== undefined ? (body.dueDate ? String(body.dueDate) : null) : undefined;
+
+    // Read the current assignee first: a notification should follow a genuine
+    // change of hands, which cannot be told from the update alone.
+    const before = await query<{ assignee_id: string | null; title: string }>(
+      `SELECT assignee_id, title FROM mobion_tasks WHERE id = $1`,
+      [id],
+    );
 
     const result = await query<{
       id: string;
@@ -89,6 +96,22 @@ export async function PATCH(
     const t = result.rows[0];
     if (!t) {
       return NextResponse.json({ error: "태스크를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    // Only a genuine change of hands is worth telling someone about — saving
+    // the same assignee again, or picking yourself, is not news.
+    const previousAssignee = before.rows[0]?.assignee_id ?? null;
+    if (
+      assigneeId !== undefined &&
+      assigneeId &&
+      assigneeId !== previousAssignee &&
+      assigneeId !== user.id
+    ) {
+      await query(
+        `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
+         VALUES ($1, 'assigned', $2, $3, $4)`,
+        [assigneeId, id, user.id, t.title.slice(0, 200)],
+      );
     }
 
     return NextResponse.json({

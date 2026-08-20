@@ -60,8 +60,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "내용을 입력해 주세요." }, { status: 400 });
     }
 
-    const exists = await query<{ id: string }>(`SELECT id FROM mobion_tasks WHERE id = $1`, [id]);
-    if (!exists.rows[0]) {
+    const exists = await query<{ id: string; title: string; assignee_id: string | null }>(
+      `SELECT id, title, assignee_id FROM mobion_tasks WHERE id = $1`,
+      [id],
+    );
+    const task = exists.rows[0];
+    if (!task) {
       return NextResponse.json({ error: "태스크를 찾을 수 없습니다." }, { status: 404 });
     }
 
@@ -78,6 +82,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
        LEFT JOIN mobion_users u ON u.id = i.user_id`,
       [id, user.id, body],
     );
+
+    // Tell the assignee someone replied. Skipped when they wrote it themselves,
+    // and when nobody is assigned there is no one to tell.
+    if (task.assignee_id && task.assignee_id !== user.id) {
+      await query(
+        `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
+         VALUES ($1, 'comment', $2, $3, $4)`,
+        [task.assignee_id, id, user.id, body.slice(0, 200)],
+      );
+    }
 
     const c = result.rows[0];
     return NextResponse.json({

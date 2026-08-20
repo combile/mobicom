@@ -12,14 +12,17 @@ export type HomeTask = {
   projectName: string;
 };
 
-export type HomeReply = {
+
+export type Notification = {
   id: string;
+  kind: "comment" | "assigned";
   body: string;
   createdAt: string;
-  authorName: string | null;
-  taskId: string;
-  taskTitle: string;
-  projectId: string;
+  actorName: string | null;
+  taskId: string | null;
+  taskTitle: string | null;
+  projectId: string | null;
+  read: boolean;
 };
 
 export type HomeContest = {
@@ -32,8 +35,9 @@ export type HomeContest = {
 export function useHomeData(enabled: boolean) {
   const [userName, setUserName] = useState("");
   const [myTasks, setMyTasks] = useState<HomeTask[]>([]);
-  const [replies, setReplies] = useState<HomeReply[]>([]);
   const [contests, setContests] = useState<HomeContest[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -48,13 +52,47 @@ export function useHomeData(enabled: boolean) {
       .then((data) => {
         setUserName(data.userName ?? "");
         setMyTasks(data.myTasks ?? []);
-        setReplies(data.replies ?? []);
         setContests(data.contests ?? []);
         setLoadError(null);
       })
       .catch(() => setLoadError("홈 정보를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
+
+    fetch("/api/mobion/notifications")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        setNotifications(
+          (data.notifications ?? []).map((n: Notification & { readAt?: string | null }) => ({
+            ...n,
+            read: false,
+          })),
+        );
+        setUnreadCount(data.unreadCount ?? 0);
+      })
+      // notifications failing should not take the rest of home down with it
+      .catch(() => setNotifications([]));
   }, [enabled]);
+
+  /**
+   * Marks read locally as soon as it is acted on, so the row does not linger
+   * while the request is in flight. A failure is not surfaced: the worst case
+   * is seeing it again on the next load, which is the safer direction.
+   */
+  async function markRead(id: string) {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setUnreadCount((c) => Math.max(0, c - 1));
+    await fetch("/api/mobion/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => {});
+  }
+
+  async function markAllRead() {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+    await fetch("/api/mobion/notifications", { method: "POST" }).catch(() => {});
+  }
 
   const today = todayISO();
 
@@ -70,17 +108,20 @@ export function useHomeData(enabled: boolean) {
   const soonCount = myTasks.filter((t) => dueState(t.dueDate, t.status) === "soon").length;
 
   return {
+    notifications,
+    unreadCount,
+    markRead,
+    markAllRead,
     userName,
     myTasks,
     overdue,
     dueToday,
     rest,
     soonCount,
-    replies,
     contests,
     loadError,
     loading,
-    isClear: myTasks.length === 0 && replies.length === 0,
+    isClear: myTasks.length === 0 && notifications.length === 0,
   };
 }
 
