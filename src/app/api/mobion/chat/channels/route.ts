@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
-import { getWorkspaceClient, CHUNTER_CLASS, HULY_CORE_SPACE } from "@/lib/mobion-huly";
+import {
+  ensureHulyLink,
+  getWorkspaceClient,
+  CHUNTER_CLASS,
+  HULY_CORE_SPACE,
+} from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
-
-type HulyLinkRow = {
-  huly_account_email: string;
-  huly_credential_encrypted: string;
-  huly_workspace: string;
-};
 
 export async function POST(request: Request) {
   try {
@@ -29,12 +28,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "채널 이름을 입력해 주세요." }, { status: 400 });
     }
 
-    const linkResult = await query<HulyLinkRow>(
-      `SELECT huly_account_email, huly_credential_encrypted, huly_workspace
-       FROM mobion_huly_link WHERE user_id = $1 LIMIT 1`,
-      [user.id],
-    );
-    const link = linkResult.rows[0];
+    // provisions on first use, so an account activated while Huly was down is
+    // not stuck without chat forever
+    const link = await ensureHulyLink(user);
     if (!link) {
       return NextResponse.json({ error: "Huly 계정이 연결되어 있지 않습니다." }, { status: 404 });
     }

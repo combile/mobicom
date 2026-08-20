@@ -111,6 +111,54 @@ type HulyLink = {
   huly_workspace: string;
 };
 
+/**
+ * The caller's Huly link, provisioning one if it is missing.
+ *
+ * Activation used to be the only place a link could be made, and it made one
+ * before the account existed — so if the Huly server was unreachable at that
+ * moment, the whole signup failed and the person had no account at all. Chat
+ * is one feature of the workspace, not a precondition for having a login.
+ *
+ * Now activation may leave someone unlinked, and the link is made on the first
+ * request that actually needs it. Returns null when Huly is still unreachable,
+ * which the chat routes already know how to report — every other part of the
+ * app never asks.
+ */
+export async function ensureHulyLink(user: {
+  id: string;
+  email: string;
+  name: string;
+}): Promise<HulyLink | null> {
+  const existing = await query<HulyLink>(
+    `SELECT huly_account_email, huly_credential_encrypted, huly_workspace
+     FROM mobion_huly_link WHERE user_id = $1 LIMIT 1`,
+    [user.id],
+  );
+  if (existing.rows[0]) return existing.rows[0];
+
+  try {
+    const link = await provisionHulyAccount(user.email, user.name);
+    await query(
+      `INSERT INTO mobion_huly_link
+         (user_id, huly_account_email, huly_credential_encrypted, huly_workspace)
+       VALUES ($1, $2, $3, $4)
+       -- a second request racing this one already did the work
+       ON CONFLICT (user_id) DO NOTHING`,
+      [user.id, link.huly_account_email, link.huly_credential_encrypted, link.huly_workspace],
+    );
+    // re-read rather than returning what was just built: on the conflict path
+    // the stored row is the other request's, not this one's
+    const after = await query<HulyLink>(
+      `SELECT huly_account_email, huly_credential_encrypted, huly_workspace
+       FROM mobion_huly_link WHERE user_id = $1 LIMIT 1`,
+      [user.id],
+    );
+    return after.rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Connects as the linked user and runs a trivial read, to prove the bridge works. */
 export async function pingAsUser(link: HulyLink): Promise<boolean> {
   const password = decryptSecret(link.huly_credential_encrypted);

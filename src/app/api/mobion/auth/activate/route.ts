@@ -78,18 +78,28 @@ export async function POST(request: Request) {
       user = inserted.rows[0];
     }
 
-    const hulyLink = await provisionHulyAccount(invite.email, name);
-    await query(
-      `INSERT INTO mobion_huly_link
-         (user_id, huly_account_email, huly_credential_encrypted, huly_workspace)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        user.id,
-        hulyLink.huly_account_email,
-        hulyLink.huly_credential_encrypted,
-        hulyLink.huly_workspace,
-      ],
-    );
+    // Best-effort. This used to be unguarded, so a Huly server that was down —
+    // or simply not configured yet — failed the whole signup and left the
+    // person with no account at all. Chat is one feature of the workspace, not
+    // a precondition for having a login. If it does not happen here, the first
+    // chat request provisions it instead (see ensureHulyLink).
+    try {
+      const hulyLink = await provisionHulyAccount(invite.email, name);
+      await query(
+        `INSERT INTO mobion_huly_link
+           (user_id, huly_account_email, huly_credential_encrypted, huly_workspace)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [
+          user.id,
+          hulyLink.huly_account_email,
+          hulyLink.huly_credential_encrypted,
+          hulyLink.huly_workspace,
+        ],
+      );
+    } catch {
+      // left unlinked on purpose; the account itself is what matters here
+    }
 
     await consumeInvite(invite.id);
     await createSession(user.id);
