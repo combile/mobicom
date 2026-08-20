@@ -39,6 +39,14 @@ export type HomeContest = {
  */
 const POLL_MS = 45_000;
 
+export type AttendanceDay = {
+  date: string;
+  firstSeenAt: string;
+  /** The person's own correction; null means the observed time stands. */
+  checkedInAt: string | null;
+  note: string | null;
+};
+
 export function useHomeData(enabled: boolean) {
   const [userName, setUserName] = useState("");
   const [myTasks, setMyTasks] = useState<HomeTask[]>([]);
@@ -47,6 +55,7 @@ export function useHomeData(enabled: boolean) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [attendance, setAttendance] = useState<AttendanceDay[]>([]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -65,6 +74,12 @@ export function useHomeData(enabled: boolean) {
       .catch(() => setLoadError("홈 정보를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
 
+    // The record is written by the notifications poll; this only reads it back
+    // so the person can see — and correct — what was written about them.
+    fetch("/api/mobion/attendance")
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => setAttendance(data.days ?? []))
+      .catch(() => setAttendance([]));
   }, [enabled]);
 
   /**
@@ -133,6 +148,35 @@ export function useHomeData(enabled: boolean) {
   }
 
   const today = todayISO();
+  const todayAttendance = attendance.find((d) => d.date === today) ?? null;
+
+  /**
+   * Correct the recorded arrival time for a day.
+   *
+   * Applied locally on success only: unlike a checkbox, this is a value the
+   * server derives (the corrected timestamp is built from the row's own date),
+   * so echoing a guess would risk showing something the record does not say.
+   */
+  async function correctAttendance(date: string, time: string | null, note: string | null) {
+    try {
+      const res = await fetch("/api/mobion/attendance", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time, note }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoadError(body.error ?? "출근 기록을 고치지 못했습니다.");
+        return false;
+      }
+      setAttendance((prev) => prev.map((d) => (d.date === date ? body.day : d)));
+      setLoadError(null);
+      return true;
+    } catch {
+      setLoadError("출근 기록을 고치지 못했습니다.");
+      return false;
+    }
+  }
 
   /**
    * Three buckets in the order they demand attention: already late, due today,
@@ -146,6 +190,9 @@ export function useHomeData(enabled: boolean) {
   const soonCount = myTasks.filter((t) => dueState(t.dueDate, t.status) === "soon").length;
 
   return {
+    attendance,
+    todayAttendance,
+    correctAttendance,
     notifications,
     unreadCount,
     markRead,

@@ -10,9 +10,11 @@ import { useTasksData } from "@/lib/use-tasks-data";
 import { useScheduleData } from "@/lib/use-schedule-data";
 import ScheduleView from "./ScheduleView";
 import { useContestsData } from "@/lib/use-contests-data";
+import { useOverviewData } from "@/lib/use-overview-data";
 import { useHomeData } from "@/lib/use-home-data";
 import HomeView from "./HomeView";
 import ContestsView from "./ContestsView";
+import OverviewView from "./OverviewView";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
 
@@ -92,16 +94,20 @@ function groupMessages(list: Message[]): MessageGroup[] {
   return groups;
 }
 
-type WorkspaceMode = "home" | "chat" | "projects" | "schedule" | "contests";
+type WorkspaceMode = "home" | "chat" | "projects" | "schedule" | "contests" | "overview";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("home");
   // declared here rather than with the other chat state because useTasksData
   // needs it, and a const cannot be read before its declaration
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [role, setRole] = useState<"member" | "lead" | "professor">("member");
+  // the two roles answerable for the lab as a whole
+  const canOversee = role === "lead" || role === "professor";
   const tasksData = useTasksData(mode === "projects", currentUserId);
   const scheduleData = useScheduleData(mode === "schedule");
   const contestsData = useContestsData(mode === "contests");
+  const overviewData = useOverviewData(mode === "overview");
   const homeData = useHomeData(mode === "home");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -154,7 +160,10 @@ export default function MobiOnContent() {
   useEffect(() => {
     fetch("/api/mobion/auth/me")
       .then((res) => res.json())
-      .then((data) => setCurrentUserId(data.user?.id ?? null))
+      .then((data) => {
+        setCurrentUserId(data.user?.id ?? null);
+        if (data.user?.role) setRole(data.user.role);
+      })
       .catch(() => {});
   }, []);
 
@@ -573,6 +582,20 @@ export default function MobiOnContent() {
           >
             <span className="material-symbols-outlined">emoji_events</span>
           </RailButton>
+          {/* Hidden rather than disabled for everyone else: a control that is
+              visible but refuses is an invitation to wonder what is behind it,
+              and the server checks the role regardless of what the rail shows. */}
+          {canOversee && (
+            <RailButton
+              type="button"
+              data-active={mode === "overview" || undefined}
+              onClick={() => setMode("overview")}
+              aria-label="연구실 현황"
+              title="연구실 현황"
+            >
+              <span className="material-symbols-outlined">groups</span>
+            </RailButton>
+          )}
         </IconRail>
         {mode === "projects" && (
           <>
@@ -598,6 +621,15 @@ export default function MobiOnContent() {
           />
         )}
         {mode === "contests" && <ContestsView data={contestsData} />}
+        {mode === "overview" && canOversee && (
+          <OverviewView
+            data={overviewData}
+            onOpenTask={(projectId, taskId) => {
+              setMode("projects");
+              tasksData.openTaskInProject(projectId, taskId);
+            }}
+          />
+        )}
         {mode === "schedule" && (
           <ScheduleView
             data={scheduleData}

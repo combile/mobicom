@@ -7,12 +7,29 @@ const scrypt = promisify(scryptCallback);
 const SESSION_COOKIE = "mobion_session";
 const SESSION_DAYS = 14;
 
+export type MobionRole = "member" | "lead" | "professor";
+
 export type MobionUser = {
   id: string;
   name: string;
   email: string;
+  /**
+   * `is_admin` is kept only so the column keeps its old meaning for anything
+   * not yet migrated; `role` is the one that decides anything.
+   */
   is_admin: boolean;
+  role: MobionRole;
 };
+
+/** May invite, assign roles, and delete. */
+export function canAdminister(user: MobionUser) {
+  return user.role === "lead";
+}
+
+/** May read across the whole lab, including who was in when. */
+export function canOversee(user: MobionUser) {
+  return user.role === "lead" || user.role === "professor";
+}
 
 type UserRow = MobionUser & {
   password_hash: string;
@@ -81,7 +98,7 @@ export async function getCurrentUser(): Promise<MobionUser | null> {
   if (!token) return null;
 
   const result = await query<MobionUser>(
-    `SELECT u.id, u.name, u.email, u.is_admin
+    `SELECT u.id, u.name, u.email, u.is_admin, u.role
      FROM mobion_sessions s
      JOIN mobion_users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > now()
@@ -102,7 +119,7 @@ export async function requireCurrentUser() {
 
 export async function findUserByEmail(email: string) {
   const result = await query<UserRow>(
-    `SELECT id, name, email, is_admin, password_hash
+    `SELECT id, name, email, is_admin, role, password_hash
      FROM mobion_users
      WHERE email = $1
      LIMIT 1`,
