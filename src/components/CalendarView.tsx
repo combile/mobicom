@@ -25,12 +25,19 @@ export default function CalendarView({
   items,
   onOpen,
   onCreate,
+  onReschedule,
 }: {
   items: ScheduleItem[];
   onOpen: (item: ScheduleItem) => void;
   onCreate: (date: string) => void;
+  onReschedule: (item: ScheduleItem, date: string) => void;
 }) {
   const today = todayISO();
+  // dataTransfer cannot be read during dragover, only on drop, so the item
+  // being dragged is held here instead — the cell needs to know whether it is
+  // a valid target while the pointer is still over it
+  const [dragging, setDragging] = useState<ScheduleItem | null>(null);
+  const [over, setOver] = useState<string | null>(null);
   const [cursor, setCursor] = useState(() => {
     const d = new Date(`${today}T00:00:00`);
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -106,7 +113,25 @@ export default function CalendarView({
           const dayItems = byDate.get(cell.date) ?? [];
           const extra = dayItems.length - VISIBLE_PER_DAY;
           return (
-            <DayCell key={cell.date} data-outside={!cell.inMonth || undefined}>
+            <DayCell
+              key={cell.date}
+              data-outside={!cell.inMonth || undefined}
+              data-over={(over === cell.date && dragging?.date !== cell.date) || undefined}
+              onDragOver={(e) => {
+                if (!dragging) return;
+                // without preventDefault the browser refuses the drop entirely
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                setOver(cell.date);
+              }}
+              onDragLeave={() => setOver((d) => (d === cell.date ? null : d))}
+              onDrop={(e) => {
+                e.preventDefault();
+                setOver(null);
+                if (dragging) onReschedule(dragging, cell.date);
+                setDragging(null);
+              }}
+            >
               <DayNumber data-today={cell.date === today || undefined}>{cell.day}</DayNumber>
               {/* hidden until the cell is under the pointer: 42 always-visible
                   plus signs would be louder than the schedule itself */}
@@ -122,8 +147,27 @@ export default function CalendarView({
                   key={`${item.kind}-${item.id}`}
                   type="button"
                   data-done={item.status === "done" || undefined}
+                  data-dragging={
+                    (dragging?.kind === item.kind && dragging?.id === item.id) || undefined
+                  }
+                  /* a contest deadline is the organiser's date, not ours */
+                  draggable={item.kind !== "contest"}
+                  onDragStart={(e) => {
+                    setDragging(item);
+                    e.dataTransfer.effectAllowed = "move";
+                    // Firefox starts no drag at all without payload
+                    e.dataTransfer.setData("text/plain", item.id);
+                  }}
+                  onDragEnd={() => {
+                    setDragging(null);
+                    setOver(null);
+                  }}
                   onClick={() => onOpen(item)}
-                  title={`${item.title} · ${item.projectName}`}
+                  title={
+                    item.kind === "contest"
+                      ? `${item.title} · ${item.projectName}`
+                      : `${item.title} · ${item.projectName} — 끌어서 날짜 변경`
+                  }
                 >
                   <Dot data-kind={item.kind} />
                   <EntryText>{item.title}</EntryText>
@@ -263,6 +307,14 @@ const Entry = styled.button`
     color: #6a6a6a;
     text-decoration: line-through;
   }
+
+  &[draggable="true"] {
+    cursor: grab;
+  }
+
+  &[data-dragging] {
+    opacity: 0.4;
+  }
 `;
 
 const Dot = styled.span`
@@ -307,6 +359,12 @@ const DayCell = styled.div`
 
   &[data-outside] {
     background: rgba(0, 0, 0, 0.18);
+  }
+
+  &[data-over] {
+    /* inset so the highlight does not shift the grid by a pixel */
+    box-shadow: inset 0 0 0 1px #6a9fd4;
+    background: rgba(106, 159, 212, 0.1);
   }
 
   /* neighbouring months stay visible so weeks read as weeks, just recessed
