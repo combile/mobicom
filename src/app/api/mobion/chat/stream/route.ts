@@ -1,13 +1,13 @@
 import { requireCurrentUser } from "@/lib/mobion-auth";
-import { getWorkspaceClient, CHUNTER_CLASS, CORE_CLASS, SortingOrder } from "@/lib/mobion-huly";
+import {
+  ensureHulyLink,
+  getWorkspaceClient,
+  CHUNTER_CLASS,
+  CORE_CLASS,
+  SortingOrder,
+} from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
-
-type HulyLinkRow = {
-  huly_account_email: string;
-  huly_credential_encrypted: string;
-  huly_workspace: string;
-};
 
 type ChunterSpace = {
   _id: string;
@@ -131,12 +131,7 @@ export async function GET() {
         // the user why. See mobion-huly.ts's huly_social_id comment: only the
         // admin-bootstrapped account (created directly in Postgres, bypassing
         // the invite/activate flow) can hit this in practice.
-        const linkResult = await query<HulyLinkRow>(
-          `SELECT huly_account_email, huly_credential_encrypted, huly_workspace
-           FROM mobion_huly_link WHERE user_id = $1 LIMIT 1`,
-          [user.id],
-        );
-        const link = linkResult.rows[0];
+        const link = await ensureHulyLink(user);
         if (!link) {
           send("error", { message: "not_linked" });
           controller.close();
