@@ -139,7 +139,7 @@ function ResearchCard({ card }: { card: (typeof CARDS)[number] }) {
 const Root = styled.div`
   position: relative;
   z-index: 1;
-  padding: clamp(135px, 14.4vh, 189px) 0 108px;
+  padding: clamp(160px, 18vh, 220px) 0 108px;
 `;
 
 const BgImage = styled.div`
