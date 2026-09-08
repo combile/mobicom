@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireCurrentUser } from "@/lib/mobion-auth";
+import { canAdminister, requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 
@@ -10,7 +10,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireCurrentUser();
+    const user = await requireCurrentUser();
+    // Removing a task takes its comments, history and checklist with it, and
+    // there is no undo. The role table already said this was the lead's to do;
+    // until now nothing enforced it.
+    if (!canAdminister(user)) {
+      return NextResponse.json(
+        { error: "삭제 권한이 없습니다. 랩장에게 요청해 주세요." },
+        { status: 403 },
+      );
+    }
     const { id } = await params;
 
     const result = await query<{ id: string }>(

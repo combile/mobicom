@@ -15,6 +15,7 @@ import { useHomeData } from "@/lib/use-home-data";
 import HomeView from "./HomeView";
 import ContestsView from "./ContestsView";
 import OverviewView from "./OverviewView";
+import CommandPalette, { type SearchResult } from "./CommandPalette";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
 
@@ -102,6 +103,7 @@ export default function MobiOnContent() {
   // needs it, and a const cannot be read before its declaration
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [role, setRole] = useState<"member" | "lead" | "professor">("member");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   // the two roles answerable for the lab as a whole
   const canOversee = role === "lead" || role === "professor";
   const tasksData = useTasksData(mode === "projects", currentUserId);
@@ -433,6 +435,32 @@ export default function MobiOnContent() {
     setMode("projects");
   }
 
+  // Cmd+K on macOS, Ctrl+K elsewhere. Bound to the document so it works from
+  // any mode, including while a modal has focus.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  /** Search results live in four different places; each opens where it lives. */
+  function openSearchResult(r: SearchResult) {
+    if (r.kind === "contest") {
+      setMode("contests");
+      return;
+    }
+    if (!r.projectId) return;
+    setMode("projects");
+    if (r.kind === "task") tasksData.openTaskInProject(r.projectId, r.id);
+    else if (r.kind === "milestone") tasksData.openMilestoneInProject(r.projectId, r.id);
+    else tasksData.setSelectedProjectId(r.projectId);
+  }
+
   const messageListRef = useRef<HTMLDivElement>(null);
 
   const activeMessages = messages
@@ -529,6 +557,9 @@ export default function MobiOnContent() {
   return (
     <Root>
       {reconnecting && <ReconnectBanner>재연결 중...</ReconnectBanner>}
+      {paletteOpen && (
+        <CommandPalette onClose={() => setPaletteOpen(false)} onSelect={openSearchResult} />
+      )}
       <Layout>
         <IconRail>
           <RailButton
@@ -602,6 +633,7 @@ export default function MobiOnContent() {
             <ProjectSidebarList data={tasksData} />
             <ProjectDetailView
               data={tasksData}
+              canDelete={role === "lead"}
               onOpenChannel={(channelId) => {
                 setActiveChannelId(channelId);
                 setMode("chat");
