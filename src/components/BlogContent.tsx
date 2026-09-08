@@ -199,7 +199,7 @@ function BlogCard({ post: p }: { post: Post }) {
 const Root = styled.div`
   position: relative;
   z-index: 1;
-  padding: clamp(160px, 18vh, 220px) 0 116px;
+  padding: clamp(126px, 13.6vh, 176px) 0 116px;
 `;
 
 const Container = styled.div`
