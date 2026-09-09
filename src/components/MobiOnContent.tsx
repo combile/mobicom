@@ -84,11 +84,34 @@ type MessageGroup = {
   messages: Message[];
 };
 
-function renderMessageText(text: string, knownUserIds: Set<string>) {
+function renderMessageText(
+  text: string,
+  knownUserIds: Set<string>,
+  onMentionClick?: (userId: string, name: string) => void,
+) {
   return parseMentionSegments(text).map((seg, i) => {
     if (seg.type === "text") return <span key={i}>{seg.content}</span>;
+    // A name that matches nobody stays plain text — it is not a link to
+    // anywhere, and styling it as one would promise a profile that cannot open.
     if (!knownUserIds.has(seg.userId)) return <span key={i}>@{seg.name}</span>;
-    return <Mention key={i}>@{seg.name}</Mention>;
+    if (!onMentionClick) return <Mention key={i}>@{seg.name}</Mention>;
+    return (
+      <Mention
+        key={i}
+        role="button"
+        tabIndex={0}
+        data-clickable
+        onClick={() => onMentionClick(seg.userId, seg.name)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onMentionClick(seg.userId, seg.name);
+          }
+        }}
+      >
+        @{seg.name}
+      </Mention>
+    );
   });
 }
 
@@ -1363,7 +1386,20 @@ export default function MobiOnContent() {
                         }
                         plainText={mentionPlainText(m.text)}
                         readBy={readersOf(m)}
-                        renderText={(text) => renderMessageText(text, knownUserIds)}
+                        renderText={(text) =>
+                          renderMessageText(text, knownUserIds, (userId, name) => {
+                            // The profile card is keyed by Huly PersonId; a
+                            // mention carries this app's user id, so it is
+                            // translated here. An unlinked account resolves to
+                            // an empty id and the card says why it cannot DM.
+                            const u = mentionUsers.find((x) => x.id === userId);
+                            setProfileFor({
+                              socialId: u?.hulySocialId ?? "",
+                              name,
+                              avatarUrl: null,
+                            });
+                          })
+                        }
                         onReact={(emoji) => void handleReact(m.id, emoji)}
                         onReply={() => setReplyingTo(m)}
                         onEdit={(text) =>
@@ -2251,6 +2287,17 @@ const MessageTime = styled.span`
 const Mention = styled.span`
   color: var(--accent);
   font-weight: 700;
+
+  /* Only the ones wired to a profile look pressable. */
+  &[data-clickable] {
+    cursor: pointer;
+    border-radius: 3px;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--accent-soft);
+    }
+  }
 `;
 
 /* The reply target and the attachment tray sit above the input rather than
