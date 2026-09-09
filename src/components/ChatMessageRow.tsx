@@ -572,14 +572,19 @@ const MenuItem = styled.button`
   }
 `;
 
+/* Out of the flow, in the gutter the avatar column already leaves — so the
+   message text starts at the same place whether or not a timestamp is showing.
+   As a flex item it pushed every line 44px right, which is worse than the
+   ragged first line it was meant to fix. */
 const Stamp = styled.span`
-  flex: 0 0 44px;
-  padding-top: 3px;
-  font-size: 11px;
+  position: absolute;
+  left: -46px;
+  top: 2px;
+  font-size: 10px;
   line-height: 1.5;
-  text-align: right;
   color: var(--text-faint, #9aa0a6);
   opacity: 0;
+  transition: opacity 0.1s ease;
 
   ${Row}:hover & {
     opacity: 1;
