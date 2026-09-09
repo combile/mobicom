@@ -7,7 +7,7 @@ import CustomSelect from "./CustomSelect";
 import DatePicker from "./DatePicker";
 import GanttChart from "./GanttChart";
 import MentionInput from "./MentionInput";
-import { parseMentionSegments } from "@/lib/mobion-mentions";
+import { parseMentionSegments, encodeMentions } from "@/lib/mobion-mentions";
 import {
   MILESTONE_KINDS,
   MILESTONE_STATUS_OPTIONS,
@@ -799,7 +799,8 @@ function TaskDetailModal({
   }
 
   async function submitComment() {
-    const body = draftComment.trim();
+    // Same as chat: the box holds "@이름" and the id is attached on the way out.
+    const body = encodeMentions(draftComment.trim(), data.allUsers);
     if (!body) return;
     const ok = await data.addComment(task.id, body);
     if (ok) setDraftComment("");

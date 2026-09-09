@@ -22,6 +22,28 @@ export function parseMentionSegments(text: string): MessageSegment[] {
   return segments;
 }
 
+/**
+ * Turns the "@이름" a person typed into the "@[id:이름]" that gets stored.
+ *
+ * The input box shows plain "@이름" while typing, because an <input> renders
+ * text literally and putting the stored form in it means watching a uuid sit in
+ * the middle of your own sentence. The id is attached here instead, on the way
+ * out.
+ *
+ * Longest names first: with "김철" and "김철수" both in the lab, replacing the
+ * short one first would eat the prefix of the long one and leave a stray "수".
+ */
+export function encodeMentions(text: string, users: { id: string; name: string }[]): string {
+  const byLongestName = [...users].sort((a, b) => b.name.length - a.name.length);
+  let out = text;
+  for (const u of byLongestName) {
+    // split/join rather than a regex: a name is arbitrary user text and would
+    // otherwise need escaping to be safe as a pattern.
+    out = out.split(`@${u.name}`).join(`@[${u.id}:${u.name}]`);
+  }
+  return out;
+}
+
 export function messageContainsMentionOf(text: string, userId: string): boolean {
   return parseMentionSegments(text).some(
     (s) => s.type === "mention" && s.userId === userId,
@@ -71,5 +93,21 @@ if (typeof process !== "undefined" && process.argv?.[1] && import.meta.url === `
   assert.deepStrictEqual(detectMentionTrigger("hi @eun", 7), { start: 3, query: "eun" });
   assert.strictEqual(detectMentionTrigger("hi @eun there", 13), null);
   assert.strictEqual(detectMentionTrigger("no trigger", 5), null);
+
+  const lab = [
+    { id: "u1", name: "김철" },
+    { id: "u2", name: "김철수" },
+  ];
+  assert.strictEqual(encodeMentions("@김철수 확인 부탁", lab), "@[u2:김철수] 확인 부탁");
+  assert.strictEqual(encodeMentions("@김철 확인", lab), "@[u1:김철] 확인");
+  assert.strictEqual(encodeMentions("멘션 없음", lab), "멘션 없음");
+  // a name that is not in the list stays plain text rather than becoming a
+  // broken mention
+  assert.strictEqual(encodeMentions("@없는사람 안녕", lab), "@없는사람 안녕");
+  // round trip: what encode produces must be what parse understands
+  assert.deepStrictEqual(parseMentionSegments(encodeMentions("@김철수!", lab)), [
+    { type: "mention", userId: "u2", name: "김철수" },
+    { type: "text", content: "!" },
+  ]);
   console.log("mobion-mentions self-check passed");
 }

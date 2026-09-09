@@ -53,7 +53,11 @@ export default function MentionInput({
     if (!trigger) return;
     const before = value.slice(0, trigger.start);
     const after = value.slice(trigger.start + 1 + trigger.query.length);
-    onChange(`${before}@[${user.id}:${user.name}] ${after}`);
+    // Plain "@이름" while typing. The id is attached on send by
+    // encodeMentions — an <input> shows text literally, so inserting the stored
+    // "@[uuid:이름]" form here put a uuid in the middle of the sentence being
+    // written.
+    onChange(`${before}@${user.name} ${after}`);
     setTrigger(null);
     inputRef.current?.focus();
   }

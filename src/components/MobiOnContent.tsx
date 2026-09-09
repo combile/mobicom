@@ -7,7 +7,11 @@ import ChatMessageRow, { type Reaction, type Attachment } from "./ChatMessageRow
 import ConfirmDialog from "./ConfirmDialog";
 import ProjectSidebarList from "./ProjectSidebarList";
 import ProjectDetailView from "./ProjectDetailView";
-import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
+import {
+  parseMentionSegments,
+  messageContainsMentionOf,
+  encodeMentions,
+} from "@/lib/mobion-mentions";
 import { useTasksData } from "@/lib/use-tasks-data";
 import { useScheduleData } from "@/lib/use-schedule-data";
 import ScheduleView from "./ScheduleView";
@@ -325,7 +329,9 @@ export default function MobiOnContent() {
   }, [refreshToken]);
 
   async function handleSend() {
-    const text = draft.trim();
+    // The box holds "@이름"; the stored form carries the id so a rename never
+    // breaks an old mention and so the highlight can tell people apart.
+    const text = encodeMentions(draft.trim(), mentionUsers);
     if (!text || !activeChannelId) return;
     setSendError(null);
     const activeChannel = channels.find((c) => c.id === activeChannelId);
