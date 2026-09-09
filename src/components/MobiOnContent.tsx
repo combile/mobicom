@@ -3,9 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import MentionInput from "./MentionInput";
+import ChatMessageRow, { type Reaction, type Attachment } from "./ChatMessageRow";
+import ConfirmDialog from "./ConfirmDialog";
+import ChatTaskModal from "./ChatTaskModal";
 import ProjectSidebarList from "./ProjectSidebarList";
 import ProjectDetailView from "./ProjectDetailView";
-import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
+import {
+  parseMentionSegments,
+  messageContainsMentionOf,
+  encodeMentions,
+  mentionPlainText,
+} from "@/lib/mobion-mentions";
 import { useTasksData } from "@/lib/use-tasks-data";
 import { useScheduleData } from "@/lib/use-schedule-data";
 import ScheduleView from "./ScheduleView";
@@ -127,6 +135,36 @@ export default function MobiOnContent() {
   const [reconnecting, setReconnecting] = useState(false);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
+  // messageId -> its reactions / attachments / the message it answers. Kept as
+  // three maps beside `messages` rather than merged into each Message: the SSE
+  // snapshot owns that array and replaces it wholesale on every reconnect,
+  // which would throw away anything merged in.
+  const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
+  const [attachments, setAttachments] = useState<Record<string, Attachment[]>>({});
+  const [replyOf, setReplyOf] = useState<Record<string, string>>({});
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  // channelId -> everyone else's read position, for the "N명 읽음" line
+  const [othersReads, setOthersReads] = useState<
+    Record<string, { userId: string; name: string; lastReadOn: number }[]>
+  >({});
+  const [pendingFiles, setPendingFiles] = useState<
+    { id: string; filename: string; size: number; uploading: boolean }[]
+  >([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // What a confirmation dialog is currently asking about, or null when none is
+  // open. One piece of state for both kinds of deletion — only ever one dialog
+  // is on screen, and holding the action here keeps the dialog itself unaware
+  // of what it is confirming.
+  // The message a task is being raised from, or null. Holding the message
+  // rather than a boolean keeps the modal's inputs prefilled from it without a
+  // second copy of the text living in state.
+  const [taskFromMessage, setTaskFromMessage] = useState<Message | null>(null);
+  const [confirming, setConfirming] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
   const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
@@ -217,7 +255,23 @@ export default function MobiOnContent() {
       // that may never open.
       fetch("/api/mobion/chat/reads")
         .then((res) => (res.ok ? res.json() : { reads: {} }))
-        .then((data: { reads?: Record<string, number> }) => setReads(data.reads ?? {}))
+        .then(
+          (data: {
+            reads?: Record<string, number>;
+            othersReads?: Record<
+              string,
+              { userId: string; name: string; lastReadOn: number }[]
+            >;
+          }) => {
+            setReads(data.reads ?? {});
+            setOthersReads(data.othersReads ?? {});
+          },
+        )
+        .catch(() => {});
+
+      fetch("/api/mobion/chat/favorites")
+        .then((res) => (res.ok ? res.json() : { favorites: [] }))
+        .then((data: { favorites?: string[] }) => setFavorites(data.favorites ?? []))
         .catch(() => {});
 
       es.addEventListener("snapshot", (e) => {
@@ -281,7 +335,9 @@ export default function MobiOnContent() {
   }, [refreshToken]);
 
   async function handleSend() {
-    const text = draft.trim();
+    // The box holds "@이름"; the stored form carries the id so a rename never
+    // breaks an old mention and so the highlight can tell people apart.
+    const text = encodeMentions(draft.trim(), mentionUsers);
     if (!text || !activeChannelId) return;
     setSendError(null);
     const activeChannel = channels.find((c) => c.id === activeChannelId);
@@ -292,6 +348,7 @@ export default function MobiOnContent() {
         channelId: activeChannelId,
         channelClass: activeChannel?.kind ?? "channel",
         text,
+        replyTo: replyingTo?.id,
       }),
     });
     if (!res.ok) {
@@ -299,7 +356,136 @@ export default function MobiOnContent() {
       setSendError(data.error ?? "전송 실패");
       return;
     }
+    const sent = await res.json().catch(() => ({}));
+
+    // Files are uploaded while the person is still typing, so they exist before
+    // the message does and are joined to it here, once it has an id.
+    const ready = pendingFiles.filter((f) => !f.uploading).map((f) => f.id);
+    if (sent.messageId && ready.length > 0) {
+      await fetch("/api/mobion/chat/attachments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: sent.messageId, attachmentIds: ready }),
+      }).catch(() => {});
+    }
+
     setDraft("");
+    setReplyingTo(null);
+    setPendingFiles([]);
+  }
+
+  async function handleReact(messageId: string, emoji: string) {
+    const res = await fetch("/api/mobion/chat/reactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId, emoji }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setReactions((prev) => ({ ...prev, [messageId]: data.reactions }));
+  }
+
+  async function handleEditMessage(messageId: string, text: string) {
+    const res = await fetch("/api/mobion/chat/messages", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId, text }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSendError(data.error ?? "수정 실패");
+      return false;
+    }
+    // Reflected locally as well as through the stream: the edit tx reaches this
+    // tab as a delta, but the author should not watch their own change lag.
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, text, modifiedOn: Date.now() } : m)),
+    );
+    return true;
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    const res = await fetch(
+      `/api/mobion/chat/messages?messageId=${encodeURIComponent(messageId)}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSendError(data.error ?? "삭제 실패");
+      return;
+    }
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }
+
+  async function handleDeleteChannel(channelId: string) {
+    const res = await fetch(
+      `/api/mobion/chat/channels?channelId=${encodeURIComponent(channelId)}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSendError(data.error ?? "채널 삭제 실패");
+      return;
+    }
+    setChannels((prev) => prev.filter((c) => c.id !== channelId));
+    setMessages((prev) => prev.filter((m) => m.channelId !== channelId));
+    setFavorites((prev) => prev.filter((id) => id !== channelId));
+    // Moving off the deleted channel rather than leaving an empty pane that
+    // still names something that no longer exists.
+    setActiveChannelId((prev) =>
+      prev === channelId ? (channels.find((c) => c.id !== channelId)?.id ?? null) : prev,
+    );
+  }
+
+  async function toggleFavorite(channelId: string) {
+    const res = await fetch("/api/mobion/chat/favorites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channelId }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setFavorites(data.favorites ?? []);
+  }
+
+  async function uploadFiles(files: FileList) {
+    if (!activeChannelId) return;
+    for (const file of Array.from(files)) {
+      const placeholder = {
+        id: `pending-${Date.now()}-${file.name}`,
+        filename: file.name,
+        size: file.size,
+        uploading: true,
+      };
+      setPendingFiles((prev) => [...prev, placeholder]);
+
+      // The body is the file itself rather than multipart form data: the server
+      // pipes it straight to disk, and multipart would mean parsing a
+      // multi-gigabyte body to find the part boundary.
+      const res = await fetch(
+        `/api/mobion/chat/attachments?channelId=${encodeURIComponent(activeChannelId)}` +
+          `&filename=${encodeURIComponent(file.name)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+          body: file,
+        },
+      ).catch(() => null);
+
+      if (!res?.ok) {
+        setPendingFiles((prev) => prev.filter((f) => f.id !== placeholder.id));
+        setSendError(`${file.name} 업로드 실패`);
+        continue;
+      }
+      const data = await res.json();
+      setPendingFiles((prev) =>
+        prev.map((f) =>
+          f.id === placeholder.id
+            ? { id: data.attachment.id, filename: file.name, size: file.size, uploading: false }
+            : f,
+        ),
+      );
+    }
   }
 
   const lastActivity = useMemo(() => {
@@ -318,8 +504,12 @@ export default function MobiOnContent() {
     } else {
       copy.sort((a, b) => (lastActivity.get(b.id) ?? 0) - (lastActivity.get(a.id) ?? 0));
     }
-    return copy;
-  }, [channels, sortMode, lastActivity]);
+    // Pinned channels float to the top of whichever order is in effect, rather
+    // than replacing it: someone who sorts by activity still wants their pinned
+    // channels ordered by activity among themselves.
+    const pinned = new Set(favorites);
+    return copy.sort((a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)));
+  }, [channels, sortMode, lastActivity, favorites]);
 
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
 
@@ -423,16 +613,15 @@ export default function MobiOnContent() {
    * message is kept as the excerpt so the task still reads sensibly on its own.
    * The channel is recorded so the task can point back at where it was decided.
    */
+  /**
+   * Opens the task form over the conversation instead of switching to it.
+   *
+   * Switching first meant pressing the button threw you out of the chat before
+   * you had agreed to make anything, and backing out left you on another
+   * screen. The move to the task screen happens after the task exists.
+   */
   function raiseTaskFromMessage(m: Message) {
-    const text = m.text.trim();
-    tasksData.openCreateTask({
-      title: text.slice(0, 80),
-      description: text.length > 80 ? text : "",
-      sourceChannelId: m.channelId,
-      sourceMessageId: m.id,
-      sourceExcerpt: text.slice(0, 500),
-    });
-    setMode("projects");
+    setTaskFromMessage(m);
   }
 
   // Cmd+K on macOS, Ctrl+K elsewhere. Bound to the document so it works from
@@ -466,6 +655,57 @@ export default function MobiOnContent() {
   const activeMessages = messages
     .filter((m) => m.channelId === activeChannelId)
     .sort((a, b) => a.createdOn - b.createdOn);
+
+  // Reactions, attachments and reply links for whatever is on screen, fetched
+  // in one request each rather than per message. Keyed on the id list so
+  // switching channels or paging older messages refetches, but a re-render
+  // that changes nothing does not.
+  // Messages carry a Huly PersonId as authorId, not this app's user id, so
+  // "is this mine" is answered by finding my own name among the loaded
+  // messages' authors — the snapshot already resolves each id to a name.
+  const myName = allUsers.find((u) => u.id === currentUserId)?.name ?? null;
+  const mySocialId = useMemo(
+    () => messages.find((m) => m.authorName != null && m.authorName === myName)?.authorId ?? null,
+    [messages, myName],
+  );
+
+  /** Who, other than the author, has read past this message. */
+  function readersOf(m: Message) {
+    return (othersReads[m.channelId] ?? [])
+      .filter((r) => r.lastReadOn >= m.createdOn)
+      .map((r) => r.name);
+  }
+
+  const visibleIds = activeMessages.map((m) => m.id).join(",");
+  useEffect(() => {
+    if (!visibleIds) return;
+    let cancelled = false;
+
+    fetch(`/api/mobion/chat/reactions?messageIds=${encodeURIComponent(visibleIds)}`)
+      .then((res) => (res.ok ? res.json() : { reactions: {} }))
+      .then((data) => {
+        if (!cancelled) setReactions((prev) => ({ ...prev, ...(data.reactions ?? {}) }));
+      })
+      .catch(() => {});
+
+    fetch(`/api/mobion/chat/attachments?messageIds=${encodeURIComponent(visibleIds)}`)
+      .then((res) => (res.ok ? res.json() : { attachments: {} }))
+      .then((data) => {
+        if (!cancelled) setAttachments((prev) => ({ ...prev, ...(data.attachments ?? {}) }));
+      })
+      .catch(() => {});
+
+    fetch(`/api/mobion/chat/replies?messageIds=${encodeURIComponent(visibleIds)}`)
+      .then((res) => (res.ok ? res.json() : { replies: {} }))
+      .then((data) => {
+        if (!cancelled) setReplyOf((prev) => ({ ...prev, ...(data.replies ?? {}) }));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleIds]);
 
   // Keyed on the newest message rather than the array: paging older ones in
   // changes `messages` too, and scrolling to the bottom for that would throw
@@ -781,6 +1021,22 @@ export default function MobiOnContent() {
                 {unreadCount(c.id) > 0 && (
                   <UnreadBadge>{unreadLabel(unreadCount(c.id))}</UnreadBadge>
                 )}
+                {/* stopPropagation so pinning does not also switch channels —
+                    the star sits inside the row that selects it */}
+                <PinButton
+                  type="button"
+                  data-pinned={favorites.includes(c.id) || undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void toggleFavorite(c.id);
+                  }}
+                  aria-label={favorites.includes(c.id) ? "즐겨찾기 해제" : "즐겨찾기"}
+                  title={favorites.includes(c.id) ? "즐겨찾기 해제" : "즐겨찾기"}
+                >
+                  <span className="material-symbols-outlined">
+                    {favorites.includes(c.id) ? "star" : "star_border"}
+                  </span>
+                </PinButton>
               </ChannelItem>
             ))}
 
@@ -828,6 +1084,30 @@ export default function MobiOnContent() {
                     {activeChannel.description}
                   </ChannelHeaderDescription>
                 )}
+                {/* In the header rather than beside each row in the list: a
+                    channel is deleted rarely and deliberately, so the control
+                    belongs where you have already opened the thing. DMs have
+                    no delete — there is no "creator" to own one. */}
+                {activeChannel.kind !== "dm" && (
+                  <ChannelDeleteButton
+                    type="button"
+                    onClick={() =>
+                      setConfirming({
+                        title: `#${activeChannel.name} 채널을 삭제할까요?`,
+                        description:
+                          "채널의 모든 메시지와 올린 파일이 함께 지워집니다.\n되돌릴 수 없습니다.",
+                        onConfirm: () => {
+                          void handleDeleteChannel(activeChannel.id);
+                          setConfirming(null);
+                        },
+                      })
+                    }
+                    aria-label="채널 삭제"
+                    title="채널 삭제"
+                  >
+                    <span className="material-symbols-outlined">delete</span>
+                  </ChannelDeleteButton>
+                )}
               </>
             ) : (
               <ChannelHeaderTitle>채널을 선택하거나 새로 만들어 보세요</ChannelHeaderTitle>
@@ -857,47 +1137,169 @@ export default function MobiOnContent() {
                     <MessageAuthor>{g.authorName ?? "알 수 없음"}</MessageAuthor>
                     <MessageTime>{formatTime(g.messages[0].createdOn)}</MessageTime>
                   </MessageMeta>
-                  {g.messages.map((m, mi) => (
-                    <GroupedMessageRow
-                      key={m.id}
-                      data-mentions-me={
-                        (currentUserId && messageContainsMentionOf(m.text, currentUserId)) ||
-                        undefined
-                      }
-                    >
-                      {mi > 0 && <GroupedTimestamp>{formatTime(m.createdOn)}</GroupedTimestamp>}
-                      <MessageText>{renderMessageText(m.text, knownUserIds)}</MessageText>
-                      {/* the point of having chat and projects in one place:
-                          something decided in conversation becomes work without
-                          being retyped somewhere else */}
-                      <RaiseTaskButton
-                        type="button"
-                        onClick={() => raiseTaskFromMessage(m)}
-                        aria-label="이 메시지로 태스크 만들기"
-                        title="이 메시지로 태스크 만들기"
-                      >
-                        <span className="material-symbols-outlined">add_task</span>
-                      </RaiseTaskButton>
-                    </GroupedMessageRow>
-                  ))}
+                  {g.messages.map((m, mi) => {
+                    const parentId = replyOf[m.id];
+                    const parent = parentId
+                      ? messages.find((x) => x.id === parentId)
+                      : undefined;
+                    return (
+                      <ChatMessageRow
+                        key={m.id}
+                        message={m}
+                        showTimestamp={mi > 0}
+                        timestamp={formatTime(m.createdOn)}
+                        mentionsMe={Boolean(
+                          currentUserId && messageContainsMentionOf(m.text, currentUserId),
+                        )}
+                        isMine={m.authorId === mySocialId}
+                        canDelete={m.authorId === mySocialId || role === "lead"}
+                        reactions={reactions[m.id] ?? []}
+                        attachments={attachments[m.id] ?? []}
+                        quoted={
+                          parent
+                            ? {
+                                authorName: parent.authorName,
+                                text: mentionPlainText(parent.text),
+                              }
+                            : null
+                        }
+                        readBy={readersOf(m)}
+                        renderText={(text) => renderMessageText(text, knownUserIds)}
+                        onReact={(emoji) => void handleReact(m.id, emoji)}
+                        onReply={() => setReplyingTo(m)}
+                        onEdit={(text) => handleEditMessage(m.id, text)}
+                        onDelete={() =>
+                          setConfirming({
+                            title: "메시지를 삭제할까요?",
+                            // shows the message itself, trimmed — confirming a
+                            // deletion you cannot see is confirming nothing
+                            description: (() => {
+                              // the reader has to recognise the message, so it
+                              // is shown the way they saw it, not as stored
+                              const plain = mentionPlainText(m.text);
+                              return `"${plain.slice(0, 80)}${plain.length > 80 ? "…" : ""}"\n\n삭제하면 되돌릴 수 없습니다.`;
+                            })(),
+                            onConfirm: () => {
+                              void handleDeleteMessage(m.id);
+                              setConfirming(null);
+                            },
+                          })
+                        }
+                        /* the point of having chat and projects in one place:
+                           something decided in conversation becomes work
+                           without being retyped somewhere else */
+                        onRaiseTask={() => raiseTaskFromMessage(m)}
+                      />
+                    );
+                  })}
                 </MessageBody>
               </MessageGroupBlock>
             ))}
           </MessageList>
           <Composer>
-            <MentionInput
-              value={draft}
-              onChange={setDraft}
-              onSend={handleSend}
-              users={mentionUsers}
-            />
-            <button onClick={handleSend}>보내기</button>
+            {replyingTo && (
+              <ReplyBar>
+                <span className="material-symbols-outlined">reply</span>
+                <ReplyTarget>
+                  <strong>{replyingTo.authorName ?? "알 수 없음"}</strong>
+                  <ReplyPreview>{mentionPlainText(replyingTo.text)}</ReplyPreview>
+                </ReplyTarget>
+                <ComposerIcon
+                  type="button"
+                  data-compact
+                  onClick={() => setReplyingTo(null)}
+                  aria-label="답장 취소"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </ComposerIcon>
+              </ReplyBar>
+            )}
+
+            {pendingFiles.length > 0 && (
+              <PendingFiles>
+                {pendingFiles.map((f) => (
+                  <PendingChip key={f.id} data-uploading={f.uploading || undefined}>
+                    <span className="material-symbols-outlined">
+                      {f.uploading ? "progress_activity" : "attach_file"}
+                    </span>
+                    {f.filename}
+                    {!f.uploading && (
+                      <ComposerIcon
+                        type="button"
+                        data-compact
+                        onClick={() =>
+                          setPendingFiles((prev) => prev.filter((p) => p.id !== f.id))
+                        }
+                        aria-label="첨부 취소"
+                      >
+                        <span className="material-symbols-outlined">close</span>
+                      </ComposerIcon>
+                    )}
+                  </PendingChip>
+                ))}
+              </PendingFiles>
+            )}
+
+            <ComposerRow>
+              <ComposerIcon
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="파일 첨부"
+                title="파일 첨부"
+              >
+                <span className="material-symbols-outlined">attach_file</span>
+              </ComposerIcon>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  if (e.target.files) void uploadFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <MentionInput
+                value={draft}
+                onChange={setDraft}
+                onSend={handleSend}
+                users={mentionUsers}
+              />
+              <SendButton
+                onClick={handleSend}
+                disabled={!draft.trim() && pendingFiles.length === 0}
+              >
+                보내기
+              </SendButton>
+            </ComposerRow>
           </Composer>
           {sendError && <SendErrorText>{sendError}</SendErrorText>}
         </Main>
           </>
         )}
       </Layout>
+      {taskFromMessage && (
+        <ChatTaskModal
+          excerpt={mentionPlainText(taskFromMessage.text).trim()}
+          channelId={taskFromMessage.channelId}
+          messageId={taskFromMessage.id}
+          onCreated={(projectId) => {
+            setTaskFromMessage(null);
+            // Now the move is worth making: there is something to look at.
+            tasksData.setSelectedProjectId(projectId);
+            setMode("projects");
+          }}
+          onClose={() => setTaskFromMessage(null)}
+        />
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={confirming.title}
+          description={confirming.description}
+          onConfirm={confirming.onConfirm}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
       {showCreateChannel && (
         <CreateChannelModal
           name={newChannelName}
@@ -986,7 +1388,9 @@ function CreateChannelModal(props: CreateChannelModalProps) {
           value={props.tagInput}
           onChange={(e) => props.setTagInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            // same IME guard as MentionInput: the composition-commit Enter
+            // would otherwise add a Korean tag twice
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
               e.preventDefault();
               props.addTag();
             }
@@ -1268,6 +1672,29 @@ const ChannelHeader = styled.div`
   border-bottom: 1px solid var(--border-strong);
 `;
 
+const ChannelDeleteButton = styled.button`
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+  }
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+`;
+
 const ChannelHeaderTitle = styled.div`
   font-size: 15px;
   font-weight: 700;
@@ -1376,73 +1803,150 @@ const MessageTime = styled.span`
   color: var(--text-faint);
 `;
 
-const MessageText = styled.div`
-  color: var(--text-strong);
-  font-size: 14px;
-`;
-
 const Mention = styled.span`
   color: var(--accent);
   font-weight: 700;
 `;
 
-const GroupedMessageRow = styled.div`
-  position: relative;
+/* The reply target and the attachment tray sit above the input rather than
+   inside it, the way Slack and Discord do: what you are about to send stays
+   visible while you type, and the input itself keeps its full width. */
+const ComposerRow = styled.div`
+  display: flex;
+  gap: 8px;
+  /* stretch rather than center: the input, the attach button and 보내기 each
+     compute a different height from their own padding, and centering three
+     different heights leaves the icons floating off the input's edges. Letting
+     them take the row's height makes the input the one thing that decides it. */
+  align-items: stretch;
+`;
 
-  &[data-mentions-me] {
-    background: var(--accent-soft);
+const ReplyBar = styled.div`
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 6px 9px;
+  border-left: 2px solid var(--accent, #3b82f6);
+  border-radius: 0 7px 7px 0;
+  background: var(--surface-sunken);
+  font-size: 12px;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+    color: var(--text-muted, #6b7280);
   }
 `;
 
-const RaiseTaskButton = styled.button`
+const ReplyTarget = styled.div`
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+`;
+
+const ReplyPreview = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted, #6b7280);
+`;
+
+const PendingFiles = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+`;
+
+const PendingChip = styled.span`
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 13px;
+  font-size: 12px;
+  background: var(--surface-sunken);
+
+  .material-symbols-outlined {
+    font-size: 15px;
+  }
+
+  /* an upload in flight must look different from one that is ready to send,
+     because only the finished ones actually attach */
+  &[data-uploading] {
+    opacity: 0.6;
+  }
+`;
+
+/* Hidden until the row is hovered, except when it is already pinned — an
+   always-visible star on every channel is noise, but a pinned one has to stay
+   visible to be unpinnable. */
+const PinButton = styled.button`
   margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
   border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-faint);
+  border-radius: 5px;
+  background: none;
+  color: var(--text-faint, #9aa0a6);
   cursor: pointer;
   opacity: 0;
 
-  .material-symbols-outlined {
-    font-size: 17px;
+  &[data-pinned] {
+    opacity: 1;
+    color: #f0b429;
   }
 
-  /* hidden until the row is engaged so a conversation does not read as a
-     column of buttons, but reachable by keyboard, which never hovers */
-  ${GroupedMessageRow}:hover &,
-  &:focus-visible {
+  *:hover > & {
     opacity: 1;
   }
 
-  &:hover {
-    background: var(--accent-soft);
-    color: var(--accent);
+  .material-symbols-outlined {
+    font-size: 16px;
   }
 `;
 
-const GroupedTimestamp = styled.span`
-  position: absolute;
-  left: -46px;
-  top: 1px;
-  font-size: 10px;
-  color: var(--text-faint);
-  opacity: 0;
-  transition: opacity 0.1s ease;
+const ComposerIcon = styled.button`
+  display: grid;
+  place-items: center;
+  /* Square, but sized by the row rather than by a number of its own — a fixed
+     height here is what stopped it lining up with the input beside it. */
+  width: 38px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
 
-  ${GroupedMessageRow}:hover & {
-    opacity: 1;
+  &:hover {
+    background: var(--surface-hover, rgba(127, 127, 127, 0.12));
+  }
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  /* The same button also closes a reply quote and drops a queued file, where
+     it sits inside a small chip and must not tower over its own text. */
+  &[data-compact] {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+
+    .material-symbols-outlined {
+      font-size: 14px;
+    }
   }
 `;
 
 const Composer = styled.div`
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 12px;
   border-top: 1px solid var(--border-strong);
 
@@ -1456,14 +1960,33 @@ const Composer = styled.div`
     outline: none;
   }
 
-  button {
-    padding: 10px 18px;
-    border-radius: 10px;
-    border: none;
-    background: var(--accent);
-    color: var(--on-solid);
-    font-weight: 700;
-    cursor: pointer;
+  /* No blanket button rule here. It used to paint every button in the composer
+     accent-blue, which was fine when 보내기 was the only one — the attach and
+     cancel icons that joined later came out as solid blue blocks. */
+`;
+
+const SendButton = styled.button`
+  padding: 9px 16px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-solid);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, opacity 0.12s ease;
+
+  &:hover {
+    filter: brightness(1.06);
+  }
+
+  /* Nothing to send is a state worth showing: a live-looking button that does
+     nothing when pressed reads as the app being broken. */
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+    filter: none;
   }
 `;
 
@@ -1548,10 +2071,13 @@ const ChannelMenu = styled.div`
   min-width: 170px;
   padding: 6px;
   border-radius: 10px;
-  background: var(--panel-wash);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  /* Opaque, not the translucent panel wash. A dropdown opens over a list of
+     channel names, and at 0.35 alpha in dark mode they showed through its own
+     labels. A blur is a nice effect on a large surface; on a 170px menu it just
+     makes the text compete with whatever is behind it. */
+  background: var(--surface);
   border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
 `;
 
 const ChannelMenuItem = styled.button`

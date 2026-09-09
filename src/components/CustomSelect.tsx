@@ -132,10 +132,12 @@ const Panel = styled.div`
   overflow-y: auto;
   padding: 6px;
   border-radius: 10px;
-  background: var(--panel-wash);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  /* Opaque for the same reason the channel menu is: a dropdown opens over the
+     rows it is about, and a translucent one lets those rows show through its
+     own options. */
+  background: var(--surface);
   border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
 `;
 
 const Option = styled.button`

@@ -5,6 +5,7 @@ import {
   CHUNTER_CLASS,
   CORE_CLASS,
   SortingOrder,
+  canSeeChannel,
 } from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
@@ -64,10 +65,6 @@ function isNewChatMessage(tx: RawTx) {
     tx._class === "core:class:TxCreateDoc" &&
     tx.objectClass === CHUNTER_CLASS.ChatMessage
   );
-}
-
-function canSeeChannel(channel: { private: boolean; members: string[] }, myAccountUuid: string) {
-  return !channel.private || channel.members.includes(myAccountUuid);
 }
 
 // A channel-creation tx: same TxCreateDoc shape as a chat message (see

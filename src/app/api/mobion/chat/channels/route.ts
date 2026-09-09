@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
+import { unlink } from "fs/promises";
+import { join } from "path";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import {
   ensureHulyLink,
   getWorkspaceClient,
   CHUNTER_CLASS,
   HULY_CORE_SPACE,
+  canSeeChannel,
+  findChannelForAccess,
 } from "@/lib/mobion-huly";
+import { uploadDir } from "@/lib/mobion-uploads";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 
@@ -100,5 +105,102 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     return mobionApiError(error, "채널 생성 실패");
+  }
+}
+
+// Removing a conversation means removing every message in it, and a busy
+// channel can hold thousands. Deleted in pages so one request neither loads
+// them all at once nor runs unbounded; the loop stops when a page comes back
+// short, which is how the last page announces itself.
+const DELETE_PAGE = 200;
+
+/**
+ * Deletes a channel and everything that belonged to it.
+ *
+ * The creator or a lab lead, matching message deletion. Everything goes:
+ * messages, reactions, reply links, read marks, pins, and the uploaded files —
+ * both their rows and their bytes. A "deleted" channel whose files still sat on
+ * disk would be the kind of half-state nobody can explain a year later.
+ */
+export async function DELETE(request: Request) {
+  try {
+    const user = await requireCurrentUser();
+    const url = new URL(request.url);
+    const channelId = String(url.searchParams.get("channelId") ?? "");
+    if (!channelId) {
+      return NextResponse.json({ error: "채널이 필요합니다." }, { status: 400 });
+    }
+
+    const link = await ensureHulyLink(user);
+    if (!link) {
+      return NextResponse.json({ error: "Huly 계정이 연결되어 있지 않습니다." }, { status: 404 });
+    }
+    const client = await getWorkspaceClient(link);
+
+    const channel = await findChannelForAccess(client, CHUNTER_CLASS.Channel, channelId);
+    if (!channel || !canSeeChannel(channel, client.account.accountUuid)) {
+      return NextResponse.json({ error: "채널을 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    const createdBy = (channel as { createdBy?: string }).createdBy;
+    if (createdBy !== client.account.primarySocialId && user.role !== "lead") {
+      return NextResponse.json(
+        { error: "채널을 만든 사람이나 랩장만 삭제할 수 있습니다." },
+        { status: 403 },
+      );
+    }
+
+    // Files first: their bytes are the only part that cannot be recovered by
+    // looking somewhere else, so they are removed while the rows still say
+    // where they are.
+    const files = await query<{ storage_path: string }>(
+      `DELETE FROM mobion_attachments WHERE channel_id = $1 AND storage_path <> ''
+       RETURNING storage_path`,
+      [channelId],
+    );
+    const dir = await uploadDir();
+    for (const f of files.rows) {
+      await unlink(join(dir, f.storage_path)).catch(() => {});
+    }
+
+    // Messages, a page at a time.
+    for (;;) {
+      const batch = await client.findAll<{ _id: string }>(
+        CHUNTER_CLASS.ChatMessage,
+        { attachedTo: channelId },
+        { limit: DELETE_PAGE },
+      );
+      if (batch.length === 0) break;
+
+      const ids = batch.map((m) => m._id);
+      for (const id of ids) {
+        await client.removeDoc({
+          _class: CHUNTER_CLASS.ChatMessage,
+          space: HULY_CORE_SPACE,
+          objectId: id,
+        });
+      }
+      await query(`DELETE FROM mobion_message_reactions WHERE message_id = ANY($1::text[])`, [ids]);
+      await query(
+        `DELETE FROM mobion_message_replies WHERE message_id = ANY($1::text[]) OR reply_to = ANY($1::text[])`,
+        [ids],
+      );
+
+      if (batch.length < DELETE_PAGE) break;
+    }
+
+    await client.removeDoc({
+      _class: CHUNTER_CLASS.Channel,
+      space: HULY_CORE_SPACE,
+      objectId: channelId,
+    });
+
+    await query(`DELETE FROM mobion_channel_tags WHERE channel_id = $1`, [channelId]);
+    await query(`DELETE FROM mobion_channel_reads WHERE channel_id = $1`, [channelId]);
+    await query(`DELETE FROM mobion_channel_favorites WHERE channel_id = $1`, [channelId]);
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return mobionApiError(error, "채널을 삭제하지 못했습니다.");
   }
 }

@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 20;
+const MOBION_SCHEMA_VERSION = 22;
 
 export const pool =
   globalThis.mobionPool ??
@@ -376,6 +376,83 @@ export async function ensureMobionSchema() {
            ADD CONSTRAINT mobion_notifications_kind_check
            CHECK (kind IN ('comment', 'assigned', 'due_soon'))`,
       );
+
+      // Emoji reactions. One row per (message, person, emoji): the primary key
+      // is what stops a double-click from counting twice, so toggling can be a
+      // plain insert-or-delete with no read-modify-write in between.
+      // message_id is a Huly ChatMessage id, so no foreign key is possible.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_message_reactions (
+          message_id TEXT NOT NULL,
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          emoji TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (message_id, user_id, emoji)
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_message_reactions_message_idx
+          ON mobion_message_reactions (message_id)
+      `);
+
+      // Which message a reply points at. Kept beside Huly rather than inside it
+      // because ChatMessage has no field for it and adding one would mean a
+      // Huly model change; the id pair is all the UI needs to draw the quote.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_message_replies (
+          message_id TEXT PRIMARY KEY,
+          reply_to TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+
+      // Pinned channels, per person. sort_order lets someone arrange them;
+      // ties fall back to name so the list never renders in a random order.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_channel_favorites (
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          channel_id TEXT NOT NULL,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (user_id, channel_id)
+        )
+      `);
+
+      // Uploaded files. The bytes live on the server's disk, not in this table
+      // and not in Postgres at all — a large-file upload is the one thing a
+      // bytea column turns into a memory problem for every query that touches
+      // the row. storage_path is relative to MOBION_UPLOAD_DIR so the whole
+      // store can be moved by changing one env var.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_attachments (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          message_id TEXT,
+          filename TEXT NOT NULL,
+          mime TEXT NOT NULL,
+          size BIGINT NOT NULL,
+          storage_path TEXT NOT NULL,
+          uploaded_by UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          channel_id TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_attachments_message_idx
+          ON mobion_attachments (message_id)
+      `);
+      // NULL means keep forever. Small files (the threshold lives in
+      // mobion-uploads.ts) get NULL; large ones get a date, because a few
+      // multi-gigabyte datasets would otherwise fill the disk that also runs
+      // Postgres and every Huly container. The date is stored rather than
+      // derived at read time so the UI can show it before it matters.
+      await pool.query(
+        `ALTER TABLE mobion_attachments
+           ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`,
+      );
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_attachments_expires_idx
+          ON mobion_attachments (expires_at) WHERE expires_at IS NOT NULL
+      `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
       globalThis.mobionSchemaVersion = undefined;
