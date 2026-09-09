@@ -342,7 +342,10 @@ const Row = styled.div`
   position: relative;
   display: flex;
   gap: 8px;
-  padding: 2px 12px 2px 0;
+  /* The right padding is the menu button's lane. It used to float over the
+     text, which buried it in a long message — absolutely positioned, but with
+     nothing reserving the space it sat in. */
+  padding: 2px 40px 2px 0;
   border-radius: 6px;
 
   &:hover {
@@ -361,8 +364,9 @@ const Row = styled.div`
    pushes the conversation around. */
 const MenuAnchor = styled.div`
   position: absolute;
-  top: 0;
-  right: 8px;
+  top: 1px;
+  /* Inside the lane the row's padding reserves, so it never lands on a word. */
+  right: 6px;
   z-index: 3;
 `;
 
