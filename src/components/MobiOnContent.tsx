@@ -2071,10 +2071,13 @@ const ChannelMenu = styled.div`
   min-width: 170px;
   padding: 6px;
   border-radius: 10px;
-  background: var(--panel-wash);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  /* Opaque, not the translucent panel wash. A dropdown opens over a list of
+     channel names, and at 0.35 alpha in dark mode they showed through its own
+     labels. A blur is a nice effect on a large surface; on a 170px menu it just
+     makes the text compete with whatever is behind it. */
+  background: var(--surface);
   border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
 `;
 
 const ChannelMenuItem = styled.button`
