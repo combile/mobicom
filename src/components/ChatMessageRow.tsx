@@ -1,19 +1,22 @@
 "use client";
 
 import styled from "@emotion/styled";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * One message, with everything that hangs off it.
  *
  * Split out of MobiOnContent because a message row now carries a quoted parent,
- * an attachment list, a reaction strip, an edit mode and a hover toolbar — five
- * things that each have their own state and would otherwise be spliced into an
+ * an attachment list, a reaction strip, an edit mode and a menu — five things
+ * that each have their own state and would otherwise be spliced into an
  * already long file.
  *
- * The hover toolbar follows Slack and Discord: it floats over the top-right of
- * the row instead of taking layout space, so a dense conversation stays dense
- * and nothing shifts when the pointer moves across it.
+ * Actions live behind a single "⋮", not a row of hover buttons. A strip that
+ * appears under the pointer and vanishes when it drifts is hard to aim at, and
+ * it puts five targets over the message the moment you cross it. The panel here
+ * opens on a click and stays until something else is clicked, so reaching for
+ * the third item is not a race. It is absolutely positioned, so opening it
+ * never pushes the conversation around.
  */
 
 export type Reaction = { emoji: string; count: number; mine: boolean };
@@ -39,9 +42,20 @@ export type ChatMessage = {
   modifiedOn?: number;
 };
 
-// The few reactions worth one click. A full emoji picker is a lot of surface
-// for a lab of five; anything else can be typed as a message.
-const QUICK_REACTIONS = ["👍", "✅", "👀", "🎉", "😄", "🙏"];
+// The row that opens with the menu. Deliberately not "positive only" — a
+// message people are unhappy about is exactly the one where nobody wants to
+// type a whole reply, and offering only 👍 makes silence the alternative.
+const QUICK_REACTIONS = ["❤️", "✅", "😢", "😠", "😞"];
+
+// Everything else, behind the "더 보기" toggle. Ordered roughly by how likely
+// it is to be wanted rather than alphabetically, since scanning stops at the
+// first one that fits.
+const ALL_REACTIONS = [
+  "👍", "👎", "❤️", "✅", "❌", "👀", "🎉", "🔥",
+  "😄", "😂", "🥹", "😮", "😢", "😠", "😞", "😴",
+  "🙏", "👏", "💪", "🫡", "🤝", "🙌", "🤔", "🫠",
+  "💡", "📌", "⚠️", "🚀", "⏰", "☕", "🍰", "🐢",
+];
 
 function formatBytes(size: number) {
   if (size < 1024) return `${size} B`;
@@ -76,7 +90,40 @@ export default function ChatMessageRow(props: {
   const { message: m } = props;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.text);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  // The menu stays open until something outside it is clicked. A panel that
+  // disappears the moment the pointer leaves the row cannot be aimed at.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showAllEmoji, setShowAllEmoji] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) {
+        setMenuOpen(false);
+        setShowAllEmoji(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        setShowAllEmoji(false);
+      }
+    }
+    // mousedown rather than click: a click that starts inside the menu and
+    // ends outside it (a drag over an emoji) should not count as "outside".
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  function closeMenu() {
+    setMenuOpen(false);
+    setShowAllEmoji(false);
+  }
 
   // An edit bumps modifiedOn past createdOn; Huly sets both, so no flag of our
   // own is needed to know a message was changed. The second of slack absorbs
@@ -188,67 +235,105 @@ export default function ChatMessageRow(props: {
         )}
       </Content>
 
-      <Toolbar>
-        {pickerOpen && (
-          <Picker>
-            {QUICK_REACTIONS.map((e) => (
-              <PickerButton
-                key={e}
+      {/* One button, not a row of them. The old hover strip put five targets
+          over the message the moment the pointer crossed it, and every one of
+          them vanished if the pointer drifted. This opens a panel that stays
+          until something else is clicked, so it can actually be aimed at. */}
+      <MenuAnchor ref={menuRef}>
+        <MoreButton
+          type="button"
+          data-open={menuOpen || undefined}
+          onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+          aria-label="메시지 메뉴"
+          aria-expanded={menuOpen}
+          title="메뉴"
+        >
+          <span className="material-symbols-outlined">more_vert</span>
+        </MoreButton>
+
+        {menuOpen && (
+          <Menu role="menu">
+            <EmojiRow>
+              {(showAllEmoji ? ALL_REACTIONS : QUICK_REACTIONS).map((e) => (
+                <EmojiButton
+                  key={e}
+                  type="button"
+                  onClick={() => {
+                    props.onReact(e);
+                    closeMenu();
+                  }}
+                  aria-label={`${e} 반응`}
+                >
+                  {e}
+                </EmojiButton>
+              ))}
+              {!showAllEmoji && (
+                <EmojiButton
+                  type="button"
+                  onClick={() => setShowAllEmoji(true)}
+                  aria-label="이모지 더 보기"
+                  title="더 보기"
+                >
+                  <span className="material-symbols-outlined">add</span>
+                </EmojiButton>
+              )}
+            </EmojiRow>
+
+            <MenuDivider />
+
+            <MenuItem
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                props.onReply();
+                closeMenu();
+              }}
+            >
+              <span className="material-symbols-outlined">reply</span>
+              답장
+            </MenuItem>
+            <MenuItem
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                props.onRaiseTask();
+                closeMenu();
+              }}
+            >
+              <span className="material-symbols-outlined">add_task</span>
+              태스크로 만들기
+            </MenuItem>
+            {props.isMine && (
+              <MenuItem
                 type="button"
+                role="menuitem"
                 onClick={() => {
-                  props.onReact(e);
-                  setPickerOpen(false);
+                  setDraft(m.text);
+                  setEditing(true);
+                  closeMenu();
                 }}
               >
-                {e}
-              </PickerButton>
-            ))}
-          </Picker>
+                <span className="material-symbols-outlined">edit</span>
+                수정
+              </MenuItem>
+            )}
+            {props.canDelete && (
+              <MenuItem
+                type="button"
+                role="menuitem"
+                data-danger
+                onClick={() => {
+                  props.onDelete();
+                  closeMenu();
+                }}
+              >
+                <span className="material-symbols-outlined">delete</span>
+                삭제
+              </MenuItem>
+            )}
+          </Menu>
         )}
-        <ToolButton
-          type="button"
-          onClick={() => setPickerOpen((v) => !v)}
-          aria-label="반응 남기기"
-          title="반응 남기기"
-        >
-          <span className="material-symbols-outlined">add_reaction</span>
-        </ToolButton>
-        <ToolButton type="button" onClick={props.onReply} aria-label="답장" title="답장">
-          <span className="material-symbols-outlined">reply</span>
-        </ToolButton>
-        <ToolButton
-          type="button"
-          onClick={props.onRaiseTask}
-          aria-label="이 메시지로 태스크 만들기"
-          title="이 메시지로 태스크 만들기"
-        >
-          <span className="material-symbols-outlined">add_task</span>
-        </ToolButton>
-        {props.isMine && (
-          <ToolButton
-            type="button"
-            onClick={() => {
-              setDraft(m.text);
-              setEditing(true);
-            }}
-            aria-label="수정"
-            title="수정"
-          >
-            <span className="material-symbols-outlined">edit</span>
-          </ToolButton>
-        )}
-        {props.canDelete && (
-          <ToolButton
-            type="button"
-            data-danger
-            onClick={props.onDelete}
-            aria-label="삭제"
-            title="삭제"
-          >
-            <span className="material-symbols-outlined">delete</span>
-          </ToolButton>
-        )}
-      </Toolbar>
+      </MenuAnchor>
     </Row>
   );
 }
@@ -269,6 +354,136 @@ const Row = styled.div`
   &[data-mentions-me] {
     background: var(--mention-bg, rgba(255, 196, 0, 0.12));
     box-shadow: inset 2px 0 0 var(--mention-bar, #f0b429);
+  }
+`;
+
+/* Anchors the panel to the row without joining the layout, so opening it never
+   pushes the conversation around. */
+const MenuAnchor = styled.div`
+  position: absolute;
+  top: 0;
+  right: 8px;
+  z-index: 3;
+`;
+
+const MoreButton = styled.button`
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-faint, #9aa0a6);
+  cursor: pointer;
+  opacity: 0;
+
+  ${Row}:hover & {
+    opacity: 1;
+  }
+
+  /* Once the panel is open the button has to stay put — it is the thing the
+     panel is hanging from, and fading it out on pointer-leave would make the
+     menu look detached. */
+  &[data-open] {
+    opacity: 1;
+    background: var(--surface, #fff);
+    border-color: var(--border, #e3e6ea);
+    color: var(--text-strong, #1f2328);
+  }
+
+  &:hover {
+    background: var(--surface-hover, rgba(127, 127, 127, 0.12));
+  }
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+`;
+
+const Menu = styled.div`
+  position: absolute;
+  top: calc(100% + 3px);
+  right: 0;
+  min-width: 178px;
+  padding: 5px;
+  border: 1px solid var(--border, #e3e6ea);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.14);
+`;
+
+/* Wraps onto more rows as the full set is revealed, rather than scrolling —
+   at this many emoji a scroll bar hides most of them behind a gesture. */
+const EmojiRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 1px;
+  max-width: 268px;
+`;
+
+const EmojiButton = styled.button`
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  font-size: 17px;
+  line-height: 1;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted, #6b7280);
+
+  &:hover {
+    background: var(--surface-hover, rgba(127, 127, 127, 0.14));
+    transform: scale(1.15);
+  }
+
+  .material-symbols-outlined {
+    font-size: 17px;
+  }
+`;
+
+const MenuDivider = styled.div`
+  height: 1px;
+  margin: 5px 3px;
+  background: var(--border, #e3e6ea);
+`;
+
+const MenuItem = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-strong, #1f2328);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-hover, rgba(127, 127, 127, 0.1));
+  }
+
+  &[data-danger] {
+    color: #dc2626;
+
+    &:hover {
+      background: rgba(220, 38, 38, 0.1);
+    }
+  }
+
+  .material-symbols-outlined {
+    font-size: 17px;
+    color: var(--text-faint, #9aa0a6);
+  }
+
+  &[data-danger] .material-symbols-outlined {
+    color: inherit;
   }
 `;
 
@@ -472,71 +687,3 @@ const ReadBy = styled.div`
   }
 `;
 
-const Toolbar = styled.div`
-  position: absolute;
-  top: -12px;
-  right: 10px;
-  display: none;
-  gap: 1px;
-  padding: 2px;
-  border: 1px solid var(--border, #e3e6ea);
-  border-radius: 7px;
-  background: var(--surface, #fff);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
-  z-index: 2;
-
-  ${Row}:hover & {
-    display: flex;
-  }
-`;
-
-const ToolButton = styled.button`
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 5px;
-  background: none;
-  color: var(--text-muted, #6b7280);
-  cursor: pointer;
-
-  &:hover {
-    background: var(--surface-hover, rgba(127, 127, 127, 0.1));
-  }
-
-  &[data-danger]:hover {
-    color: #dc2626;
-  }
-
-  .material-symbols-outlined {
-    font-size: 17px;
-  }
-`;
-
-const Picker = styled.div`
-  position: absolute;
-  bottom: calc(100% + 4px);
-  right: 0;
-  display: flex;
-  gap: 1px;
-  padding: 3px;
-  border: 1px solid var(--border, #e3e6ea);
-  border-radius: 8px;
-  background: var(--surface, #fff);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
-`;
-
-const PickerButton = styled.button`
-  width: 28px;
-  height: 28px;
-  font-size: 16px;
-  border: none;
-  border-radius: 5px;
-  background: none;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--surface-hover, rgba(127, 127, 127, 0.12));
-  }
-`;

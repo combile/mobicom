@@ -5,6 +5,7 @@ import styled from "@emotion/styled";
 import MentionInput from "./MentionInput";
 import ChatMessageRow, { type Reaction, type Attachment } from "./ChatMessageRow";
 import ConfirmDialog from "./ConfirmDialog";
+import ChatTaskModal from "./ChatTaskModal";
 import ProjectSidebarList from "./ProjectSidebarList";
 import ProjectDetailView from "./ProjectDetailView";
 import {
@@ -154,6 +155,10 @@ export default function MobiOnContent() {
   // open. One piece of state for both kinds of deletion — only ever one dialog
   // is on screen, and holding the action here keeps the dialog itself unaware
   // of what it is confirming.
+  // The message a task is being raised from, or null. Holding the message
+  // rather than a boolean keeps the modal's inputs prefilled from it without a
+  // second copy of the text living in state.
+  const [taskFromMessage, setTaskFromMessage] = useState<Message | null>(null);
   const [confirming, setConfirming] = useState<{
     title: string;
     description: string;
@@ -607,16 +612,15 @@ export default function MobiOnContent() {
    * message is kept as the excerpt so the task still reads sensibly on its own.
    * The channel is recorded so the task can point back at where it was decided.
    */
+  /**
+   * Opens the task form over the conversation instead of switching to it.
+   *
+   * Switching first meant pressing the button threw you out of the chat before
+   * you had agreed to make anything, and backing out left you on another
+   * screen. The move to the task screen happens after the task exists.
+   */
   function raiseTaskFromMessage(m: Message) {
-    const text = m.text.trim();
-    tasksData.openCreateTask({
-      title: text.slice(0, 80),
-      description: text.length > 80 ? text : "",
-      sourceChannelId: m.channelId,
-      sourceMessageId: m.id,
-      sourceExcerpt: text.slice(0, 500),
-    });
-    setMode("projects");
+    setTaskFromMessage(m);
   }
 
   // Cmd+K on macOS, Ctrl+K elsewhere. Bound to the document so it works from
@@ -1265,6 +1269,20 @@ export default function MobiOnContent() {
           </>
         )}
       </Layout>
+      {taskFromMessage && (
+        <ChatTaskModal
+          excerpt={taskFromMessage.text.trim()}
+          channelId={taskFromMessage.channelId}
+          messageId={taskFromMessage.id}
+          onCreated={(projectId) => {
+            setTaskFromMessage(null);
+            // Now the move is worth making: there is something to look at.
+            tasksData.setSelectedProjectId(projectId);
+            setMode("projects");
+          }}
+          onClose={() => setTaskFromMessage(null)}
+        />
+      )}
       {confirming && (
         <ConfirmDialog
           title={confirming.title}
