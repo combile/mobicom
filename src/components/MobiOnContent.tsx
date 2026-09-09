@@ -1211,11 +1211,14 @@ export default function MobiOnContent() {
                               }
                             : null
                         }
+                        plainText={mentionPlainText(m.text)}
                         readBy={readersOf(m)}
                         renderText={(text) => renderMessageText(text, knownUserIds)}
                         onReact={(emoji) => void handleReact(m.id, emoji)}
                         onReply={() => setReplyingTo(m)}
-                        onEdit={(text) => handleEditMessage(m.id, text)}
+                        onEdit={(text) =>
+                          handleEditMessage(m.id, encodeMentions(text, mentionUsers))
+                        }
                         onDelete={() =>
                           setConfirming({
                             title: "메시지를 삭제할까요?",

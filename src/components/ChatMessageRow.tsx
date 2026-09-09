@@ -80,6 +80,12 @@ export default function ChatMessageRow(props: {
   reactions: Reaction[];
   attachments: Attachment[];
   quoted: { authorName: string | null; text: string } | null;
+  /**
+   * The message as a person reads it — "@이름", not the stored "@[uuid:이름]".
+   * Editing shows this; the parent turns it back into the stored form on save.
+   * Without it the edit box put a uuid in the middle of your own sentence.
+   */
+  plainText: string;
   readBy: string[];
   renderText: (text: string) => React.ReactNode;
   onReact: (emoji: string) => void;
@@ -90,7 +96,7 @@ export default function ChatMessageRow(props: {
 }) {
   const { message: m } = props;
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(m.text);
+  const [draft, setDraft] = useState(props.plainText);
   // The menu stays open until something outside it is clicked. A panel that
   // disappears the moment the pointer leaves the row cannot be aimed at.
   const [menuOpen, setMenuOpen] = useState(false);
@@ -183,9 +189,9 @@ export default function ChatMessageRow(props: {
 
   async function commitEdit() {
     const next = draft.trim();
-    if (!next || next === m.text) {
+    if (!next || next === props.plainText) {
       setEditing(false);
-      setDraft(m.text);
+      setDraft(props.plainText);
       return;
     }
     if (await props.onEdit(next)) setEditing(false);
@@ -218,7 +224,7 @@ export default function ChatMessageRow(props: {
                 }
                 if (e.key === "Escape") {
                   setEditing(false);
-                  setDraft(m.text);
+                  setDraft(props.plainText);
                 }
               }}
             />
@@ -365,7 +371,7 @@ export default function ChatMessageRow(props: {
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  setDraft(m.text);
+                  setDraft(props.plainText);
                   setEditing(true);
                   closeMenu();
                 }}
