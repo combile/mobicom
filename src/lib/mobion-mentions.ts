@@ -44,6 +44,68 @@ export function encodeMentions(text: string, users: { id: string; name: string }
   return out;
 }
 
+/**
+ * Splits typed text into plain runs and "@이름" runs that match a real person.
+ *
+ * Used both to paint the mentions inside the input box and to decide what a
+ * Backspace should swallow, so the highlight and the deletion can never
+ * disagree about where a mention starts and ends.
+ *
+ * Longest names first, for the same reason encodeMentions sorts: with "김철"
+ * and "김철수" present, the short name would otherwise match inside the long
+ * one and highlight only half of it.
+ */
+export function splitTypedMentions(
+  text: string,
+  users: { id: string; name: string }[],
+): { type: "text" | "mention"; content: string }[] {
+  const names = [...users].map((u) => u.name).sort((a, b) => b.length - a.length);
+  const out: { type: "text" | "mention"; content: string }[] = [];
+  let buffer = "";
+
+  for (let i = 0; i < text.length; ) {
+    if (text[i] === "@") {
+      const name = names.find((n) => text.startsWith(n, i + 1));
+      if (name) {
+        if (buffer) {
+          out.push({ type: "text", content: buffer });
+          buffer = "";
+        }
+        out.push({ type: "mention", content: `@${name}` });
+        i += name.length + 1;
+        continue;
+      }
+    }
+    buffer += text[i];
+    i += 1;
+  }
+  if (buffer) out.push({ type: "text", content: buffer });
+  return out;
+}
+
+/**
+ * The "@이름" the caret is sitting immediately after, or null.
+ *
+ * A trailing space counts as part of it: selecting a mention inserts
+ * "@이름 ", so one Backspace should undo exactly what one selection did.
+ */
+export function mentionEndingAt(
+  textBeforeCaret: string,
+  users: { id: string; name: string }[],
+): string | null {
+  const withoutTrailingSpace = textBeforeCaret.endsWith(" ")
+    ? textBeforeCaret.slice(0, -1)
+    : textBeforeCaret;
+  const trailingSpace = textBeforeCaret.length - withoutTrailingSpace.length;
+
+  const byLongestName = [...users].sort((a, b) => b.name.length - a.name.length);
+  for (const u of byLongestName) {
+    const token = `@${u.name}`;
+    if (withoutTrailingSpace.endsWith(token)) return token + " ".repeat(trailingSpace);
+  }
+  return null;
+}
+
 export function messageContainsMentionOf(text: string, userId: string): boolean {
   return parseMentionSegments(text).some(
     (s) => s.type === "mention" && s.userId === userId,
@@ -109,5 +171,26 @@ if (typeof process !== "undefined" && process.argv?.[1] && import.meta.url === `
     { type: "mention", userId: "u2", name: "김철수" },
     { type: "text", content: "!" },
   ]);
+  // Backspace deletes a whole mention, so getting its length wrong eats
+  // neighbouring characters — worth pinning down.
+  assert.strictEqual(mentionEndingAt("안녕 @김철수 ", lab), "@김철수 ");
+  assert.strictEqual(mentionEndingAt("안녕 @김철수", lab), "@김철수");
+  assert.strictEqual(mentionEndingAt("안녕 @김철", lab), "@김철");
+  // mid-name, not a real person: leave it to normal one-character deletion
+  assert.strictEqual(mentionEndingAt("안녕 @김", lab), null);
+  assert.strictEqual(mentionEndingAt("그냥 문장", lab), null);
+
+  assert.deepStrictEqual(splitTypedMentions("@김철수 안녕", lab), [
+    { type: "mention", content: "@김철수" },
+    { type: "text", content: " 안녕" },
+  ]);
+  // the short name must not match inside the long one
+  assert.deepStrictEqual(splitTypedMentions("@김철수", lab), [
+    { type: "mention", content: "@김철수" },
+  ]);
+  assert.deepStrictEqual(splitTypedMentions("@없는사람", lab), [
+    { type: "text", content: "@없는사람" },
+  ]);
+
   console.log("mobion-mentions self-check passed");
 }

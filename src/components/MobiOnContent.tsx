@@ -1193,6 +1193,7 @@ export default function MobiOnContent() {
                 </ReplyTarget>
                 <ComposerIcon
                   type="button"
+                  data-compact
                   onClick={() => setReplyingTo(null)}
                   aria-label="답장 취소"
                 >
@@ -1212,6 +1213,7 @@ export default function MobiOnContent() {
                     {!f.uploading && (
                       <ComposerIcon
                         type="button"
+                        data-compact
                         onClick={() =>
                           setPendingFiles((prev) => prev.filter((p) => p.id !== f.id))
                         }
@@ -1250,7 +1252,12 @@ export default function MobiOnContent() {
                 onSend={handleSend}
                 users={mentionUsers}
               />
-              <button onClick={handleSend}>보내기</button>
+              <SendButton
+                onClick={handleSend}
+                disabled={!draft.trim() && pendingFiles.length === 0}
+              >
+                보내기
+              </SendButton>
             </ComposerRow>
           </Composer>
           {sendError && <SendErrorText>{sendError}</SendErrorText>}
@@ -1780,7 +1787,11 @@ const Mention = styled.span`
 const ComposerRow = styled.div`
   display: flex;
   gap: 8px;
-  align-items: center;
+  /* stretch rather than center: the input, the attach button and 보내기 each
+     compute a different height from their own padding, and centering three
+     different heights leaves the icons floating off the input's edges. Letting
+     them take the row's height makes the input the one thing that decides it. */
+  align-items: stretch;
 `;
 
 const ReplyBar = styled.div`
@@ -1874,8 +1885,9 @@ const PinButton = styled.button`
 const ComposerIcon = styled.button`
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  /* Square, but sized by the row rather than by a number of its own — a fixed
+     height here is what stopped it lining up with the input beside it. */
+  width: 38px;
   flex: 0 0 auto;
   border: none;
   border-radius: 7px;
@@ -1889,6 +1901,18 @@ const ComposerIcon = styled.button`
 
   .material-symbols-outlined {
     font-size: 18px;
+  }
+
+  /* The same button also closes a reply quote and drops a queued file, where
+     it sits inside a small chip and must not tower over its own text. */
+  &[data-compact] {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+
+    .material-symbols-outlined {
+      font-size: 14px;
+    }
   }
 `;
 
@@ -1909,14 +1933,33 @@ const Composer = styled.div`
     outline: none;
   }
 
-  button {
-    padding: 10px 18px;
-    border-radius: 10px;
-    border: none;
-    background: var(--accent);
-    color: var(--on-solid);
-    font-weight: 700;
-    cursor: pointer;
+  /* No blanket button rule here. It used to paint every button in the composer
+     accent-blue, which was fine when 보내기 was the only one — the attach and
+     cancel icons that joined later came out as solid blue blocks. */
+`;
+
+const SendButton = styled.button`
+  padding: 9px 16px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-solid);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, opacity 0.12s ease;
+
+  &:hover {
+    filter: brightness(1.06);
+  }
+
+  /* Nothing to send is a state worth showing: a live-looking button that does
+     nothing when pressed reads as the app being broken. */
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+    filter: none;
   }
 `;
 
