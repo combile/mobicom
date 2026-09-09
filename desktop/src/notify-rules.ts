@@ -48,7 +48,7 @@ export function shouldNotify(input: NotifyInput): boolean {
 // mobion-mentions.ts uses the same pattern). Run with:
 //   npx --yes tsx desktop/src/notify-rules.ts
 if (require.main === module) {
-  const assert = require("node:assert") as typeof import("node:assert");
+  const assert: typeof import("node:assert") = require("node:assert");
 
   const on: NotifySettings = { enabled: true, otherMessages: true, taskAssigned: true };
   const base: NotifyInput = {
