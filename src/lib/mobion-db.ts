@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 22;
+const MOBION_SCHEMA_VERSION = 23;
 
 export const pool =
   globalThis.mobionPool ??
@@ -452,6 +452,19 @@ export async function ensureMobionSchema() {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS mobion_attachments_expires_idx
           ON mobion_attachments (expires_at) WHERE expires_at IS NOT NULL
+      `);
+
+      // Lab: who is in the lab right now. One row per person, overwritten
+      // in place rather than appended — "online" is not a fact worth a
+      // history, only a timestamp worth comparing against `now()`. Read back
+      // by /api/mobion/lab, which treats a stale row as offline instead of
+      // storing a boolean directly: a boolean can be left stuck "online" by a
+      // tab that crashes instead of closing cleanly, a timestamp can't.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_presence (
+          user_id UUID PRIMARY KEY REFERENCES mobion_users(id) ON DELETE CASCADE,
+          last_seen_at TIMESTAMPTZ NOT NULL
+        )
       `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
