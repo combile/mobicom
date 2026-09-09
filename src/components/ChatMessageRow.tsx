@@ -412,9 +412,10 @@ const Row = styled.div`
 
   /* a message that names you should be findable while scrolling past, not
      only once you stop and read */
+  /* Background only. A bar down the left edge on top of the tint was too much —
+     the row already reads as different without it. */
   &[data-mentions-me] {
     background: var(--mention-bg, rgba(255, 196, 0, 0.12));
-    box-shadow: inset 2px 0 0 var(--mention-bar, #f0b429);
   }
 `;
 
