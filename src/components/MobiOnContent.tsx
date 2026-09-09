@@ -65,6 +65,18 @@ function avatarColor(authorId: string) {
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
+/**
+ * Whether two messages would show the same clock reading.
+ *
+ * The header carries one time for the whole group, so a group may only hold
+ * messages that share it. Without this, a run started at 10:01 swallowed a
+ * 10:04 message under a header saying 10:01 — the reader had to hover to find
+ * out when anything actually arrived.
+ */
+function sameMinute(a: number, b: number) {
+  return Math.floor(a / 60000) === Math.floor(b / 60000);
+}
+
 type MessageGroup = {
   authorId: string;
   authorName: string | null;
@@ -89,7 +101,10 @@ function groupMessages(list: Message[]): MessageGroup[] {
       last &&
       last.authorId === m.authorId &&
       lastMessage &&
-      m.createdOn - lastMessage.createdOn < GROUP_WINDOW_MS
+      m.createdOn - lastMessage.createdOn < GROUP_WINDOW_MS &&
+      // the group's header shows one time; it has to be true of every message
+      // under it
+      sameMinute(m.createdOn, last.messages[0].createdOn)
     ) {
       last.messages.push(m);
     } else {
