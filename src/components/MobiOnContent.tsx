@@ -160,6 +160,8 @@ export default function MobiOnContent() {
   // The message a task is being raised from, or null. Holding the message
   // rather than a boolean keeps the modal's inputs prefilled from it without a
   // second copy of the text living in state.
+  const [showNewDm, setShowNewDm] = useState(false);
+  const [dmError, setDmError] = useState<string | null>(null);
   const [taskFromMessage, setTaskFromMessage] = useState<Message | null>(null);
   const [confirming, setConfirming] = useState<{
     title: string;
@@ -451,6 +453,33 @@ export default function MobiOnContent() {
     setActiveChannelId((prev) =>
       prev === channelId ? (channels.find((c) => c.id !== channelId)?.id ?? null) : prev,
     );
+  }
+
+  /**
+   * Opens (or reopens) a direct message with one person.
+   *
+   * The server returns the existing conversation when there already is one, so
+   * pressing this twice lands in the same place rather than splitting the
+   * history — the client does not have to track which DMs exist.
+   */
+  async function startDm(userId: string) {
+    setDmError(null);
+    const res = await fetch("/api/mobion/chat/dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setDmError(data.error ?? "대화를 시작하지 못했습니다.");
+      return;
+    }
+    setShowNewDm(false);
+    setMode("chat");
+    setActiveChannelId(data.channelId);
+    // A brand-new DM is not in this connection's snapshot, which was taken
+    // before it existed. Reconnecting is what makes it appear in the list.
+    if (!data.existing) setRefreshToken((t) => t + 1);
   }
 
   async function toggleFavorite(channelId: string) {
@@ -1095,6 +1124,17 @@ export default function MobiOnContent() {
               </Chevron>
               직접 메시지
             </SectionTitle>
+            <IconButton
+              type="button"
+              onClick={() => {
+                setDmError(null);
+                setShowNewDm(true);
+              }}
+              aria-label="새 대화"
+              title="새 대화"
+            >
+              <span className="material-symbols-outlined">add</span>
+            </IconButton>
           </SectionHeader>
           {!dmsCollapsed &&
             visibleDms.map((c) => (
@@ -1329,6 +1369,36 @@ export default function MobiOnContent() {
           </>
         )}
       </Layout>
+      {showNewDm && (
+        <ModalOverlay onClick={() => setShowNewDm(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalTitle>새 대화</ModalTitle>
+            {/* No search box: the lab is five people, and a filter over five
+                names is more to look at than the names themselves. */}
+            <DmPeople>
+              {allUsers
+                .filter((u) => u.id !== currentUserId)
+                .map((u) => (
+                  <DmPerson key={u.id} type="button" onClick={() => void startDm(u.id)}>
+                    <DmAvatar style={{ background: avatarColor(u.id) }}>
+                      {u.name.charAt(0)}
+                    </DmAvatar>
+                    {u.name}
+                  </DmPerson>
+                ))}
+              {allUsers.filter((u) => u.id !== currentUserId).length === 0 && (
+                <DmEmpty>대화할 수 있는 사람이 없습니다.</DmEmpty>
+              )}
+            </DmPeople>
+            {dmError && <SendErrorText>{dmError}</SendErrorText>}
+            <ModalActions>
+              <button type="button" onClick={() => setShowNewDm(false)}>
+                닫기
+              </button>
+            </ModalActions>
+          </ModalCard>
+        </ModalOverlay>
+      )}
       {taskFromMessage && (
         <ChatTaskModal
           excerpt={mentionPlainText(taskFromMessage.text).trim()}
@@ -1721,6 +1791,51 @@ const Main = styled.div`
 const ChannelHeader = styled.div`
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-strong);
+`;
+
+const DmPeople = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+`;
+
+const DmPerson = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-strong);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-hover, rgba(127, 127, 127, 0.1));
+  }
+`;
+
+const DmAvatar = styled.span`
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const DmEmpty = styled.p`
+  margin: 0;
+  padding: 12px 4px;
+  font-size: 13px;
+  color: var(--text-faint);
 `;
 
 const ChannelDeleteButton = styled.button`
