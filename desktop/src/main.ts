@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from "electron";
+import { join } from "path";
 import { loadSettings } from "./settings";
 
 let mainWindow: BrowserWindow | null = null;
@@ -13,6 +14,7 @@ function createWindow() {
     webPreferences: {
       // A remote page is loaded here. Turning either of these off would put
       // that page's scripts in reach of Node.
+      preload: join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
