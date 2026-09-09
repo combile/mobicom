@@ -92,8 +92,24 @@ docker compose ps
 ## 7. 재시작
 
 ```bash
-pm2 restart mobicom-app
+export PATH=$HOME/.nvm/versions/node/v20.20.2/bin:$PATH
+pm2 restart mobicom-app --update-env
 pm2 logs mobicom-app --lines 50
+```
+
+5번과 같은 이유로 PATH가 먼저 필요합니다. 빌드만 챙기고 여기를 빠뜨리면
+빌드는 성공했는데 앱은 낡은 Node로 떠서 `??=`에서 즉시 죽습니다. 증상은
+"서버 접속이 안 됨" + pm2 목록이 비어 보이는 것이고, 에러는
+`~/.pm2/logs/mobicom-app-error.log`에만 남습니다.
+
+`--update-env`가 필요한 이유: pm2는 프로세스를 **처음 띄울 때의 환경**을
+기억합니다. 한 번 낡은 PATH로 뜬 뒤에는 PATH를 고쳐도 그냥 restart하면
+기억해 둔 옛 환경을 그대로 다시 씁니다.
+
+살아나지 않으면 항목을 지우고 새로 만듭니다.
+
+```bash
+pm2 delete mobicom-app; pm2 start npm --name mobicom-app -- start && pm2 save
 ```
 
 ## 8. 마이그레이션 확인
