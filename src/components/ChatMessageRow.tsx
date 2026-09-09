@@ -80,6 +80,12 @@ export default function ChatMessageRow(props: {
   reactions: Reaction[];
   attachments: Attachment[];
   quoted: { authorName: string | null; text: string } | null;
+  /**
+   * The message as a person reads it — "@이름", not the stored "@[uuid:이름]".
+   * Editing shows this; the parent turns it back into the stored form on save.
+   * Without it the edit box put a uuid in the middle of your own sentence.
+   */
+  plainText: string;
   readBy: string[];
   renderText: (text: string) => React.ReactNode;
   onReact: (emoji: string) => void;
@@ -90,7 +96,7 @@ export default function ChatMessageRow(props: {
 }) {
   const { message: m } = props;
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(m.text);
+  const [draft, setDraft] = useState(props.plainText);
   // The menu stays open until something outside it is clicked. A panel that
   // disappears the moment the pointer leaves the row cannot be aimed at.
   const [menuOpen, setMenuOpen] = useState(false);
@@ -183,9 +189,9 @@ export default function ChatMessageRow(props: {
 
   async function commitEdit() {
     const next = draft.trim();
-    if (!next || next === m.text) {
+    if (!next || next === props.plainText) {
       setEditing(false);
-      setDraft(m.text);
+      setDraft(props.plainText);
       return;
     }
     if (await props.onEdit(next)) setEditing(false);
@@ -193,7 +199,10 @@ export default function ChatMessageRow(props: {
 
   return (
     <Row data-mentions-me={props.mentionsMe || undefined}>
-      {props.showTimestamp && <Stamp>{props.timestamp}</Stamp>}
+      {/* Always rendered, even when empty: the timestamp column has a fixed
+          width, so dropping the element on the first message of a group pulled
+          that line left while every line under it stayed indented. */}
+      <Stamp>{props.showTimestamp ? props.timestamp : ""}</Stamp>
 
       <Content>
         {props.quoted && (
@@ -218,7 +227,7 @@ export default function ChatMessageRow(props: {
                 }
                 if (e.key === "Escape") {
                   setEditing(false);
-                  setDraft(m.text);
+                  setDraft(props.plainText);
                 }
               }}
             />
@@ -365,7 +374,7 @@ export default function ChatMessageRow(props: {
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  setDraft(m.text);
+                  setDraft(props.plainText);
                   setEditing(true);
                   closeMenu();
                 }}
@@ -412,9 +421,10 @@ const Row = styled.div`
 
   /* a message that names you should be findable while scrolling past, not
      only once you stop and read */
+  /* Background only. A bar down the left edge on top of the tint was too much —
+     the row already reads as different without it. */
   &[data-mentions-me] {
     background: var(--mention-bg, rgba(255, 196, 0, 0.12));
-    box-shadow: inset 2px 0 0 var(--mention-bar, #f0b429);
   }
 `;
 
@@ -562,14 +572,19 @@ const MenuItem = styled.button`
   }
 `;
 
+/* Out of the flow, in the gutter the avatar column already leaves — so the
+   message text starts at the same place whether or not a timestamp is showing.
+   As a flex item it pushed every line 44px right, which is worse than the
+   ragged first line it was meant to fix. */
 const Stamp = styled.span`
-  flex: 0 0 44px;
-  padding-top: 3px;
-  font-size: 11px;
+  position: absolute;
+  left: -46px;
+  top: 2px;
+  font-size: 10px;
   line-height: 1.5;
-  text-align: right;
   color: var(--text-faint, #9aa0a6);
   opacity: 0;
+  transition: opacity 0.1s ease;
 
   ${Row}:hover & {
     opacity: 1;

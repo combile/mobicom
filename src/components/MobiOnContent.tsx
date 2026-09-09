@@ -28,6 +28,7 @@ import { useLabData } from "@/lib/use-lab-data";
 import CommandPalette, { type SearchResult } from "./CommandPalette";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
+import { notifyDesktop, onDesktopChannelOpen, setDesktopBadge } from "@/lib/mobion-desktop";
 
 type Channel = {
   id: string;
@@ -66,6 +67,18 @@ function avatarColor(authorId: string) {
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
+/**
+ * Whether two messages would show the same clock reading.
+ *
+ * The header carries one time for the whole group, so a group may only hold
+ * messages that share it. Without this, a run started at 10:01 swallowed a
+ * 10:04 message under a header saying 10:01 — the reader had to hover to find
+ * out when anything actually arrived.
+ */
+function sameMinute(a: number, b: number) {
+  return Math.floor(a / 60000) === Math.floor(b / 60000);
+}
+
 type MessageGroup = {
   authorId: string;
   authorName: string | null;
@@ -73,11 +86,34 @@ type MessageGroup = {
   messages: Message[];
 };
 
-function renderMessageText(text: string, knownUserIds: Set<string>) {
+function renderMessageText(
+  text: string,
+  knownUserIds: Set<string>,
+  onMentionClick?: (userId: string, name: string) => void,
+) {
   return parseMentionSegments(text).map((seg, i) => {
     if (seg.type === "text") return <span key={i}>{seg.content}</span>;
+    // A name that matches nobody stays plain text — it is not a link to
+    // anywhere, and styling it as one would promise a profile that cannot open.
     if (!knownUserIds.has(seg.userId)) return <span key={i}>@{seg.name}</span>;
-    return <Mention key={i}>@{seg.name}</Mention>;
+    if (!onMentionClick) return <Mention key={i}>@{seg.name}</Mention>;
+    return (
+      <Mention
+        key={i}
+        role="button"
+        tabIndex={0}
+        data-clickable
+        onClick={() => onMentionClick(seg.userId, seg.name)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onMentionClick(seg.userId, seg.name);
+          }
+        }}
+      >
+        @{seg.name}
+      </Mention>
+    );
   });
 }
 
@@ -90,7 +126,10 @@ function groupMessages(list: Message[]): MessageGroup[] {
       last &&
       last.authorId === m.authorId &&
       lastMessage &&
-      m.createdOn - lastMessage.createdOn < GROUP_WINDOW_MS
+      m.createdOn - lastMessage.createdOn < GROUP_WINDOW_MS &&
+      // the group's header shows one time; it has to be true of every message
+      // under it
+      sameMinute(m.createdOn, last.messages[0].createdOn)
     ) {
       last.messages.push(m);
     } else {
@@ -162,6 +201,16 @@ export default function MobiOnContent() {
   // The message a task is being raised from, or null. Holding the message
   // rather than a boolean keeps the modal's inputs prefilled from it without a
   // second copy of the text living in state.
+  // Which message author's profile card is open, keyed by the Huly PersonId
+  // the message carries. Null when none is open.
+  const [profileFor, setProfileFor] = useState<{
+    socialId: string;
+    name: string;
+    avatarUrl: string | null;
+  } | null>(null);
+  const [profileDraft, setProfileDraft] = useState("");
+  const [showNewDm, setShowNewDm] = useState(false);
+  const [dmError, setDmError] = useState<string | null>(null);
   const [taskFromMessage, setTaskFromMessage] = useState<Message | null>(null);
   const [confirming, setConfirming] = useState<{
     title: string;
@@ -169,8 +218,14 @@ export default function MobiOnContent() {
     onConfirm: () => void;
   } | null>(null);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
-  const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
-  const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
+  const [allUsers, setAllUsers] = useState<
+    { id: string; name: string; hulySocialId?: string }[]
+  >([]);
+  // Loaded once on mount, unlike allUsers which only fills when the create-
+  // channel modal opens. The profile card needs it too, so it reads this one.
+  const [mentionUsers, setMentionUsers] = useState<
+    { id: string; name: string; hulySocialId?: string | null }[]
+  >([]);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDescription, setNewChannelDescription] = useState("");
   const [newChannelTags, setNewChannelTags] = useState<string[]>([]);
@@ -294,6 +349,21 @@ export default function MobiOnContent() {
       es.addEventListener("delta", (e) => {
         const msg = JSON.parse((e as MessageEvent).data) as Message;
         setMessages((prev) => [...prev, msg]);
+
+        // No-op in a browser. Whether it actually interrupts anyone is decided
+        // in the desktop shell, which is the side that knows if its window is
+        // in front.
+        const channel = channelsRef.current.find((c) => c.id === msg.channelId);
+        const me = currentUserIdRef.current;
+        notifyDesktop({
+          kind: me && messageContainsMentionOf(msg.text, me) ? "mention" : "message",
+          title: channel ? `#${channel.name}` : "새 메시지",
+          body: `${msg.authorName ?? "알 수 없음"}: ${mentionPlainText(msg.text).slice(0, 120)}`,
+          channelId: msg.channelId,
+          authorId: msg.authorId,
+          activeChannelId: activeChannelIdRef.current,
+          mySocialId: mySocialIdRef.current,
+        });
       });
 
       es.addEventListener("channel_added", (e) => {
@@ -438,6 +508,76 @@ export default function MobiOnContent() {
     setActiveChannelId((prev) =>
       prev === channelId ? (channels.find((c) => c.id !== channelId)?.id ?? null) : prev,
     );
+  }
+
+  /**
+   * Opens (or reopens) a direct message with one person.
+   *
+   * The server returns the existing conversation when there already is one, so
+   * pressing this twice lands in the same place rather than splitting the
+   * history — the client does not have to track which DMs exist.
+   */
+  async function startDm(userId: string) {
+    setDmError(null);
+    const res = await fetch("/api/mobion/chat/dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setDmError(data.error ?? "대화를 시작하지 못했습니다.");
+      return;
+    }
+    setShowNewDm(false);
+    setMode("chat");
+    setActiveChannelId(data.channelId);
+    // A brand-new DM is not in this connection's snapshot, which was taken
+    // before it existed. Reconnecting is what makes it appear in the list.
+    if (!data.existing) setRefreshToken((t) => t + 1);
+  }
+
+  /**
+   * Opens a DM and sends the first message in one go.
+   *
+   * The profile card carries its own input rather than a button that takes you
+   * elsewhere: the thing you wanted was to say something to this person, and
+   * making that two steps (open, then type) puts a screen change in the middle
+   * of a single thought.
+   */
+  async function sendDmFromProfile(userId: string, text: string) {
+    setDmError(null);
+    const dmRes = await fetch("/api/mobion/chat/dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    const dm = await dmRes.json().catch(() => ({}));
+    if (!dmRes.ok) {
+      setDmError(dm.error ?? "대화를 시작하지 못했습니다.");
+      return;
+    }
+
+    const sendRes = await fetch("/api/mobion/chat/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channelId: dm.channelId,
+        channelClass: "dm",
+        text: encodeMentions(text, mentionUsers),
+      }),
+    });
+    if (!sendRes.ok) {
+      const err = await sendRes.json().catch(() => ({}));
+      setDmError(err.error ?? "메시지를 보내지 못했습니다.");
+      return;
+    }
+
+    setProfileFor(null);
+    setMode("chat");
+    setActiveChannelId(dm.channelId);
+    // A DM created just now is not in this connection's snapshot.
+    if (!dm.existing) setRefreshToken((t) => t + 1);
   }
 
   async function toggleFavorite(channelId: string) {
@@ -672,6 +812,31 @@ export default function MobiOnContent() {
     [messages, myName],
   );
 
+  // The SSE handlers are registered once and outlive every state change, so
+  // they read through refs rather than closing over values that will be stale
+  // by the time a message arrives.
+  const activeChannelIdRef = useRef<string | null>(null);
+  const mySocialIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  const channelsRef = useRef<Channel[]>([]);
+
+  useEffect(() => {
+    activeChannelIdRef.current = activeChannelId;
+    mySocialIdRef.current = mySocialId;
+    currentUserIdRef.current = currentUserId;
+    channelsRef.current = channels;
+  }, [activeChannelId, mySocialId, currentUserId, channels]);
+
+  // Clicking a notification should land on the conversation it came from.
+  useEffect(
+    () =>
+      onDesktopChannelOpen((channelId) => {
+        setMode("chat");
+        setActiveChannelId(channelId);
+      }),
+    [],
+  );
+
   /** Who, other than the author, has read past this message. */
   function readersOf(m: Message) {
     return (othersReads[m.channelId] ?? [])
@@ -754,6 +919,13 @@ export default function MobiOnContent() {
     const since = reads[channelId] ?? 0;
     return messages.filter((m) => m.channelId === channelId && m.createdOn > since).length;
   }
+
+  // The badge mirrors what the channel list already shows, summed. Sent on
+  // change rather than polled — these numbers recompute here anyway.
+  const totalUnread = channels.reduce((sum, c) => sum + unreadCount(c.id), 0);
+  useEffect(() => {
+    setDesktopBadge(totalUnread);
+  }, [totalUnread]);
 
   function unreadLabel(count: number) {
     // the snapshot only carried so much, so a count at the cap is a floor
@@ -1060,6 +1232,17 @@ export default function MobiOnContent() {
               </Chevron>
               직접 메시지
             </SectionTitle>
+            <IconButton
+              type="button"
+              onClick={() => {
+                setDmError(null);
+                setShowNewDm(true);
+              }}
+              aria-label="새 대화"
+              title="새 대화"
+            >
+              <span className="material-symbols-outlined">add</span>
+            </IconButton>
           </SectionHeader>
           {!dmsCollapsed &&
             visibleDms.map((c) => (
@@ -1101,26 +1284,38 @@ export default function MobiOnContent() {
                     channel is deleted rarely and deliberately, so the control
                     belongs where you have already opened the thing. DMs have
                     no delete — there is no "creator" to own one. */}
-                {activeChannel.kind !== "dm" && (
-                  <ChannelDeleteButton
-                    type="button"
-                    onClick={() =>
-                      setConfirming({
-                        title: `#${activeChannel.name} 채널을 삭제할까요?`,
-                        description:
-                          "채널의 모든 메시지와 올린 파일이 함께 지워집니다.\n되돌릴 수 없습니다.",
-                        onConfirm: () => {
-                          void handleDeleteChannel(activeChannel.id);
-                          setConfirming(null);
-                        },
-                      })
-                    }
-                    aria-label="채널 삭제"
-                    title="채널 삭제"
-                  >
-                    <span className="material-symbols-outlined">delete</span>
-                  </ChannelDeleteButton>
-                )}
+                <ChannelDeleteButton
+                  type="button"
+                  onClick={() =>
+                    setConfirming(
+                      activeChannel.kind === "dm"
+                        ? {
+                            title: `${activeChannel.name} 님과의 대화를 삭제할까요?`,
+                            // Said plainly: this is not "leave", and the other
+                            // person does not get to keep their copy.
+                            description:
+                              "주고받은 메시지와 파일이 모두 지워지고, 상대방에게서도 사라집니다.\n되돌릴 수 없습니다.",
+                            onConfirm: () => {
+                              void handleDeleteChannel(activeChannel.id);
+                              setConfirming(null);
+                            },
+                          }
+                        : {
+                            title: `#${activeChannel.name} 채널을 삭제할까요?`,
+                            description:
+                              "채널의 모든 메시지와 올린 파일이 함께 지워집니다.\n되돌릴 수 없습니다.",
+                            onConfirm: () => {
+                              void handleDeleteChannel(activeChannel.id);
+                              setConfirming(null);
+                            },
+                          },
+                    )
+                  }
+                  aria-label={activeChannel.kind === "dm" ? "대화 삭제" : "채널 삭제"}
+                  title={activeChannel.kind === "dm" ? "대화 삭제" : "채널 삭제"}
+                >
+                  <span className="material-symbols-outlined">delete</span>
+                </ChannelDeleteButton>
               </>
             ) : (
               <ChannelHeaderTitle>채널을 선택하거나 새로 만들어 보세요</ChannelHeaderTitle>
@@ -1138,16 +1333,42 @@ export default function MobiOnContent() {
             )}
             {messageGroups.map((g, gi) => (
               <MessageGroupBlock key={gi}>
-                {g.authorAvatarUrl ? (
-                  <Avatar src={g.authorAvatarUrl} alt="" />
-                ) : (
-                  <AvatarFallback style={{ background: avatarColor(g.authorId) }}>
-                    {(g.authorName ?? "?").charAt(0)}
-                  </AvatarFallback>
-                )}
+                {/* Avatar and name open a profile card, the way Discord does —
+                    the person you want to message is usually the one whose
+                    message you are already looking at. */}
+                <ProfileTrigger
+                  type="button"
+                  onClick={() =>
+                    setProfileFor({
+                      socialId: g.authorId,
+                      name: g.authorName ?? "알 수 없음",
+                      avatarUrl: g.authorAvatarUrl,
+                    })
+                  }
+                  aria-label={`${g.authorName ?? "알 수 없음"} 프로필`}
+                >
+                  {g.authorAvatarUrl ? (
+                    <Avatar src={g.authorAvatarUrl} alt="" />
+                  ) : (
+                    <AvatarFallback style={{ background: avatarColor(g.authorId) }}>
+                      {(g.authorName ?? "?").charAt(0)}
+                    </AvatarFallback>
+                  )}
+                </ProfileTrigger>
                 <MessageBody>
                   <MessageMeta>
-                    <MessageAuthor>{g.authorName ?? "알 수 없음"}</MessageAuthor>
+                    <NameTrigger
+                      type="button"
+                      onClick={() =>
+                        setProfileFor({
+                          socialId: g.authorId,
+                          name: g.authorName ?? "알 수 없음",
+                          avatarUrl: g.authorAvatarUrl,
+                        })
+                      }
+                    >
+                      <MessageAuthor>{g.authorName ?? "알 수 없음"}</MessageAuthor>
+                    </NameTrigger>
                     <MessageTime>{formatTime(g.messages[0].createdOn)}</MessageTime>
                   </MessageMeta>
                   {g.messages.map((m, mi) => {
@@ -1176,11 +1397,27 @@ export default function MobiOnContent() {
                               }
                             : null
                         }
+                        plainText={mentionPlainText(m.text)}
                         readBy={readersOf(m)}
-                        renderText={(text) => renderMessageText(text, knownUserIds)}
+                        renderText={(text) =>
+                          renderMessageText(text, knownUserIds, (userId, name) => {
+                            // The profile card is keyed by Huly PersonId; a
+                            // mention carries this app's user id, so it is
+                            // translated here. An unlinked account resolves to
+                            // an empty id and the card says why it cannot DM.
+                            const u = mentionUsers.find((x) => x.id === userId);
+                            setProfileFor({
+                              socialId: u?.hulySocialId ?? "",
+                              name,
+                              avatarUrl: null,
+                            });
+                          })
+                        }
                         onReact={(emoji) => void handleReact(m.id, emoji)}
                         onReply={() => setReplyingTo(m)}
-                        onEdit={(text) => handleEditMessage(m.id, text)}
+                        onEdit={(text) =>
+                          handleEditMessage(m.id, encodeMentions(text, mentionUsers))
+                        }
                         onDelete={() =>
                           setConfirming({
                             title: "메시지를 삭제할까요?",
@@ -1291,6 +1528,97 @@ export default function MobiOnContent() {
           </>
         )}
       </Layout>
+      {profileFor && (() => {
+        // The message carries a Huly PersonId; the DM route wants this app's
+        // user id. mentionUsers ships hulySocialId so the two can be joined —
+        // and unlike allUsers it is loaded on mount, so the card can rely on it.
+        const person = mentionUsers.find((u) => u.hulySocialId === profileFor.socialId);
+        const isMe = person?.id === currentUserId;
+        const canDm = Boolean(person && !isMe && person.hulySocialId);
+        return (
+          <ModalOverlay
+            onClick={() => {
+              setProfileFor(null);
+              setProfileDraft("");
+            }}
+          >
+            <ProfileCard onClick={(e) => e.stopPropagation()}>
+              {/* A banner in the person's own colour, the same one their avatar
+                  falls back to — so the card reads as theirs at a glance. */}
+              <ProfileBanner style={{ background: avatarColor(profileFor.socialId) }} />
+              <ProfileBody>
+                {profileFor.avatarUrl ? (
+                  <ProfileAvatar src={profileFor.avatarUrl} alt="" />
+                ) : (
+                  <ProfileAvatarFallback
+                    style={{ background: avatarColor(profileFor.socialId) }}
+                  >
+                    {profileFor.name.charAt(0)}
+                  </ProfileAvatarFallback>
+                )}
+                <ProfileName>{profileFor.name}</ProfileName>
+                {isMe && <ProfileNote>나</ProfileNote>}
+                {!isMe && !canDm && (
+                  <ProfileNote>아직 채팅이 연결되지 않은 계정입니다.</ProfileNote>
+                )}
+                {dmError && <SendErrorText>{dmError}</SendErrorText>}
+
+                {canDm && person && (
+                  <ProfileComposer>
+                    <ProfileInput
+                      value={profileDraft}
+                      autoFocus
+                      placeholder={`@${profileFor.name} 님에게 메시지 보내기`}
+                      onChange={(e) => setProfileDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        // same IME guard as everywhere else a Korean sentence
+                        // meets Enter
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          const text = profileDraft.trim();
+                          if (!text) return;
+                          setProfileDraft("");
+                          void sendDmFromProfile(person.id, text);
+                        }
+                      }}
+                    />
+                  </ProfileComposer>
+                )}
+              </ProfileBody>
+            </ProfileCard>
+          </ModalOverlay>
+        );
+      })()}
+      {showNewDm && (
+        <ModalOverlay onClick={() => setShowNewDm(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <ModalTitle>새 대화</ModalTitle>
+            {/* No search box: the lab is five people, and a filter over five
+                names is more to look at than the names themselves. */}
+            <DmPeople>
+              {allUsers
+                .filter((u) => u.id !== currentUserId)
+                .map((u) => (
+                  <DmPerson key={u.id} type="button" onClick={() => void startDm(u.id)}>
+                    <DmAvatar style={{ background: avatarColor(u.id) }}>
+                      {u.name.charAt(0)}
+                    </DmAvatar>
+                    {u.name}
+                  </DmPerson>
+                ))}
+              {allUsers.filter((u) => u.id !== currentUserId).length === 0 && (
+                <DmEmpty>대화할 수 있는 사람이 없습니다.</DmEmpty>
+              )}
+            </DmPeople>
+            {dmError && <SendErrorText>{dmError}</SendErrorText>}
+            <ModalActions>
+              <button type="button" onClick={() => setShowNewDm(false)}>
+                닫기
+              </button>
+            </ModalActions>
+          </ModalCard>
+        </ModalOverlay>
+      )}
       {taskFromMessage && (
         <ChatTaskModal
           excerpt={mentionPlainText(taskFromMessage.text).trim()}
@@ -1685,6 +2013,159 @@ const ChannelHeader = styled.div`
   border-bottom: 1px solid var(--border-strong);
 `;
 
+/* Modelled on Discord's profile popover: a coloured banner, the avatar
+   straddling its edge, and — the part that matters — an input right there.
+   The thing you wanted was to say something to this person; a button that
+   takes you elsewhere puts a screen change in the middle of that. */
+const ProfileCard = styled.div`
+  width: 320px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.26);
+`;
+
+const ProfileBanner = styled.div`
+  height: 66px;
+`;
+
+const ProfileBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px 16px;
+`;
+
+const ProfileAvatar = styled.img`
+  width: 76px;
+  height: 76px;
+  margin-top: -38px;
+  border-radius: 50%;
+  object-fit: cover;
+  /* The ring is the card's own background, which is what makes the avatar read
+     as sitting on top of the banner rather than punched through it. */
+  border: 5px solid var(--surface);
+`;
+
+const ProfileAvatarFallback = styled.div`
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin-top: -38px;
+  border-radius: 50%;
+  border: 5px solid var(--surface);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+`;
+
+const ProfileName = styled.div`
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-strong);
+`;
+
+const ProfileNote = styled.p`
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+`;
+
+const ProfileComposer = styled.div`
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+`;
+
+const ProfileInput = styled.input`
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: var(--accent);
+  }
+`;
+
+/* Wraps the name rather than restyling it with `as="button"` — MessageAuthor
+   is a span, and giving it a button's props fights its type. */
+const NameTrigger = styled.button`
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const ProfileTrigger = styled.button`
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+  line-height: 0;
+
+  &:hover {
+    opacity: 0.85;
+  }
+`;
+
+const DmPeople = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+`;
+
+const DmPerson = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-strong);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-hover, rgba(127, 127, 127, 0.1));
+  }
+`;
+
+const DmAvatar = styled.span`
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const DmEmpty = styled.p`
+  margin: 0;
+  padding: 12px 4px;
+  font-size: 13px;
+  color: var(--text-faint);
+`;
+
 const ChannelDeleteButton = styled.button`
   margin-left: auto;
   display: grid;
@@ -1819,6 +2300,17 @@ const MessageTime = styled.span`
 const Mention = styled.span`
   color: var(--accent);
   font-weight: 700;
+
+  /* Only the ones wired to a profile look pressable. */
+  &[data-clickable] {
+    cursor: pointer;
+    border-radius: 3px;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--accent-soft);
+    }
+  }
 `;
 
 /* The reply target and the attachment tray sit above the input rather than

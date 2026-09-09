@@ -170,6 +170,15 @@ export async function GET() {
         const channelPrivacy = new Map(
           channels.map((c) => [c._id, { private: c.private, members: c.members }]),
         );
+        // DMs belong in the same map. Without them, a live message in a DM
+        // found no entry here and was dropped by the fail-closed rule below —
+        // the conversation only appeared after a reload re-took the snapshot.
+        // `private: true` is the honest description of a DM and makes
+        // canSeeChannel judge it on its participant list, which is exactly the
+        // rule a DM needs.
+        for (const d of dms) {
+          channelPrivacy.set(d._id, { private: true, members: d.members });
+        }
 
         // Scoped and capped. This previously read every ChatMessage in the
         // workspace with no filter and no limit and shipped the lot to the
@@ -223,6 +232,19 @@ export async function GET() {
            WHERE l.huly_social_id IS NOT NULL`,
         ).then((r) => r.rows).catch(() => []);
         const authorNames = new Map(authorRows.map((r) => [r.huly_social_id, r.name]));
+
+        // A DM has no name of its own — it is "the conversation with that
+        // person", so the label has to be looked up from who else is in it.
+        // Keyed by AccountUuid, which is what Space.members holds; the author
+        // map above is keyed by PersonId and cannot answer this.
+        const dmNameRows = await query<{ huly_account_uuid: string; name: string }>(
+          `SELECT l.huly_account_uuid, u.name
+             FROM mobion_huly_link l JOIN mobion_users u ON u.id = l.user_id
+            WHERE l.huly_account_uuid IS NOT NULL`,
+        )
+          .then((r) => r.rows)
+          .catch(() => []);
+        const nameByAccountUuid = new Map(dmNameRows.map((r) => [r.huly_account_uuid, r.name]));
         const authorAvatars = new Map(authorRows.map((r) => [r.huly_social_id, r.avatar_url]));
 
         // Best-effort, same reasoning as authorRows above: a tag lookup failure
@@ -252,7 +274,9 @@ export async function GET() {
             const other = d.members.find((m) => m !== myAccountUuid);
             return {
               id: d._id,
-              name: d.name,
+              // d.name is empty for DMs this app creates; fall back to it only
+              // for whatever Huly may have named on its own.
+              name: (other && nameByAccountUuid.get(other)) || d.name || "대화",
               description: d.description,
               tags: [] as string[],
               kind: "dm" as const,
