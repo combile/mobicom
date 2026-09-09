@@ -26,6 +26,7 @@ import OverviewView from "./OverviewView";
 import CommandPalette, { type SearchResult } from "./CommandPalette";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
+import { notifyDesktop, onDesktopChannelOpen } from "@/lib/mobion-desktop";
 
 type Channel = {
   id: string;
@@ -291,6 +292,21 @@ export default function MobiOnContent() {
       es.addEventListener("delta", (e) => {
         const msg = JSON.parse((e as MessageEvent).data) as Message;
         setMessages((prev) => [...prev, msg]);
+
+        // No-op in a browser. Whether it actually interrupts anyone is decided
+        // in the desktop shell, which is the side that knows if its window is
+        // in front.
+        const channel = channelsRef.current.find((c) => c.id === msg.channelId);
+        const me = currentUserIdRef.current;
+        notifyDesktop({
+          kind: me && messageContainsMentionOf(msg.text, me) ? "mention" : "message",
+          title: channel ? `#${channel.name}` : "새 메시지",
+          body: `${msg.authorName ?? "알 수 없음"}: ${mentionPlainText(msg.text).slice(0, 120)}`,
+          channelId: msg.channelId,
+          authorId: msg.authorId,
+          activeChannelId: activeChannelIdRef.current,
+          mySocialId: mySocialIdRef.current,
+        });
       });
 
       es.addEventListener("channel_added", (e) => {
@@ -667,6 +683,31 @@ export default function MobiOnContent() {
   const mySocialId = useMemo(
     () => messages.find((m) => m.authorName != null && m.authorName === myName)?.authorId ?? null,
     [messages, myName],
+  );
+
+  // The SSE handlers are registered once and outlive every state change, so
+  // they read through refs rather than closing over values that will be stale
+  // by the time a message arrives.
+  const activeChannelIdRef = useRef<string | null>(null);
+  const mySocialIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  const channelsRef = useRef<Channel[]>([]);
+
+  useEffect(() => {
+    activeChannelIdRef.current = activeChannelId;
+    mySocialIdRef.current = mySocialId;
+    currentUserIdRef.current = currentUserId;
+    channelsRef.current = channels;
+  }, [activeChannelId, mySocialId, currentUserId, channels]);
+
+  // Clicking a notification should land on the conversation it came from.
+  useEffect(
+    () =>
+      onDesktopChannelOpen((channelId) => {
+        setMode("chat");
+        setActiveChannelId(channelId);
+      }),
+    [],
   );
 
   /** Who, other than the author, has read past this message. */
