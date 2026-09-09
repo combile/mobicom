@@ -205,9 +205,18 @@ function AttendanceLine({ data }: { data: HomeData }) {
   return (
     <Attendance>
       <span className="material-symbols-outlined">schedule</span>
+      {/* The time is the value; "오늘 출근" is its label. They used to sit at
+          the same size and the same muted colour, which left the one thing
+          worth reading no easier to find than the words around it. */}
       <AttendanceText>
-        오늘 <AttendanceTime>{formatClock(shown)}</AttendanceTime> 기록
-        {corrected && <AttendanceOrigin>자동 {formatClock(today.firstSeenAt)}에서 수정</AttendanceOrigin>}
+        <AttendanceLabel>오늘 출근</AttendanceLabel>
+        <AttendanceTime>{formatClock(shown)}</AttendanceTime>
+        <AttendanceBadge data-corrected={corrected || undefined}>
+          {corrected ? "직접 수정" : "자동 기록"}
+        </AttendanceBadge>
+        {corrected && (
+          <AttendanceOrigin>자동 {formatClock(today.firstSeenAt)}</AttendanceOrigin>
+        )}
         {today.note && <AttendanceNote>{today.note}</AttendanceNote>}
       </AttendanceText>
 
@@ -268,18 +277,20 @@ function formatClock(iso: string) {
 const Attendance = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 11px;
   margin-bottom: 16px;
-  padding: 9px 12px;
+  padding: 11px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface-hover);
   font-size: 13px;
   color: var(--text-muted);
 
   > .material-symbols-outlined {
-    font-size: 17px;
-    color: var(--text-faint);
+    font-size: 20px;
+    /* The accent earns its place here: this row is the one bit of the home
+       screen that changes every morning. */
+    color: var(--accent);
   }
 `;
 
@@ -290,7 +301,31 @@ const AttendanceText = styled.span`
   flex-wrap: wrap;
 `;
 
+const AttendanceLabel = styled.span`
+  font-size: 12px;
+  color: var(--text-faint);
+`;
+
+const AttendanceBadge = styled.span`
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+
+  /* A corrected time is a claim someone made, not something observed — worth
+     telling apart at a glance from the automatic one. */
+  &[data-corrected] {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+`;
+
 const AttendanceTime = styled.strong`
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
   color: var(--text-strong);
   font-variant-numeric: tabular-nums;
 `;
