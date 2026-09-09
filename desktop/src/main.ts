@@ -10,6 +10,9 @@ let tray: Tray | null = null;
 // quitting" (let it close). Without it, quitting from the tray would just hide
 // the window again and the app could never exit.
 let isQuitting = false;
+// Prevents did-fail-load from re-triggering a load of the offline page when
+// the offline page itself is what failed to load.
+let showingOffline = false;
 
 function showWindow() {
   if (!mainWindow) return createWindow();
@@ -91,11 +94,22 @@ function createWindow() {
     mainWindow?.hide();
   });
 
-  mainWindow.webContents.on("did-fail-load", (_e, code, description, url) => {
+  mainWindow.webContents.on("did-fail-load", (_e, code, description, url, isMainFrame) => {
     // -3 is ERR_ABORTED, which ordinary in-app navigation also produces.
     if (code === -3) return;
+    // A failed subresource is not a failed page: a blocked font or missing
+    // favicon fires this event too, and it is not the main frame that failed.
+    if (!isMainFrame) return;
+    // The offline page itself failing to load would re-fire this event and
+    // loop back into loading the offline page again.
+    if (showingOffline) return;
     console.error("load failed", code, description, url);
+    showingOffline = true;
     void mainWindow?.loadFile(join(__dirname, "..", "src", "offline.html"));
+  });
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    showingOffline = false;
   });
 
   mainWindow.on("closed", () => {
