@@ -78,6 +78,25 @@ async function noteAttendance(userId: string) {
   );
 }
 
+/**
+ * Bumps this person's "last seen" for the Lab view.
+ *
+ * Rides the same heartbeat as noteAttendance above, and for the same reason:
+ * this endpoint is already polled every ~45s for as long as Mobi:ON is open,
+ * whichever tab is active, so there is no reason to open a second connection
+ * just to say the same "still here" a different feature also wants to hear.
+ * Unlike attendance's DO NOTHING (first request of the day wins), this
+ * overwrites every time — presence is only ever about the most recent ping.
+ */
+async function notePresence(userId: string) {
+  await query(
+    `INSERT INTO mobion_presence (user_id, last_seen_at)
+     VALUES ($1, now())
+     ON CONFLICT (user_id) DO UPDATE SET last_seen_at = now()`,
+    [userId],
+  );
+}
+
 export async function GET() {
   try {
     const user = await requireCurrentUser();
@@ -85,6 +104,7 @@ export async function GET() {
     // Best-effort: a failure here must not cost the caller the notifications
     // that already exist.
     await noteAttendance(user.id).catch(() => {});
+    await notePresence(user.id).catch(() => {});
     await raiseDueSoonNotifications(user.id).catch(() => {});
 
     const result = await query<NotificationRow>(

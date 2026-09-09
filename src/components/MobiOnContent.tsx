@@ -23,6 +23,8 @@ import { useHomeData } from "@/lib/use-home-data";
 import HomeView from "./HomeView";
 import ContestsView from "./ContestsView";
 import OverviewView from "./OverviewView";
+import LabView from "./LabView";
+import { useLabData } from "@/lib/use-lab-data";
 import CommandPalette, { type SearchResult } from "./CommandPalette";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
@@ -142,7 +144,7 @@ function groupMessages(list: Message[]): MessageGroup[] {
   return groups;
 }
 
-type WorkspaceMode = "home" | "chat" | "projects" | "schedule" | "contests" | "overview";
+type WorkspaceMode = "home" | "chat" | "projects" | "schedule" | "contests" | "overview" | "lab";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("home");
@@ -157,6 +159,7 @@ export default function MobiOnContent() {
   const scheduleData = useScheduleData(mode === "schedule");
   const contestsData = useContestsData(mode === "contests");
   const overviewData = useOverviewData(mode === "overview");
+  const labData = useLabData(mode === "lab");
   const homeData = useHomeData(mode === "home");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1025,6 +1028,15 @@ export default function MobiOnContent() {
           >
             <span className="material-symbols-outlined">emoji_events</span>
           </RailButton>
+          <RailButton
+            type="button"
+            data-active={mode === "lab" || undefined}
+            onClick={() => setMode("lab")}
+            aria-label="랩"
+            title="랩"
+          >
+            <span className="material-symbols-outlined">meeting_room</span>
+          </RailButton>
           {/* Hidden rather than disabled for everyone else: a control that is
               visible but refuses is an invitation to wonder what is behind it,
               and the server checks the role regardless of what the rail shows. */}
@@ -1065,6 +1077,7 @@ export default function MobiOnContent() {
           />
         )}
         {mode === "contests" && <ContestsView data={contestsData} />}
+        {mode === "lab" && <LabView data={labData} />}
         {mode === "overview" && canOversee && (
           <OverviewView
             data={overviewData}
