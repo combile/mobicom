@@ -179,7 +179,11 @@ export default function MobiOnContent() {
   const [allUsers, setAllUsers] = useState<
     { id: string; name: string; hulySocialId?: string }[]
   >([]);
-  const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
+  // Loaded once on mount, unlike allUsers which only fills when the create-
+  // channel modal opens. The profile card needs it too, so it reads this one.
+  const [mentionUsers, setMentionUsers] = useState<
+    { id: string; name: string; hulySocialId?: string | null }[]
+  >([]);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDescription, setNewChannelDescription] = useState("");
   const [newChannelTags, setNewChannelTags] = useState<string[]>([]);
@@ -1407,7 +1411,7 @@ export default function MobiOnContent() {
       {profileFor && (() => {
         // The message carries a Huly PersonId; the DM route wants this app's
         // user id. allUsers now ships hulySocialId so the two can be joined.
-        const person = allUsers.find((u) => u.hulySocialId === profileFor.socialId);
+        const person = mentionUsers.find((u) => u.hulySocialId === profileFor.socialId);
         const isMe = person?.id === currentUserId;
         return (
           <ModalOverlay onClick={() => setProfileFor(null)}>
