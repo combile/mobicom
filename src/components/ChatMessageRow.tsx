@@ -253,7 +253,7 @@ export default function ChatMessageRow(props: {
 
         {menuOpen && (
           <Menu role="menu">
-            <EmojiRow>
+            <EmojiRow data-expanded={showAllEmoji || undefined}>
               {(showAllEmoji ? ALL_REACTIONS : QUICK_REACTIONS).map((e) => (
                 <EmojiButton
                   key={e}
@@ -409,8 +409,11 @@ const Menu = styled.div`
   position: absolute;
   top: calc(100% + 3px);
   right: 0;
-  min-width: 178px;
-  padding: 5px;
+  /* The emoji grid decides the width; the min keeps the action labels from
+     wrapping when the grid is collapsed. */
+  width: fit-content;
+  min-width: 196px;
+  padding: 6px;
   border: 1px solid var(--border, #e3e6ea);
   border-radius: 10px;
   background: var(--surface, #fff);
@@ -418,19 +421,28 @@ const Menu = styled.div`
 `;
 
 /* Wraps onto more rows as the full set is revealed, rather than scrolling —
-   at this many emoji a scroll bar hides most of them behind a gesture. */
+   at this many emoji a scroll bar hides most of them behind a gesture.
+
+   Columns are a fixed width rather than 1fr, and the same width as the buttons
+   in them: with 1fr the track was wider than the button it held, so every
+   emoji sat a little left of its own cell and the gaps read as uneven.
+   Collapsed shows six (five reactions plus the "more" button), so it gets six
+   columns — eight would leave two empty tracks stretching the panel. */
 const EmojiRow = styled.div`
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 1px;
-  max-width: 268px;
+  grid-template-columns: repeat(6, 32px);
+  gap: 2px;
+
+  &[data-expanded] {
+    grid-template-columns: repeat(8, 32px);
+  }
 `;
 
 const EmojiButton = styled.button`
   display: grid;
   place-items: center;
-  width: 31px;
-  height: 31px;
+  width: 32px;
+  height: 32px;
   font-size: 17px;
   line-height: 1;
   border: none;
