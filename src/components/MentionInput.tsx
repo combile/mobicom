@@ -59,6 +59,14 @@ export default function MentionInput({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // While an IME is composing (Korean, Japanese, Chinese), the Enter that
+    // commits the composition fires its own keydown before the one the person
+    // means as "send". Acting on the first sent every Korean message twice —
+    // two rows really were stored, so a reload still showed both. Only Enter is
+    // guarded: arrow keys and Escape must keep driving the mention dropdown
+    // mid-composition, which is exactly when it is open.
+    if (e.key === "Enter" && e.nativeEvent.isComposing) return;
+
     if (trigger && candidates.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();

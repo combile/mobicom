@@ -986,7 +986,9 @@ function CreateChannelModal(props: CreateChannelModalProps) {
           value={props.tagInput}
           onChange={(e) => props.setTagInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            // same IME guard as MentionInput: the composition-commit Enter
+            // would otherwise add a Korean tag twice
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
               e.preventDefault();
               props.addTag();
             }

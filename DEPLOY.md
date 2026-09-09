@@ -57,12 +57,25 @@ diff /tmp/have /tmp/need && echo "키 일치"
 ## 5. 의존성과 빌드
 
 ```bash
+export PATH=$HOME/.nvm/versions/node/v20.20.2/bin:$PATH
 npm ci
 npm run build
 ```
 
 `npm ci`인 이유: `package-lock.json`에 잠긴 버전 그대로 설치합니다. `install`은
 락파일을 갱신할 수 있고, 특히 `@hcengineering/*`가 올라가면 6번 문제가 됩니다.
+
+**PATH를 먼저 지정하는 이유:** nvm은 로그인 셸에서만 로드됩니다. `ssh 서버
+'npm run build'`처럼 명령을 붙여 실행하면 nvm이 없는 상태로 시작해 시스템의
+낡은 Node가 잡히고, Next의 `config.js`가 쓰는 `??=`에서 이렇게 죽습니다:
+
+```
+SyntaxError: Unexpected token '??='
+```
+
+빌드 코드의 문제가 아니라 Node 버전 문제이므로, 에러 메시지만 보고 소스를
+고치려 들지 마세요. 서버에 직접 로그인해 작업할 때는 nvm이 이미 로드돼 있어
+필요 없습니다.
 
 ## 6. Huly 버전 일치 확인
 
