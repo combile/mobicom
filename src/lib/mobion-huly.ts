@@ -372,3 +372,41 @@ async function buildWorkspaceClient(link: HulyLink) {
   };
   return client;
 }
+
+/**
+ * Whether this account may see a channel at all.
+ *
+ * A public channel is visible to everyone; a private one only to its members.
+ * `members` is keyed by AccountUuid (see the accountUuid comment above), so the
+ * caller must pass `client.account.accountUuid` — a primarySocialId never matches.
+ *
+ * Both fields are read defensively: a doc that somehow carries neither is treated
+ * as public, which matches how a channel with `private: false` behaves and keeps
+ * this from silently hiding every channel if the shape ever shifts upstream.
+ */
+export function canSeeChannel(
+  channel: { private?: boolean; members?: string[] },
+  myAccountUuid: string,
+): boolean {
+  return !channel.private || (channel.members ?? []).includes(myAccountUuid);
+}
+
+export type ChannelDoc = { _id: string; private?: boolean; members?: string[] };
+
+/**
+ * Loads a channel/DM doc for an access check, or null when it does not exist.
+ *
+ * Message routes cannot lean on Huly's own space scoping to hide other people's
+ * conversations: messages are stored under HULY_CORE_SPACE (see above — the
+ * channel's own id there breaks live delta delivery), so every message in the
+ * workspace sits in one space that every account can read. Membership therefore
+ * has to be checked here, explicitly, before any message is read or written.
+ */
+export async function findChannelForAccess(
+  client: { findAll: <T>(c: string, q: Record<string, unknown>, o?: { limit?: number }) => Promise<T[]> },
+  channelClass: string,
+  channelId: string,
+): Promise<ChannelDoc | null> {
+  const rows = await client.findAll<ChannelDoc>(channelClass, { _id: channelId }, { limit: 1 });
+  return rows[0] ?? null;
+}

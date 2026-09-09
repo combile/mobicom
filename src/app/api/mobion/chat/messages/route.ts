@@ -6,6 +6,8 @@ import {
   CHUNTER_CLASS,
   HULY_CORE_SPACE,
   SortingOrder,
+  canSeeChannel,
+  findChannelForAccess,
 } from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
@@ -18,6 +20,41 @@ type ChatMessage = {
   createdOn: number;
 };
 
+type WorkspaceClient = Awaited<ReturnType<typeof getWorkspaceClient>>;
+
+/**
+ * Refuses the request unless this account may use the given conversation.
+ *
+ * `kind` is what the caller claims the id is; GET has no such parameter, so it
+ * passes null and both classes are tried. A DM is judged on its participant
+ * list alone rather than through canSeeChannel — a DM is never public, so it
+ * must not become readable if its `private` flag is ever missing.
+ */
+async function assertChannelAccess(
+  client: WorkspaceClient,
+  channelId: string,
+  kind: "channel" | "dm" | null,
+): Promise<{ error: NextResponse | null }> {
+  const asChannel =
+    kind === "dm" ? null : await findChannelForAccess(client, CHUNTER_CLASS.Channel, channelId);
+  const doc =
+    asChannel ??
+    (kind === "channel"
+      ? null
+      : await findChannelForAccess(client, CHUNTER_CLASS.DirectMessage, channelId));
+
+  if (!doc) {
+    return { error: NextResponse.json({ error: "채널을 찾을 수 없습니다." }, { status: 404 }) };
+  }
+
+  const me = client.account.accountUuid;
+  const allowed = asChannel ? canSeeChannel(doc, me) : (doc.members ?? []).includes(me);
+  if (!allowed) {
+    return { error: NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 }) };
+  }
+  return { error: null };
+}
+
 const PAGE_LIMIT = 50;
 
 /**
@@ -29,9 +66,11 @@ const PAGE_LIMIT = 50;
  * backwards would shift every offset by one and quietly repeat or skip a
  * message.
  *
- * Visibility needs no check of its own — findAll runs as the requester's own
- * Huly account, and Huly scopes spaces server-side, so a channel they are not
- * a member of simply returns nothing.
+ * Visibility IS checked here, explicitly. Huly's own space scoping cannot do it
+ * for us: every message is stored under HULY_CORE_SPACE (using the channel's own
+ * id there breaks live delta delivery — see mobion-huly.ts), so all messages in
+ * the workspace share one space that every account can read. Without the check
+ * below, knowing a channel id was enough to read a private channel.
  */
 export async function GET(request: Request) {
   try {
@@ -56,6 +95,9 @@ export async function GET(request: Request) {
     }
 
     const client = await getWorkspaceClient(link);
+    const access = await assertChannelAccess(client, channelId, null);
+    if (access.error) return access.error;
+
     const rows = await client.findAll<ChatMessage>(
       CHUNTER_CLASS.ChatMessage,
       before === null
@@ -120,6 +162,15 @@ export async function POST(request: Request) {
     }
 
     const client = await getWorkspaceClient(link);
+    // Same gate as GET: without it, a channel id was enough to post into a
+    // private channel, and a non-existent id silently created an orphan message.
+    const access = await assertChannelAccess(
+      client,
+      channelId,
+      body.channelClass === "dm" ? "dm" : "channel",
+    );
+    if (access.error) return access.error;
+
     await client.addCollection({
       _class: CHUNTER_CLASS.ChatMessage,
       space: HULY_CORE_SPACE,
