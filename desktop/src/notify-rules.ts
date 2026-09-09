@@ -115,6 +115,13 @@ if (require.main === module) {
     }),
     false,
   );
+  // with the window focused, null channelId === null activeChannelId must
+  // still not read as "already reading it" — otherwise every task would be
+  // suppressed whenever the window happens to be focused
+  assert.strictEqual(
+    shouldNotify({ ...base, kind: "task", channelId: null, activeChannelId: null, windowFocused: true }),
+    true,
+  );
 
   console.log("notify-rules self-check passed");
 }
