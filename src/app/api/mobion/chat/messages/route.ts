@@ -49,21 +49,6 @@ async function assertChannelAccess(
 
   const me = client.account.accountUuid;
   const allowed = asChannel ? canSeeChannel(doc, me) : (doc.members ?? []).includes(me);
-  // TEMPORARY diagnostic: a private channel is coming back with a falsy
-  // `private`, so the stored shape needs to be seen once. Remove after.
-  console.log(
-    "[chat-access]",
-    JSON.stringify({
-      channelId,
-      kind: asChannel ? "channel" : "dm",
-      private: doc.private,
-      privateType: typeof doc.private,
-      memberCount: (doc.members ?? []).length,
-      isMember: (doc.members ?? []).includes(me),
-      keys: Object.keys(doc).sort(),
-      allowed,
-    }),
-  );
   if (!allowed) {
     return { error: NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 }) };
   }
