@@ -115,12 +115,16 @@ export async function POST(request: Request) {
 const DELETE_PAGE = 200;
 
 /**
- * Deletes a channel and everything that belonged to it.
+ * Deletes a channel or a DM, and everything that belonged to it.
  *
- * The creator or a lab lead, matching message deletion. Everything goes:
- * messages, reactions, reply links, read marks, pins, and the uploaded files —
- * both their rows and their bytes. A "deleted" channel whose files still sat on
- * disk would be the kind of half-state nobody can explain a year later.
+ * Who may: for a channel, its creator or a lab lead, matching message deletion.
+ * For a DM, either participant — there is no "creator" worth the name, and a
+ * lead has no claim on a private conversation between two other people.
+ *
+ * Everything goes: messages, reactions, reply links, read marks, pins, and the
+ * uploaded files — both their rows and their bytes. A "deleted" conversation
+ * whose files still sat on disk would be the kind of half-state nobody can
+ * explain a year later.
  */
 export async function DELETE(request: Request) {
   try {
@@ -137,17 +141,34 @@ export async function DELETE(request: Request) {
     }
     const client = await getWorkspaceClient(link);
 
-    const channel = await findChannelForAccess(client, CHUNTER_CLASS.Channel, channelId);
-    if (!channel || !canSeeChannel(channel, client.account.accountUuid)) {
+    const me = client.account.accountUuid;
+    const asChannel = await findChannelForAccess(client, CHUNTER_CLASS.Channel, channelId);
+    const target =
+      asChannel ?? (await findChannelForAccess(client, CHUNTER_CLASS.DirectMessage, channelId));
+
+    if (!target) {
       return NextResponse.json({ error: "채널을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const createdBy = (channel as { createdBy?: string }).createdBy;
-    if (createdBy !== client.account.primarySocialId && user.role !== "lead") {
-      return NextResponse.json(
-        { error: "채널을 만든 사람이나 랩장만 삭제할 수 있습니다." },
-        { status: 403 },
-      );
+    if (asChannel) {
+      if (!canSeeChannel(asChannel, me)) {
+        return NextResponse.json({ error: "채널을 찾을 수 없습니다." }, { status: 404 });
+      }
+      const createdBy = (asChannel as { createdBy?: string }).createdBy;
+      if (createdBy !== client.account.primarySocialId && user.role !== "lead") {
+        return NextResponse.json(
+          { error: "채널을 만든 사람이나 랩장만 삭제할 수 있습니다." },
+          { status: 403 },
+        );
+      }
+    } else {
+      // A DM has no creator worth speaking of — both people own the
+      // conversation equally, so either may delete it. A lab lead has no
+      // special claim here: a private conversation between two other people is
+      // not theirs to remove.
+      if (!(target.members ?? []).includes(me)) {
+        return NextResponse.json({ error: "채널을 찾을 수 없습니다." }, { status: 404 });
+      }
     }
 
     // Files first: their bytes are the only part that cannot be recovered by
@@ -190,7 +211,7 @@ export async function DELETE(request: Request) {
     }
 
     await client.removeDoc({
-      _class: CHUNTER_CLASS.Channel,
+      _class: asChannel ? CHUNTER_CLASS.Channel : CHUNTER_CLASS.DirectMessage,
       space: HULY_CORE_SPACE,
       objectId: channelId,
     });

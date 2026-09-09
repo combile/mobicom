@@ -1233,26 +1233,38 @@ export default function MobiOnContent() {
                     channel is deleted rarely and deliberately, so the control
                     belongs where you have already opened the thing. DMs have
                     no delete — there is no "creator" to own one. */}
-                {activeChannel.kind !== "dm" && (
-                  <ChannelDeleteButton
-                    type="button"
-                    onClick={() =>
-                      setConfirming({
-                        title: `#${activeChannel.name} 채널을 삭제할까요?`,
-                        description:
-                          "채널의 모든 메시지와 올린 파일이 함께 지워집니다.\n되돌릴 수 없습니다.",
-                        onConfirm: () => {
-                          void handleDeleteChannel(activeChannel.id);
-                          setConfirming(null);
-                        },
-                      })
-                    }
-                    aria-label="채널 삭제"
-                    title="채널 삭제"
-                  >
-                    <span className="material-symbols-outlined">delete</span>
-                  </ChannelDeleteButton>
-                )}
+                <ChannelDeleteButton
+                  type="button"
+                  onClick={() =>
+                    setConfirming(
+                      activeChannel.kind === "dm"
+                        ? {
+                            title: `${activeChannel.name} 님과의 대화를 삭제할까요?`,
+                            // Said plainly: this is not "leave", and the other
+                            // person does not get to keep their copy.
+                            description:
+                              "주고받은 메시지와 파일이 모두 지워지고, 상대방에게서도 사라집니다.\n되돌릴 수 없습니다.",
+                            onConfirm: () => {
+                              void handleDeleteChannel(activeChannel.id);
+                              setConfirming(null);
+                            },
+                          }
+                        : {
+                            title: `#${activeChannel.name} 채널을 삭제할까요?`,
+                            description:
+                              "채널의 모든 메시지와 올린 파일이 함께 지워집니다.\n되돌릴 수 없습니다.",
+                            onConfirm: () => {
+                              void handleDeleteChannel(activeChannel.id);
+                              setConfirming(null);
+                            },
+                          },
+                    )
+                  }
+                  aria-label={activeChannel.kind === "dm" ? "대화 삭제" : "채널 삭제"}
+                  title={activeChannel.kind === "dm" ? "대화 삭제" : "채널 삭제"}
+                >
+                  <span className="material-symbols-outlined">delete</span>
+                </ChannelDeleteButton>
               </>
             ) : (
               <ChannelHeaderTitle>채널을 선택하거나 새로 만들어 보세요</ChannelHeaderTitle>
