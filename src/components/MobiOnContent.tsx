@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import MentionInput from "./MentionInput";
 import ChatMessageRow, { type Reaction, type Attachment } from "./ChatMessageRow";
+import ConfirmDialog from "./ConfirmDialog";
 import ProjectSidebarList from "./ProjectSidebarList";
 import ProjectDetailView from "./ProjectDetailView";
 import { parseMentionSegments, messageContainsMentionOf } from "@/lib/mobion-mentions";
@@ -145,6 +146,15 @@ export default function MobiOnContent() {
     { id: string; filename: string; size: number; uploading: boolean }[]
   >([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // What a confirmation dialog is currently asking about, or null when none is
+  // open. One piece of state for both kinds of deletion — only ever one dialog
+  // is on screen, and holding the action here keeps the dialog itself unaware
+  // of what it is confirming.
+  const [confirming, setConfirming] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
   const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
@@ -393,6 +403,26 @@ export default function MobiOnContent() {
       return;
     }
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }
+
+  async function handleDeleteChannel(channelId: string) {
+    const res = await fetch(
+      `/api/mobion/chat/channels?channelId=${encodeURIComponent(channelId)}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSendError(data.error ?? "채널 삭제 실패");
+      return;
+    }
+    setChannels((prev) => prev.filter((c) => c.id !== channelId));
+    setMessages((prev) => prev.filter((m) => m.channelId !== channelId));
+    setFavorites((prev) => prev.filter((id) => id !== channelId));
+    // Moving off the deleted channel rather than leaving an empty pane that
+    // still names something that no longer exists.
+    setActiveChannelId((prev) =>
+      prev === channelId ? (channels.find((c) => c.id !== channelId)?.id ?? null) : prev,
+    );
   }
 
   async function toggleFavorite(channelId: string) {
@@ -1043,6 +1073,30 @@ export default function MobiOnContent() {
                     {activeChannel.description}
                   </ChannelHeaderDescription>
                 )}
+                {/* In the header rather than beside each row in the list: a
+                    channel is deleted rarely and deliberately, so the control
+                    belongs where you have already opened the thing. DMs have
+                    no delete — there is no "creator" to own one. */}
+                {activeChannel.kind !== "dm" && (
+                  <ChannelDeleteButton
+                    type="button"
+                    onClick={() =>
+                      setConfirming({
+                        title: `#${activeChannel.name} 채널을 삭제할까요?`,
+                        description:
+                          "채널의 모든 메시지와 올린 파일이 함께 지워집니다.\n되돌릴 수 없습니다.",
+                        onConfirm: () => {
+                          void handleDeleteChannel(activeChannel.id);
+                          setConfirming(null);
+                        },
+                      })
+                    }
+                    aria-label="채널 삭제"
+                    title="채널 삭제"
+                  >
+                    <span className="material-symbols-outlined">delete</span>
+                  </ChannelDeleteButton>
+                )}
               </>
             ) : (
               <ChannelHeaderTitle>채널을 선택하거나 새로 만들어 보세요</ChannelHeaderTitle>
@@ -1100,7 +1154,18 @@ export default function MobiOnContent() {
                         onReact={(emoji) => void handleReact(m.id, emoji)}
                         onReply={() => setReplyingTo(m)}
                         onEdit={(text) => handleEditMessage(m.id, text)}
-                        onDelete={() => void handleDeleteMessage(m.id)}
+                        onDelete={() =>
+                          setConfirming({
+                            title: "메시지를 삭제할까요?",
+                            // shows the message itself, trimmed — confirming a
+                            // deletion you cannot see is confirming nothing
+                            description: `"${m.text.slice(0, 80)}${m.text.length > 80 ? "…" : ""}"\n\n삭제하면 되돌릴 수 없습니다.`,
+                            onConfirm: () => {
+                              void handleDeleteMessage(m.id);
+                              setConfirming(null);
+                            },
+                          })
+                        }
                         /* the point of having chat and projects in one place:
                            something decided in conversation becomes work
                            without being retyped somewhere else */
@@ -1187,6 +1252,14 @@ export default function MobiOnContent() {
           </>
         )}
       </Layout>
+      {confirming && (
+        <ConfirmDialog
+          title={confirming.title}
+          description={confirming.description}
+          onConfirm={confirming.onConfirm}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
       {showCreateChannel && (
         <CreateChannelModal
           name={newChannelName}
@@ -1557,6 +1630,29 @@ const Main = styled.div`
 const ChannelHeader = styled.div`
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-strong);
+`;
+
+const ChannelDeleteButton = styled.button`
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+  }
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
 `;
 
 const ChannelHeaderTitle = styled.div`
