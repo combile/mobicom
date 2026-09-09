@@ -167,6 +167,7 @@ export default function MobiOnContent() {
     name: string;
     avatarUrl: string | null;
   } | null>(null);
+  const [profileDraft, setProfileDraft] = useState("");
   const [showNewDm, setShowNewDm] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   const [taskFromMessage, setTaskFromMessage] = useState<Message | null>(null);
@@ -493,6 +494,49 @@ export default function MobiOnContent() {
     // A brand-new DM is not in this connection's snapshot, which was taken
     // before it existed. Reconnecting is what makes it appear in the list.
     if (!data.existing) setRefreshToken((t) => t + 1);
+  }
+
+  /**
+   * Opens a DM and sends the first message in one go.
+   *
+   * The profile card carries its own input rather than a button that takes you
+   * elsewhere: the thing you wanted was to say something to this person, and
+   * making that two steps (open, then type) puts a screen change in the middle
+   * of a single thought.
+   */
+  async function sendDmFromProfile(userId: string, text: string) {
+    setDmError(null);
+    const dmRes = await fetch("/api/mobion/chat/dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    const dm = await dmRes.json().catch(() => ({}));
+    if (!dmRes.ok) {
+      setDmError(dm.error ?? "대화를 시작하지 못했습니다.");
+      return;
+    }
+
+    const sendRes = await fetch("/api/mobion/chat/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channelId: dm.channelId,
+        channelClass: "dm",
+        text: encodeMentions(text, mentionUsers),
+      }),
+    });
+    if (!sendRes.ok) {
+      const err = await sendRes.json().catch(() => ({}));
+      setDmError(err.error ?? "메시지를 보내지 못했습니다.");
+      return;
+    }
+
+    setProfileFor(null);
+    setMode("chat");
+    setActiveChannelId(dm.channelId);
+    // A DM created just now is not in this connection's snapshot.
+    if (!dm.existing) setRefreshToken((t) => t + 1);
   }
 
   async function toggleFavorite(channelId: string) {
@@ -1410,39 +1454,61 @@ export default function MobiOnContent() {
       </Layout>
       {profileFor && (() => {
         // The message carries a Huly PersonId; the DM route wants this app's
-        // user id. allUsers now ships hulySocialId so the two can be joined.
+        // user id. mentionUsers ships hulySocialId so the two can be joined —
+        // and unlike allUsers it is loaded on mount, so the card can rely on it.
         const person = mentionUsers.find((u) => u.hulySocialId === profileFor.socialId);
         const isMe = person?.id === currentUserId;
+        const canDm = Boolean(person && !isMe && person.hulySocialId);
         return (
-          <ModalOverlay onClick={() => setProfileFor(null)}>
+          <ModalOverlay
+            onClick={() => {
+              setProfileFor(null);
+              setProfileDraft("");
+            }}
+          >
             <ProfileCard onClick={(e) => e.stopPropagation()}>
-              {profileFor.avatarUrl ? (
-                <ProfileAvatar src={profileFor.avatarUrl} alt="" />
-              ) : (
-                <ProfileAvatarFallback style={{ background: avatarColor(profileFor.socialId) }}>
-                  {profileFor.name.charAt(0)}
-                </ProfileAvatarFallback>
-              )}
-              <ProfileName>{profileFor.name}</ProfileName>
-              {dmError && <SendErrorText>{dmError}</SendErrorText>}
-              {isMe ? (
-                <ProfileNote>나</ProfileNote>
-              ) : person ? (
-                <ProfileAction
-                  type="button"
-                  onClick={() => {
-                    setProfileFor(null);
-                    void startDm(person.id);
-                  }}
-                >
-                  <span className="material-symbols-outlined">chat</span>
-                  메시지 보내기
-                </ProfileAction>
-              ) : (
-                // A professor is excluded from the user list, and so is anyone
-                // whose Huly link has not been created yet.
-                <ProfileNote>이 사람에게는 메시지를 보낼 수 없습니다.</ProfileNote>
-              )}
+              {/* A banner in the person's own colour, the same one their avatar
+                  falls back to — so the card reads as theirs at a glance. */}
+              <ProfileBanner style={{ background: avatarColor(profileFor.socialId) }} />
+              <ProfileBody>
+                {profileFor.avatarUrl ? (
+                  <ProfileAvatar src={profileFor.avatarUrl} alt="" />
+                ) : (
+                  <ProfileAvatarFallback
+                    style={{ background: avatarColor(profileFor.socialId) }}
+                  >
+                    {profileFor.name.charAt(0)}
+                  </ProfileAvatarFallback>
+                )}
+                <ProfileName>{profileFor.name}</ProfileName>
+                {isMe && <ProfileNote>나</ProfileNote>}
+                {!isMe && !canDm && (
+                  <ProfileNote>아직 채팅이 연결되지 않은 계정입니다.</ProfileNote>
+                )}
+                {dmError && <SendErrorText>{dmError}</SendErrorText>}
+
+                {canDm && person && (
+                  <ProfileComposer>
+                    <ProfileInput
+                      value={profileDraft}
+                      autoFocus
+                      placeholder={`@${profileFor.name} 님에게 메시지 보내기`}
+                      onChange={(e) => setProfileDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        // same IME guard as everywhere else a Korean sentence
+                        // meets Enter
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          const text = profileDraft.trim();
+                          if (!text) return;
+                          setProfileDraft("");
+                          void sendDmFromProfile(person.id, text);
+                        }
+                      }}
+                    />
+                  </ProfileComposer>
+                )}
+              </ProfileBody>
             </ProfileCard>
           </ModalOverlay>
         );
@@ -1871,61 +1937,58 @@ const ChannelHeader = styled.div`
   border-bottom: 1px solid var(--border-strong);
 `;
 
-/* A small card rather than the full modal shell: this is one name and one
-   action, and a dialog-sized box around it would read as more than it is. */
+/* Modelled on Discord's profile popover: a coloured banner, the avatar
+   straddling its edge, and — the part that matters — an input right there.
+   The thing you wanted was to say something to this person; a button that
+   takes you elsewhere puts a screen change in the middle of that. */
 const ProfileCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  min-width: 220px;
-  padding: 22px 24px;
+  width: 320px;
+  overflow: hidden;
   border: 1px solid var(--border-strong);
   border-radius: 14px;
   background: var(--surface);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.26);
+`;
+
+const ProfileBanner = styled.div`
+  height: 66px;
+`;
+
+const ProfileBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px 16px;
 `;
 
 const ProfileAvatar = styled.img`
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
+  margin-top: -38px;
   border-radius: 50%;
   object-fit: cover;
+  /* The ring is the card's own background, which is what makes the avatar read
+     as sitting on top of the banner rather than punched through it. */
+  border: 5px solid var(--surface);
 `;
 
 const ProfileAvatarFallback = styled.div`
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
+  margin-top: -38px;
   border-radius: 50%;
+  border: 5px solid var(--surface);
   color: #fff;
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
 `;
 
 const ProfileName = styled.div`
-  font-size: 16px;
+  font-size: 19px;
   font-weight: 700;
   color: var(--text-strong);
-`;
-
-const ProfileAction = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--on-solid);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-
-  .material-symbols-outlined {
-    font-size: 17px;
-  }
 `;
 
 const ProfileNote = styled.p`
@@ -1934,8 +1997,30 @@ const ProfileNote = styled.p`
   color: var(--text-faint);
 `;
 
+const ProfileComposer = styled.div`
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+`;
+
+const ProfileInput = styled.input`
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+
+  &:focus {
+    border-color: var(--accent);
+  }
+`;
+
 /* Wraps the name rather than restyling it with `as="button"` — MessageAuthor
-   is a span and giving it a button's props fights its type. */
+   is a span, and giving it a button's props fights its type. */
 const NameTrigger = styled.button`
   padding: 0;
   border: none;
