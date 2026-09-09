@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
-import { parseMentionSegments } from "@/lib/mobion-mentions";
+import { parseMentionSegments, mentionPlainText } from "@/lib/mobion-mentions";
 
 type CommentRow = {
   id: string;
@@ -97,7 +97,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await query(
         `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
          VALUES ($1, 'comment', $2, $3, $4)`,
-        [userId, id, user.id, body.slice(0, 200)],
+        // shown as plain text in the home feed, so the stored markup
+        // would put a uuid in the middle of the notification
+        [userId, id, user.id, mentionPlainText(body).slice(0, 200)],
       );
     }
 
@@ -107,7 +109,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await query(
         `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
          VALUES ($1, 'comment', $2, $3, $4)`,
-        [task.assignee_id, id, user.id, body.slice(0, 200)],
+        // same as above: plain text for a plain-text feed
+        [task.assignee_id, id, user.id, mentionPlainText(body).slice(0, 200)],
       );
     }
 

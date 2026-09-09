@@ -7,7 +7,11 @@ import CustomSelect from "./CustomSelect";
 import DatePicker from "./DatePicker";
 import GanttChart from "./GanttChart";
 import MentionInput from "./MentionInput";
-import { parseMentionSegments, encodeMentions } from "@/lib/mobion-mentions";
+import {
+  parseMentionSegments,
+  encodeMentions,
+  mentionPlainText,
+} from "@/lib/mobion-mentions";
 import {
   MILESTONE_KINDS,
   MILESTONE_STATUS_OPTIONS,
@@ -893,7 +897,7 @@ function TaskDetailModal({
         {task.sourceChannelId && (
           <SourceNote>
             <span className="material-symbols-outlined">forum</span>
-            <SourceQuote>{task.sourceExcerpt}</SourceQuote>
+            <SourceQuote>{mentionPlainText(task.sourceExcerpt ?? "")}</SourceQuote>
             <QuietButton
               type="button"
               disabled={dirty}
@@ -1201,7 +1205,7 @@ function CreateTaskModal({ data }: { data: TasksData }) {
         {data.taskSource && (
           <SourceNote>
             <span className="material-symbols-outlined">forum</span>
-            <SourceQuote>{data.taskSource.excerpt}</SourceQuote>
+            <SourceQuote>{mentionPlainText(data.taskSource.excerpt)}</SourceQuote>
           </SourceNote>
         )}
         <Field>

@@ -12,6 +12,7 @@ import {
   parseMentionSegments,
   messageContainsMentionOf,
   encodeMentions,
+  mentionPlainText,
 } from "@/lib/mobion-mentions";
 import { useTasksData } from "@/lib/use-tasks-data";
 import { useScheduleData } from "@/lib/use-schedule-data";
@@ -1156,7 +1157,10 @@ export default function MobiOnContent() {
                         attachments={attachments[m.id] ?? []}
                         quoted={
                           parent
-                            ? { authorName: parent.authorName, text: parent.text }
+                            ? {
+                                authorName: parent.authorName,
+                                text: mentionPlainText(parent.text),
+                              }
                             : null
                         }
                         readBy={readersOf(m)}
@@ -1169,7 +1173,12 @@ export default function MobiOnContent() {
                             title: "메시지를 삭제할까요?",
                             // shows the message itself, trimmed — confirming a
                             // deletion you cannot see is confirming nothing
-                            description: `"${m.text.slice(0, 80)}${m.text.length > 80 ? "…" : ""}"\n\n삭제하면 되돌릴 수 없습니다.`,
+                            description: (() => {
+                              // the reader has to recognise the message, so it
+                              // is shown the way they saw it, not as stored
+                              const plain = mentionPlainText(m.text);
+                              return `"${plain.slice(0, 80)}${plain.length > 80 ? "…" : ""}"\n\n삭제하면 되돌릴 수 없습니다.`;
+                            })(),
                             onConfirm: () => {
                               void handleDeleteMessage(m.id);
                               setConfirming(null);
@@ -1193,7 +1202,7 @@ export default function MobiOnContent() {
                 <span className="material-symbols-outlined">reply</span>
                 <ReplyTarget>
                   <strong>{replyingTo.authorName ?? "알 수 없음"}</strong>
-                  <ReplyPreview>{replyingTo.text}</ReplyPreview>
+                  <ReplyPreview>{mentionPlainText(replyingTo.text)}</ReplyPreview>
                 </ReplyTarget>
                 <ComposerIcon
                   type="button"
@@ -1271,7 +1280,7 @@ export default function MobiOnContent() {
       </Layout>
       {taskFromMessage && (
         <ChatTaskModal
-          excerpt={taskFromMessage.text.trim()}
+          excerpt={mentionPlainText(taskFromMessage.text).trim()}
           channelId={taskFromMessage.channelId}
           messageId={taskFromMessage.id}
           onCreated={(projectId) => {

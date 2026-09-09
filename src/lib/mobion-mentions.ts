@@ -106,6 +106,21 @@ export function mentionEndingAt(
   return null;
 }
 
+/**
+ * The message as a person reads it: "@[uuid:이름]" becomes "@이름".
+ *
+ * Anywhere a message is shown as plain text rather than rendered — a reply
+ * quote, a delete confirmation, the title a task inherits — the stored form
+ * would otherwise leak a uuid into the middle of the sentence. Rendering
+ * components use parseMentionSegments instead, which keeps the id so the
+ * mention can be styled and matched against the reader.
+ */
+export function mentionPlainText(text: string): string {
+  return parseMentionSegments(text)
+    .map((s) => (s.type === "text" ? s.content : `@${s.name}`))
+    .join("");
+}
+
 export function messageContainsMentionOf(text: string, userId: string): boolean {
   return parseMentionSegments(text).some(
     (s) => s.type === "mention" && s.userId === userId,
@@ -191,6 +206,12 @@ if (typeof process !== "undefined" && process.argv?.[1] && import.meta.url === `
   assert.deepStrictEqual(splitTypedMentions("@없는사람", lab), [
     { type: "text", content: "@없는사람" },
   ]);
+
+  // Plain text must never carry the id through — this is what a reply quote,
+  // a delete confirmation and a task title all show.
+  assert.strictEqual(mentionPlainText("@[u1:철수] 확인 부탁"), "@철수 확인 부탁");
+  assert.strictEqual(mentionPlainText("@[a:x]와 @[b:y]"), "@x와 @y");
+  assert.strictEqual(mentionPlainText("멘션 없는 문장"), "멘션 없는 문장");
 
   console.log("mobion-mentions self-check passed");
 }
