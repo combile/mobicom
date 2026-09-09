@@ -1,6 +1,5 @@
 import { app, BrowserWindow } from "electron";
-
-const SERVER_URL = "http://203.230.103.35:3300";
+import { loadSettings } from "./settings";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -19,7 +18,7 @@ function createWindow() {
     },
   });
 
-  void mainWindow.loadURL(SERVER_URL);
+  void mainWindow.loadURL(loadSettings().serverUrl);
 
   mainWindow.on("closed", () => {
     mainWindow = null;
