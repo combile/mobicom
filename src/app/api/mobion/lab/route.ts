@@ -44,6 +44,6 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    return mobionApiError(error, "오피스 현황을 불러오지 못했습니다.");
+    return mobionApiError(error, "랩 현황을 불러오지 못했습니다.");
   }
 }

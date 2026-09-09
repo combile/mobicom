@@ -2,7 +2,7 @@
 
 import styled from "@emotion/styled";
 import { ErrorText } from "./modal-styles";
-import type { OfficeData, PresentMember } from "@/lib/use-office-data";
+import type { LabData, PresentMember } from "@/lib/use-lab-data";
 
 const AVATAR_COLORS = ["var(--accent)", "var(--warn)", "var(--milestone)", "var(--ok)", "var(--danger)"];
 
@@ -54,11 +54,11 @@ function scatterPosition(index: number, count: number, seed: number) {
  * here appears at all: there is no "last seen 3 hours ago" to soften, since
  * the data behind this view only ever answers "right now".
  */
-export default function OfficeView({ data }: { data: OfficeData }) {
+export default function LabView({ data }: { data: LabData }) {
   return (
     <Main>
       <Header>
-        <Title>오피스</Title>
+        <Title>랩</Title>
         <Sub>
           {data.present.length > 0 ? `${data.present.length}명 접속 중` : "아무도 없어요"}
         </Sub>
@@ -70,7 +70,7 @@ export default function OfficeView({ data }: { data: OfficeData }) {
         {data.isEmpty && !data.loading && (
           <Empty>
             <span className="material-symbols-outlined">meeting_room</span>
-            지금 오피스에 아무도 없어요
+            지금 랩에 아무도 없어요
           </Empty>
         )}
         {data.present.map((m, i) => (
@@ -163,9 +163,9 @@ const Bubble = styled.div`
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  animation: office-float 4s ease-in-out infinite;
+  animation: lab-float 4s ease-in-out infinite;
 
-  @keyframes office-float {
+  @keyframes lab-float {
     0%, 100% { transform: translate(-50%, -50%) translateY(0); }
     50% { transform: translate(-50%, -50%) translateY(-8px); }
   }
@@ -207,9 +207,9 @@ const OnlineDot = styled.span`
   border-radius: 50%;
   background: var(--ok);
   border: 2px solid var(--surface);
-  animation: office-pulse 2s ease-out infinite;
+  animation: lab-pulse 2s ease-out infinite;
 
-  @keyframes office-pulse {
+  @keyframes lab-pulse {
     0% { box-shadow: 0 0 0 0 var(--ok-soft); }
     100% { box-shadow: 0 0 0 10px transparent; }
   }

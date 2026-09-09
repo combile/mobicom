@@ -79,7 +79,7 @@ async function noteAttendance(userId: string) {
 }
 
 /**
- * Bumps this person's "last seen" for the Office view.
+ * Bumps this person's "last seen" for the Lab view.
  *
  * Rides the same heartbeat as noteAttendance above, and for the same reason:
  * this endpoint is already polled every ~45s for as long as Mobi:ON is open,

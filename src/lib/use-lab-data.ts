@@ -16,12 +16,12 @@ export type PresentMember = {
 const POLL_MS = 15_000;
 
 /**
- * Who is in the Office right now.
+ * Who is in the Lab right now.
  *
  * `enabled` gates the polling the way the other views do: nobody pays for a
  * timer against a screen they haven't opened.
  */
-export function useOfficeData(enabled: boolean) {
+export function useLabData(enabled: boolean) {
   const [present, setPresent] = useState<PresentMember[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,7 +32,7 @@ export function useOfficeData(enabled: boolean) {
 
     function load() {
       setLoading(true);
-      fetch("/api/mobion/office")
+      fetch("/api/mobion/lab")
         .then((res) => (res.ok ? res.json() : Promise.reject()))
         .then((data) => {
           if (cancelled) return;
@@ -40,7 +40,7 @@ export function useOfficeData(enabled: boolean) {
           setLoadError(null);
         })
         .catch(() => {
-          if (!cancelled) setLoadError("오피스 현황을 불러오지 못했습니다.");
+          if (!cancelled) setLoadError("랩 현황을 불러오지 못했습니다.");
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -69,4 +69,4 @@ export function useOfficeData(enabled: boolean) {
   };
 }
 
-export type OfficeData = ReturnType<typeof useOfficeData>;
+export type LabData = ReturnType<typeof useLabData>;
