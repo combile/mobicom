@@ -199,7 +199,10 @@ export default function ChatMessageRow(props: {
 
   return (
     <Row data-mentions-me={props.mentionsMe || undefined}>
-      {props.showTimestamp && <Stamp>{props.timestamp}</Stamp>}
+      {/* Always rendered, even when empty: the timestamp column has a fixed
+          width, so dropping the element on the first message of a group pulled
+          that line left while every line under it stayed indented. */}
+      <Stamp>{props.showTimestamp ? props.timestamp : ""}</Stamp>
 
       <Content>
         {props.quoted && (

@@ -170,6 +170,15 @@ export async function GET() {
         const channelPrivacy = new Map(
           channels.map((c) => [c._id, { private: c.private, members: c.members }]),
         );
+        // DMs belong in the same map. Without them, a live message in a DM
+        // found no entry here and was dropped by the fail-closed rule below —
+        // the conversation only appeared after a reload re-took the snapshot.
+        // `private: true` is the honest description of a DM and makes
+        // canSeeChannel judge it on its participant list, which is exactly the
+        // rule a DM needs.
+        for (const d of dms) {
+          channelPrivacy.set(d._id, { private: true, members: d.members });
+        }
 
         // Scoped and capped. This previously read every ChatMessage in the
         // workspace with no filter and no limit and shipped the lot to the
