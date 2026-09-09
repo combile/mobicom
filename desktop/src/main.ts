@@ -157,6 +157,32 @@ ipcMain.on("mobion:notify", (_event, payload: DesktopNotification) => {
   notification.show();
 });
 
+ipcMain.on("mobion:badge", (_event, count: number) => {
+  const n = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+
+  // macOS has a dock badge. Windows has a taskbar overlay and wants an image,
+  // so the count is drawn as text.
+  if (process.platform === "darwin") {
+    app.setBadgeCount(n);
+    return;
+  }
+  if (!mainWindow) return;
+  if (n === 0) {
+    mainWindow.setOverlayIcon(null, "");
+    return;
+  }
+  const label = n > 99 ? "99+" : String(n);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+    <circle cx="16" cy="16" r="16" fill="#dc2626"/>
+    <text x="16" y="22" font-size="${label.length > 2 ? 13 : 17}" font-family="sans-serif"
+      fill="white" text-anchor="middle">${label}</text>
+  </svg>`;
+  const image = nativeImage.createFromDataURL(
+    `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
+  );
+  mainWindow.setOverlayIcon(image, `읽지 않은 메시지 ${label}개`);
+});
+
 void app.whenReady().then(() => {
   createWindow();
   createTray();

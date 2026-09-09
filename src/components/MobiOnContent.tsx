@@ -26,7 +26,7 @@ import OverviewView from "./OverviewView";
 import CommandPalette, { type SearchResult } from "./CommandPalette";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
-import { notifyDesktop, onDesktopChannelOpen } from "@/lib/mobion-desktop";
+import { notifyDesktop, onDesktopChannelOpen, setDesktopBadge } from "@/lib/mobion-desktop";
 
 type Channel = {
   id: string;
@@ -792,6 +792,13 @@ export default function MobiOnContent() {
     const since = reads[channelId] ?? 0;
     return messages.filter((m) => m.channelId === channelId && m.createdOn > since).length;
   }
+
+  // The badge mirrors what the channel list already shows, summed. Sent on
+  // change rather than polled — these numbers recompute here anyway.
+  const totalUnread = channels.reduce((sum, c) => sum + unreadCount(c.id), 0);
+  useEffect(() => {
+    setDesktopBadge(totalUnread);
+  }, [totalUnread]);
 
   function unreadLabel(count: number) {
     // the snapshot only carried so much, so a count at the cap is a floor
