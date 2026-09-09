@@ -1,7 +1,8 @@
 "use client";
 
 import styled from "@emotion/styled";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * One message, with everything that hangs off it.
@@ -95,11 +96,60 @@ export default function ChatMessageRow(props: {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showAllEmoji, setShowAllEmoji] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  /**
+   * Places the panel in viewport coordinates.
+   *
+   * It is rendered into <body> rather than beside the button because the
+   * message list scrolls (overflow-y: auto) and the whole workspace clips
+   * (overflow: hidden) — anchored in place, the panel was cut off at the edge
+   * of the list instead of opening over it.
+   */
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+
+    function place() {
+      const button = buttonRef.current;
+      const menu = menuRef.current;
+      if (!button) return;
+      const b = button.getBoundingClientRect();
+      const height = menu?.offsetHeight ?? 240;
+      const width = menu?.offsetWidth ?? 210;
+      const GAP = 4;
+
+      // Opens downward unless that would run past the bottom, in which case it
+      // flips above the button rather than being pushed up into it.
+      const below = b.bottom + GAP;
+      const top =
+        below + height > window.innerHeight - 8 ? Math.max(8, b.top - height - GAP) : below;
+      // Right edges aligned, then pulled back inside the viewport if the
+      // message sits near the right edge of a narrow window.
+      const left = Math.max(8, Math.min(b.right - width, window.innerWidth - width - 8));
+      setMenuPos({ top, left });
+    }
+
+    place();
+    // The panel grows when the full emoji set is revealed, so it is measured
+    // again after that changes rather than assuming the collapsed height.
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [menuOpen, showAllEmoji]);
 
   useEffect(() => {
     if (!menuOpen) return;
     function onPointerDown(e: MouseEvent) {
-      if (!menuRef.current?.contains(e.target as Node)) {
+      const target = e.target as Node;
+      // The panel now lives in <body>, so the button that opens it is no longer
+      // inside it — both have to count as "not outside", or pressing the button
+      // to close would close on mousedown and reopen on click.
+      if (!menuRef.current?.contains(target) && !anchorRef.current?.contains(target)) {
         setMenuOpen(false);
         setShowAllEmoji(false);
       }
@@ -123,6 +173,7 @@ export default function ChatMessageRow(props: {
   function closeMenu() {
     setMenuOpen(false);
     setShowAllEmoji(false);
+    setMenuPos(null);
   }
 
   // An edit bumps modifiedOn past createdOn; Huly sets both, so no flag of our
@@ -239,8 +290,9 @@ export default function ChatMessageRow(props: {
           over the message the moment the pointer crossed it, and every one of
           them vanished if the pointer drifted. This opens a panel that stays
           until something else is clicked, so it can actually be aimed at. */}
-      <MenuAnchor ref={menuRef}>
+      <MenuAnchor ref={anchorRef}>
         <MoreButton
+          ref={buttonRef}
           type="button"
           data-open={menuOpen || undefined}
           onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
@@ -251,8 +303,13 @@ export default function ChatMessageRow(props: {
           <span className="material-symbols-outlined">more_vert</span>
         </MoreButton>
 
-        {menuOpen && (
-          <Menu role="menu">
+        {menuOpen &&
+          createPortal(
+            <Menu
+              ref={menuRef}
+              role="menu"
+              style={{ top: menuPos?.top ?? -9999, left: menuPos?.left ?? -9999 }}
+            >
             <EmojiRow data-expanded={showAllEmoji || undefined}>
               {(showAllEmoji ? ALL_REACTIONS : QUICK_REACTIONS).map((e) => (
                 <EmojiButton
@@ -331,8 +388,9 @@ export default function ChatMessageRow(props: {
                 삭제
               </MenuItem>
             )}
-          </Menu>
-        )}
+            </Menu>,
+            document.body,
+          )}
       </MenuAnchor>
     </Row>
   );
@@ -406,9 +464,10 @@ const MoreButton = styled.button`
 `;
 
 const Menu = styled.div`
-  position: absolute;
-  top: calc(100% + 3px);
-  right: 0;
+  /* fixed, and rendered into <body>: see the placement effect above. top/left
+     come from there as inline styles. */
+  position: fixed;
+  z-index: 60;
   /* The emoji grid decides the width; the min keeps the action labels from
      wrapping when the grid is collapsed. */
   width: fit-content;
