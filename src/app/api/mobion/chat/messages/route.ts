@@ -18,6 +18,9 @@ type ChatMessage = {
   message: string;
   createdBy: string;
   createdOn: number;
+  // Huly bumps this on every tx against the doc, so an edit is detectable
+  // without storing an "edited" flag of our own.
+  modifiedOn?: number;
 };
 
 type WorkspaceClient = Awaited<ReturnType<typeof getWorkspaceClient>>;
@@ -171,7 +174,7 @@ export async function POST(request: Request) {
     );
     if (access.error) return access.error;
 
-    await client.addCollection({
+    const created = await client.addCollection({
       _class: CHUNTER_CLASS.ChatMessage,
       space: HULY_CORE_SPACE,
       attachedTo: channelId,
@@ -180,8 +183,135 @@ export async function POST(request: Request) {
       attributes: { message: text },
     });
 
-    return NextResponse.json({ ok: true });
+    // The id of the new message, needed to record a reply link or to attach
+    // files. addCollection returns the ref for the doc it created.
+    const messageId = String(created ?? "");
+
+    const replyTo = String(body.replyTo ?? "").trim();
+    if (messageId && replyTo) {
+      // Best effort: a reply whose quote link fails to save is still a message
+      // worth keeping, so this must not fail the send.
+      await query(
+        `INSERT INTO mobion_message_replies (message_id, reply_to)
+         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [messageId, replyTo],
+      ).catch(() => {});
+    }
+
+    return NextResponse.json({ ok: true, messageId });
   } catch (error) {
     return mobionApiError(error, "메시지 전송 실패");
+  }
+}
+
+/**
+ * Finds a message and confirms this person may act on it.
+ *
+ * Two separate questions: may they see the conversation at all (the same gate
+ * GET and POST use), and is the message theirs. Ownership compares
+ * primarySocialId because that is what ChatMessage.createdBy holds — accountUuid
+ * is a different id space and would never match (see mobion-huly.ts).
+ */
+async function findOwnMessage(
+  client: WorkspaceClient,
+  messageId: string,
+  allowAnyAuthor: boolean,
+): Promise<{ message: ChatMessage } | { error: NextResponse }> {
+  const rows = await client.findAll<ChatMessage>(
+    CHUNTER_CLASS.ChatMessage,
+    { _id: messageId },
+    { limit: 1 },
+  );
+  const message = rows[0];
+  if (!message) {
+    return { error: NextResponse.json({ error: "메시지를 찾을 수 없습니다." }, { status: 404 }) };
+  }
+
+  const access = await assertChannelAccess(client, message.attachedTo, null);
+  if (access.error) return { error: access.error };
+
+  if (!allowAnyAuthor && message.createdBy !== client.account.primarySocialId) {
+    return {
+      error: NextResponse.json({ error: "본인 메시지만 수정할 수 있습니다." }, { status: 403 }),
+    };
+  }
+  return { message };
+}
+
+/** Edits a message's text in place. Author only. */
+export async function PATCH(request: Request) {
+  try {
+    const user = await requireCurrentUser();
+    const body = await request.json();
+    const messageId = String(body.messageId ?? "");
+    const text = String(body.text ?? "").trim();
+
+    if (!messageId || !text) {
+      return NextResponse.json({ error: "메시지와 내용이 필요합니다." }, { status: 400 });
+    }
+
+    const link = await ensureHulyLink(user);
+    if (!link) {
+      return NextResponse.json({ error: "Huly 계정이 연결되어 있지 않습니다." }, { status: 404 });
+    }
+
+    const client = await getWorkspaceClient(link);
+    const found = await findOwnMessage(client, messageId, false);
+    if ("error" in found) return found.error;
+
+    await client.updateDoc({
+      _class: CHUNTER_CLASS.ChatMessage,
+      space: HULY_CORE_SPACE,
+      objectId: messageId,
+      operations: { message: text },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return mobionApiError(error, "메시지를 수정하지 못했습니다.");
+  }
+}
+
+/**
+ * Deletes a message. The author may delete their own; a lab lead may delete
+ * anyone's, matching how task and milestone deletion already works.
+ */
+export async function DELETE(request: Request) {
+  try {
+    const user = await requireCurrentUser();
+    const url = new URL(request.url);
+    const messageId = String(url.searchParams.get("messageId") ?? "");
+    if (!messageId) {
+      return NextResponse.json({ error: "메시지가 필요합니다." }, { status: 400 });
+    }
+
+    const link = await ensureHulyLink(user);
+    if (!link) {
+      return NextResponse.json({ error: "Huly 계정이 연결되어 있지 않습니다." }, { status: 404 });
+    }
+
+    const client = await getWorkspaceClient(link);
+    const found = await findOwnMessage(client, messageId, user.role === "lead");
+    if ("error" in found) return found.error;
+
+    await client.removeDoc({
+      _class: CHUNTER_CLASS.ChatMessage,
+      space: HULY_CORE_SPACE,
+      objectId: messageId,
+    });
+
+    // The message is gone from Huly, so rows keyed by its id can never be
+    // rendered again — leaving them would be rows that only ever grow.
+    await query(`DELETE FROM mobion_message_reactions WHERE message_id = $1`, [messageId]);
+    await query(`DELETE FROM mobion_message_replies WHERE message_id = $1 OR reply_to = $1`, [
+      messageId,
+    ]);
+    await query(`UPDATE mobion_attachments SET message_id = NULL WHERE message_id = $1`, [
+      messageId,
+    ]);
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return mobionApiError(error, "메시지를 삭제하지 못했습니다.");
   }
 }

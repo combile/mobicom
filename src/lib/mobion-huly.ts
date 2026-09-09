@@ -344,6 +344,37 @@ async function buildWorkspaceClient(link: HulyLink) {
       evictOnFailure(
         tx.createDoc(params._class as any, params.space as any, params.attributes as any),
       ),
+    // Editing and deleting go to Huly itself rather than to a local overlay
+    // table: the SSE snapshot and the live deltas both read straight from Huly,
+    // so anything kept only on this side would show the old text to whoever is
+    // already connected until they reloaded.
+    updateDoc: (params: {
+      _class: string;
+      space: string;
+      objectId: string;
+      operations: Record<string, unknown>;
+    }) =>
+      evictOnFailure(
+        // cast for the same reason the arguments above are cast: this package
+        // ships no type declarations (its package.json points at a types/
+        // directory that is not installed), so TxOperations' surface is only
+        // partly visible to the compiler. Both methods exist at runtime —
+        // lib/operations.js defines them right beside createDoc.
+        (tx as any).updateDoc(
+          params._class,
+          params.space,
+          params.objectId,
+          params.operations,
+        ) as Promise<unknown>,
+      ),
+    removeDoc: (params: { _class: string; space: string; objectId: string }) =>
+      evictOnFailure(
+        (tx as any).removeDoc(
+          params._class,
+          params.space,
+          params.objectId,
+        ) as Promise<unknown>,
+      ),
     // accountUuid (wsLogin.account) is Huly's own membership-check identity for
     // Space.members (Channel.members included) — confirmed against the live
     // server: pre-existing channels' members arrays are AccountUuid-formatted,

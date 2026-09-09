@@ -24,11 +24,37 @@ export async function GET() {
       [user.id],
     );
 
+    // Everyone else's read marks, so a message can show who has seen it. Only
+    // the position is exposed, never how often someone looked — this answers
+    // "has the lab read this yet", not "is this person at their desk".
+    const others = await query<{
+      channel_id: string;
+      user_id: string;
+      name: string;
+      last_read_on: string;
+    }>(
+      `SELECT r.channel_id, r.user_id, u.name, r.last_read_on::text
+         FROM mobion_channel_reads r
+         JOIN mobion_users u ON u.id = r.user_id
+        WHERE r.user_id <> $1`,
+      [user.id],
+    );
+
+    const byChannel: Record<string, { userId: string; name: string; lastReadOn: number }[]> = {};
+    for (const r of others.rows) {
+      (byChannel[r.channel_id] ??= []).push({
+        userId: r.user_id,
+        name: r.name,
+        lastReadOn: Number(r.last_read_on),
+      });
+    }
+
     return NextResponse.json({
       // pg returns BIGINT as a string to avoid losing precision; epoch
       // milliseconds sit well inside Number's safe range, so converting here
       // keeps the client comparing numbers against numbers
       reads: Object.fromEntries(result.rows.map((r) => [r.channel_id, Number(r.last_read_on)])),
+      othersReads: byChannel,
     });
   } catch (error) {
     return mobionApiError(error, "읽음 정보를 불러오지 못했습니다.");
