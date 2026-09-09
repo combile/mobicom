@@ -160,6 +160,13 @@ export default function MobiOnContent() {
   // The message a task is being raised from, or null. Holding the message
   // rather than a boolean keeps the modal's inputs prefilled from it without a
   // second copy of the text living in state.
+  // Which message author's profile card is open, keyed by the Huly PersonId
+  // the message carries. Null when none is open.
+  const [profileFor, setProfileFor] = useState<{
+    socialId: string;
+    name: string;
+    avatarUrl: string | null;
+  } | null>(null);
   const [showNewDm, setShowNewDm] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   const [taskFromMessage, setTaskFromMessage] = useState<Message | null>(null);
@@ -169,7 +176,9 @@ export default function MobiOnContent() {
     onConfirm: () => void;
   } | null>(null);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
-  const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
+  const [allUsers, setAllUsers] = useState<
+    { id: string; name: string; hulySocialId?: string }[]
+  >([]);
   const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelDescription, setNewChannelDescription] = useState("");
@@ -1213,16 +1222,42 @@ export default function MobiOnContent() {
             )}
             {messageGroups.map((g, gi) => (
               <MessageGroupBlock key={gi}>
-                {g.authorAvatarUrl ? (
-                  <Avatar src={g.authorAvatarUrl} alt="" />
-                ) : (
-                  <AvatarFallback style={{ background: avatarColor(g.authorId) }}>
-                    {(g.authorName ?? "?").charAt(0)}
-                  </AvatarFallback>
-                )}
+                {/* Avatar and name open a profile card, the way Discord does —
+                    the person you want to message is usually the one whose
+                    message you are already looking at. */}
+                <ProfileTrigger
+                  type="button"
+                  onClick={() =>
+                    setProfileFor({
+                      socialId: g.authorId,
+                      name: g.authorName ?? "알 수 없음",
+                      avatarUrl: g.authorAvatarUrl,
+                    })
+                  }
+                  aria-label={`${g.authorName ?? "알 수 없음"} 프로필`}
+                >
+                  {g.authorAvatarUrl ? (
+                    <Avatar src={g.authorAvatarUrl} alt="" />
+                  ) : (
+                    <AvatarFallback style={{ background: avatarColor(g.authorId) }}>
+                      {(g.authorName ?? "?").charAt(0)}
+                    </AvatarFallback>
+                  )}
+                </ProfileTrigger>
                 <MessageBody>
                   <MessageMeta>
-                    <MessageAuthor>{g.authorName ?? "알 수 없음"}</MessageAuthor>
+                    <NameTrigger
+                      type="button"
+                      onClick={() =>
+                        setProfileFor({
+                          socialId: g.authorId,
+                          name: g.authorName ?? "알 수 없음",
+                          avatarUrl: g.authorAvatarUrl,
+                        })
+                      }
+                    >
+                      <MessageAuthor>{g.authorName ?? "알 수 없음"}</MessageAuthor>
+                    </NameTrigger>
                     <MessageTime>{formatTime(g.messages[0].createdOn)}</MessageTime>
                   </MessageMeta>
                   {g.messages.map((m, mi) => {
@@ -1369,6 +1404,45 @@ export default function MobiOnContent() {
           </>
         )}
       </Layout>
+      {profileFor && (() => {
+        // The message carries a Huly PersonId; the DM route wants this app's
+        // user id. allUsers now ships hulySocialId so the two can be joined.
+        const person = allUsers.find((u) => u.hulySocialId === profileFor.socialId);
+        const isMe = person?.id === currentUserId;
+        return (
+          <ModalOverlay onClick={() => setProfileFor(null)}>
+            <ProfileCard onClick={(e) => e.stopPropagation()}>
+              {profileFor.avatarUrl ? (
+                <ProfileAvatar src={profileFor.avatarUrl} alt="" />
+              ) : (
+                <ProfileAvatarFallback style={{ background: avatarColor(profileFor.socialId) }}>
+                  {profileFor.name.charAt(0)}
+                </ProfileAvatarFallback>
+              )}
+              <ProfileName>{profileFor.name}</ProfileName>
+              {dmError && <SendErrorText>{dmError}</SendErrorText>}
+              {isMe ? (
+                <ProfileNote>나</ProfileNote>
+              ) : person ? (
+                <ProfileAction
+                  type="button"
+                  onClick={() => {
+                    setProfileFor(null);
+                    void startDm(person.id);
+                  }}
+                >
+                  <span className="material-symbols-outlined">chat</span>
+                  메시지 보내기
+                </ProfileAction>
+              ) : (
+                // A professor is excluded from the user list, and so is anyone
+                // whose Huly link has not been created yet.
+                <ProfileNote>이 사람에게는 메시지를 보낼 수 없습니다.</ProfileNote>
+              )}
+            </ProfileCard>
+          </ModalOverlay>
+        );
+      })()}
       {showNewDm && (
         <ModalOverlay onClick={() => setShowNewDm(false)}>
           <ModalCard onClick={(e) => e.stopPropagation()}>
@@ -1791,6 +1865,95 @@ const Main = styled.div`
 const ChannelHeader = styled.div`
   padding: 14px 16px;
   border-bottom: 1px solid var(--border-strong);
+`;
+
+/* A small card rather than the full modal shell: this is one name and one
+   action, and a dialog-sized box around it would read as more than it is. */
+const ProfileCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  padding: 22px 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.2);
+`;
+
+const ProfileAvatar = styled.img`
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+`;
+
+const ProfileAvatarFallback = styled.div`
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+`;
+
+const ProfileName = styled.div`
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-strong);
+`;
+
+const ProfileAction = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-solid);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+
+  .material-symbols-outlined {
+    font-size: 17px;
+  }
+`;
+
+const ProfileNote = styled.p`
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+`;
+
+/* Wraps the name rather than restyling it with `as="button"` — MessageAuthor
+   is a span and giving it a button's props fights its type. */
+const NameTrigger = styled.button`
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const ProfileTrigger = styled.button`
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+  line-height: 0;
+
+  &:hover {
+    opacity: 0.85;
+  }
 `;
 
 const DmPeople = styled.div`
