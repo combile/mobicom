@@ -23,4 +23,7 @@ contextBridge.exposeInMainWorld("mobion", {
     ipcRenderer.on("mobion:open-channel", listener);
     return () => ipcRenderer.removeListener("mobion:open-channel", listener);
   },
+  // Used only by offline.html's "다시 시도" button — reloading a file:// page
+  // reloads itself forever, this asks main to reload the real server URL.
+  retry: () => ipcRenderer.send("mobion:retry"),
 });

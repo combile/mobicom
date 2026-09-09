@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Notification, Tray, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, Notification, Tray, Menu, nativeImage, shell } from "electron";
 import { join } from "path";
 import { loadSettings, saveSettings } from "./settings";
 import { shouldNotify } from "./notify-rules";
@@ -13,6 +13,19 @@ let isQuitting = false;
 // Prevents did-fail-load from re-triggering a load of the offline page when
 // the offline page itself is what failed to load.
 let showingOffline = false;
+
+// A tray-resident app whose window hides on close is easy to forget is
+// already running. Without this lock, clicking the icon again launches a
+// second instance: a second window, a second tray icon, a second SSE
+// connection, and duplicate notifications for every event. The second
+// launch quits immediately (and skips the whenReady below, guarded on
+// gotLock so a race doesn't still spin up a window before quit finishes);
+// "second-instance" below hands off to the window already open in the
+// first instance instead.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+}
 
 function showWindow() {
   if (!mainWindow) return createWindow();
@@ -84,6 +97,43 @@ function createWindow() {
   });
 
   void mainWindow.loadURL(loadSettings().serverUrl);
+
+  // A child window (window.open, target=_blank) inherits the parent's
+  // webPreferences — so a chat link to a third-party page would open it
+  // chrome-less, with no address bar, and that page would receive
+  // window.mobion and could raise OS notifications with attacker-chosen text.
+  // Every window.open goes to the real browser instead; nothing opens in-app.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  // Same reasoning for in-page navigation (a link clicked without
+  // target=_blank): anywhere outside the configured server's origin goes to
+  // the real browser instead of taking over this chrome-less window.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    let allowedOrigin: string;
+    try {
+      // Read fresh, not cached at startup: settings can change between launches.
+      allowedOrigin = new URL(loadSettings().serverUrl).origin;
+    } catch {
+      // A malformed serverUrl in a hand-edited settings file must not crash
+      // the main process — deny the navigation rather than allow it.
+      event.preventDefault();
+      return;
+    }
+    let targetOrigin: string;
+    try {
+      targetOrigin = new URL(url).origin;
+    } catch {
+      event.preventDefault();
+      return;
+    }
+    if (targetOrigin !== allowedOrigin) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
+  });
 
   // Closing hides rather than quits: the renderer holds the SSE connection, so
   // destroying the window would stop notifications — the one thing this app
@@ -161,7 +211,7 @@ ipcMain.on("mobion:badge", (_event, count: number) => {
   const n = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
 
   // macOS has a dock badge. Windows has a taskbar overlay and wants an image,
-  // so the count is drawn as text.
+  // so the count is shown as a dot instead.
   if (process.platform === "darwin") {
     app.setBadgeCount(n);
     return;
@@ -171,22 +221,29 @@ ipcMain.on("mobion:badge", (_event, count: number) => {
     mainWindow.setOverlayIcon(null, "");
     return;
   }
+  // nativeImage decodes PNG/JPEG only — it does NOT decode SVG, so building an
+  // SVG data URL here silently produces an empty overlay. And Windows overlay
+  // icons render at 16x16, too small for a legible number anyway. So the
+  // overlay is a static red dot, and the actual count lives in the
+  // accessibility description (read by screen readers / shown as a tooltip).
   const label = n > 99 ? "99+" : String(n);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">
-    <circle cx="16" cy="16" r="16" fill="#dc2626"/>
-    <text x="16" y="22" font-size="${label.length > 2 ? 13 : 17}" font-family="sans-serif"
-      fill="white" text-anchor="middle">${label}</text>
-  </svg>`;
-  const image = nativeImage.createFromDataURL(
-    `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
-  );
+  const image = nativeImage.createFromPath(join(__dirname, "..", "build", "badge.png"));
   mainWindow.setOverlayIcon(image, `읽지 않은 메시지 ${label}개`);
 });
 
-void app.whenReady().then(() => {
-  createWindow();
-  createTray();
+ipcMain.on("mobion:retry", () => {
+  if (!mainWindow) return;
+  void mainWindow.loadURL(loadSettings().serverUrl);
 });
+
+if (gotLock) {
+  void app.whenReady().then(() => {
+    createWindow();
+    createTray();
+  });
+}
+
+app.on("second-instance", showWindow);
 
 // macOS keeps apps running with no windows; clicking the dock icon reopens one.
 app.on("activate", showWindow);

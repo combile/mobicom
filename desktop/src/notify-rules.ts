@@ -67,6 +67,10 @@ if (require.main === module) {
   // my own message comes back down the stream it was sent on
   assert.strictEqual(shouldNotify({ ...base, authorId: "me" }), false);
 
+  // a null author (system/event message) is never "my own message", even
+  // when mySocialId is set — null !== "me"
+  assert.strictEqual(shouldNotify({ ...base, authorId: null }), true);
+
   // the channel I am reading, with the window in front of me
   assert.strictEqual(
     shouldNotify({ ...base, activeChannelId: "c1", windowFocused: true }),

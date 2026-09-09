@@ -41,7 +41,14 @@ export function loadSettings(): Settings {
 }
 
 export function saveSettings(next: Settings): void {
-  const path = settingsPath();
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(next, null, 2), "utf8");
+  // Called from the tray's checkbox click handler — an uncaught throw there
+  // (disk full, permissions, userData path unwritable) would crash the whole
+  // main process over a settings write. Log and move on instead.
+  try {
+    const path = settingsPath();
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(next, null, 2), "utf8");
+  } catch (err) {
+    console.error("failed to save settings", err);
+  }
 }
