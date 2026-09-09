@@ -1,0 +1,19 @@
+{
+  "name": "mobion-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mobi:ON 데스크톱",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3",
+    "@types/node": "^20.17.6"
+  }
+}
