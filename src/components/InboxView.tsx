@@ -45,7 +45,9 @@ export default function InboxView({
   onOpen: (projectId: string, taskId: string, commentId: string | null) => void;
 }) {
   function open(n: InboxNotification) {
-    data.markRead(n.id);
+    // 이미 읽은 행을 다시 열 때마다 요청을 또 쏠 이유가 없다 — markRead 안의
+    // 상태 갱신은 이미 no-op이지만 네트워크 호출은 그렇지 않다.
+    if (!n.readAt) data.markRead(n.id);
     if (n.projectId && n.taskId) onOpen(n.projectId, n.taskId, n.commentId);
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NotificationKind } from "./mobion-notifications";
 
 export type InboxNotification = {
@@ -26,6 +26,11 @@ export function useInboxData(enabled: boolean) {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // load()/loadMore()마다 하나씩 늘어난다. 응답이 돌아왔을 때 자기가 받은
+  // 번호가 더 이상 최신이 아니면 버린다 — 그러지 않으면 필터 B로 넘어간
+  // 사이에 필터 A의 loadMore 응답이 늦게 도착해 B의 목록 뒤에 A의 행을
+  // 붙이고 nextCursor까지 A 것으로 덮어써 버린다.
+  const requestId = useRef(0);
 
   function buildUrl(cursor: string | null) {
     const params = new URLSearchParams();
@@ -36,6 +41,11 @@ export function useInboxData(enabled: boolean) {
   }
 
   function load() {
+    const id = ++requestId.current;
+    // 이 요청이 목록 전체를 새로 그린다 — 그 사이 살아 있던 loadMore가 있어도
+    // 그 응답은 이제 위 id 체크로 버려지고, 다시는 finally가 불리지 않아
+    // "불러오는 중" 상태만 계속 떠 있게 된다. 여기서 직접 꺼 둔다.
+    setLoadingMore(false);
     setLoading(true);
     fetch(buildUrl(null))
       .then((res) => {
@@ -43,12 +53,17 @@ export function useInboxData(enabled: boolean) {
         return res.json();
       })
       .then((data) => {
+        if (id !== requestId.current) return;
         setNotifications(data.notifications ?? []);
         setNextCursor(data.nextCursor ?? null);
         setLoadError(null);
       })
-      .catch(() => setLoadError("알림을 불러오지 못했습니다."))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (id === requestId.current) setLoadError("알림을 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (id === requestId.current) setLoading(false);
+      });
   }
 
   // 화면을 열 때와 필터를 바꿀 때만 부른다. 홈의 알림 폴링이 이미 45초마다
@@ -61,6 +76,7 @@ export function useInboxData(enabled: boolean) {
 
   function loadMore() {
     if (!nextCursor || loadingMore) return;
+    const id = ++requestId.current;
     setLoadingMore(true);
     fetch(buildUrl(nextCursor))
       .then((res) => {
@@ -68,11 +84,16 @@ export function useInboxData(enabled: boolean) {
         return res.json();
       })
       .then((data) => {
+        if (id !== requestId.current) return;
         setNotifications((prev) => [...prev, ...(data.notifications ?? [])]);
         setNextCursor(data.nextCursor ?? null);
       })
-      .catch(() => setLoadError("더 불러오지 못했습니다."))
-      .finally(() => setLoadingMore(false));
+      .catch(() => {
+        if (id === requestId.current) setLoadError("더 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (id === requestId.current) setLoadingMore(false);
+      });
   }
 
   /**
