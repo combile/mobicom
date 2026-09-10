@@ -1,7 +1,7 @@
 "use client";
 
 import styled from "@emotion/styled";
-import { notificationLabel, statusChangeText } from "@/lib/mobion-notifications";
+import { notificationLabel, relativeTime, statusChangeText } from "@/lib/mobion-notifications";
 import type { InboxData, InboxFilter, InboxNotification } from "@/lib/use-inbox-data";
 
 const FILTERS: { value: InboxFilter; label: string }[] = [
@@ -11,19 +11,6 @@ const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: "comment", label: "답글" },
   { value: "status", label: "상태" },
 ];
-
-/** "3시간 전". 하루가 넘으면 다른 단위를 쓴다 — "37시간 전"은 아무도 읽지 않는다. */
-function relativeTime(iso: string): string {
-  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 1) return "방금";
-  if (minutes < 60) return `${minutes}분 전`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}시간 전`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "어제";
-  if (days < 7) return `${days}일 전`;
-  return new Date(iso).toLocaleDateString("ko-KR", { month: "long", day: "numeric" });
-}
 
 /**
  * 알림 한 줄에 본문으로 무엇을 쓸지.

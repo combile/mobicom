@@ -22,6 +22,7 @@ import { useOverviewData } from "@/lib/use-overview-data";
 import { useHomeData } from "@/lib/use-home-data";
 import HomeView from "./HomeView";
 import InboxView from "./InboxView";
+import NotificationTray from "./NotificationTray";
 import { useInboxData } from "@/lib/use-inbox-data";
 import ContestsView from "./ContestsView";
 import OverviewView from "./OverviewView";
@@ -158,6 +159,8 @@ type WorkspaceMode =
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("home");
+  // 알림함은 모드가 아니라 열림/닫힘이다 — 열려도 보던 화면은 그대로다.
+  const [trayOpen, setTrayOpen] = useState(false);
   // declared here rather than with the other chat state because useTasksData
   // needs it, and a const cannot be read before its declaration
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -1078,6 +1081,36 @@ export default function MobiOnContent() {
               <span className="material-symbols-outlined">groups</span>
             </RailButton>
           )}
+          {/* 알림함은 화면을 바꾸지 않는다 — 보던 자리를 떠나지 않고 곁눈질하는
+              도구라, 모드 버튼들과 떨어뜨려 바닥에 혼자 둔다. margin-top: auto가
+              위에 버튼이 몇 개든 바닥에 붙여준다. */}
+          <TrayButton
+            type="button"
+            data-tray-toggle
+            data-active={trayOpen || undefined}
+            onClick={() => setTrayOpen((open) => !open)}
+            aria-label={
+              homeData.unreadCount > 0
+                ? `알림함 (읽지 않은 알림 ${homeData.unreadCount}건)`
+                : "알림함"
+            }
+            aria-expanded={trayOpen}
+            title="알림함"
+          >
+            <span className="material-symbols-outlined">notifications</span>
+            {homeData.unreadCount > 0 && <RailDot />}
+          </TrayButton>
+          {trayOpen && (
+            <NotificationTray
+              data={homeData}
+              onClose={() => setTrayOpen(false)}
+              onOpenTask={(projectId, taskId, commentId) => {
+                tasksData.openTaskInProject(projectId, taskId, commentId);
+                setMode("projects");
+              }}
+              onOpenInbox={() => setMode("inbox")}
+            />
+          )}
         </IconRail>
         {mode === "projects" && (
           <>
@@ -1904,6 +1937,8 @@ const Layout = styled.div`
 `;
 
 const IconRail = styled.nav`
+  /* 알림함 말풍선이 이 레일을 기준으로 떠오른다 */
+  position: relative;
   width: 56px;
   flex-shrink: 0;
   display: flex;
@@ -1957,6 +1992,27 @@ const RailButton = styled.button`
   &[data-active] {
     background: var(--accent-soft);
     color: var(--accent);
+  }
+`;
+
+/**
+ * 레일 바닥에 홀로 앉는 알림함 버튼.
+ *
+ * `margin-top: auto`가 위쪽 버튼 개수와 무관하게 바닥으로 밀어낸다 — 연구실
+ * 현황 버튼이 랩장에게만 보여 개수가 사람마다 다르므로 고정 여백으로는 맞출
+ * 수 없다. 위에 선을 하나 그어 모드 버튼들과 다른 물건임을 보인다.
+ */
+const TrayButton = styled(RailButton)`
+  margin-top: auto;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: 6px;
+    right: 6px;
+    height: 1px;
+    background: var(--border);
   }
 `;
 

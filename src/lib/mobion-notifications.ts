@@ -47,6 +47,27 @@ export function statusChangeText(statusCode: string): string {
   return name ? `${name}(으)로 변경` : "상태 변경";
 }
 
+/**
+ * "3시간 전". 하루가 넘으면 단위를 바꾼다 — "37시간 전"은 아무도 읽지 않는다.
+ *
+ * 일주일이 넘으면 상대 표현을 포기하고 날짜를 쓴다. "9일 전"은 언제인지
+ * 세어봐야 알지만 "9월 1일"은 바로 안다.
+ *
+ * 알림을 그리는 화면이 셋(홈·인박스·알림함)이라 여기 둔다. 세 곳이 각자
+ * 구현하면 같은 시각이 화면마다 다르게 읽히기 시작한다.
+ */
+export function relativeTime(iso: string): string {
+  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return "방금";
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "어제";
+  if (days < 7) return `${days}일 전`;
+  return new Date(iso).toLocaleDateString("ko-KR", { month: "long", day: "numeric" });
+}
+
 // 이 저장소에는 테스트 프레임워크가 없다. mobion-mentions.ts와 같은 방식으로
 // 직접 실행한다: node --experimental-strip-types src/lib/mobion-notifications.ts
 if (process.argv[1]?.endsWith("mobion-notifications.ts")) {
@@ -66,6 +87,24 @@ if (process.argv[1]?.endsWith("mobion-notifications.ts")) {
   for (const k of NOTIFICATION_KINDS) {
     assert(notificationLabel(k) !== "알림", `${k}에 라벨 없음`);
   }
+
+  // relativeTime의 경계. 단위가 바뀌는 지점마다 양쪽을 잡는다 —
+  // 여기가 틀리면 "60분 전"이나 "37시간 전" 같은 문구가 새어 나온다.
+  const ago = (ms: number) => relativeTime(new Date(Date.now() - ms).toISOString());
+  const MIN = 60_000;
+  const HOUR = 60 * MIN;
+  const DAY = 24 * HOUR;
+
+  assert(ago(0) === "방금", "0분");
+  assert(ago(59 * MIN) === "59분 전", "59분");
+  assert(ago(HOUR) === "1시간 전", "60분은 시간으로 넘어간다");
+  assert(ago(23 * HOUR) === "23시간 전", "23시간");
+  assert(ago(DAY) === "어제", "24시간은 어제");
+  assert(ago(47 * HOUR) === "어제", "47시간도 아직 어제");
+  assert(ago(2 * DAY) === "2일 전", "48시간은 2일");
+  assert(ago(6 * DAY) === "6일 전", "6일");
+  // 7일부터는 상대 표현을 버리고 날짜를 쓴다
+  assert(!ago(7 * DAY).endsWith("일 전"), "7일은 날짜로 넘어간다");
 
   console.log("mobion-notifications self-check passed");
 }
