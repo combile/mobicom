@@ -75,7 +75,7 @@ function createTray() {
   icon.setTemplateImage(true);
 
   tray = new Tray(icon);
-  tray.setToolTip("Mobi:ON");
+  tray.setToolTip("Mobicom");
   refreshTrayMenu();
   tray.on("click", showWindow);
 }
@@ -86,7 +86,7 @@ function createWindow() {
     height: 820,
     minWidth: 940,
     minHeight: 600,
-    title: "Mobi:ON",
+    title: "Mobicom",
     webPreferences: {
       // A remote page is loaded here. Turning either of these off would put
       // that page's scripts in reach of Node.
