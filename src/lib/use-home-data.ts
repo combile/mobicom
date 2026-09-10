@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { dueState, todayISO } from "./use-tasks-data";
+import type { NotificationKind } from "./mobion-notifications";
 
 export type HomeTask = {
   id: string;
@@ -15,13 +16,14 @@ export type HomeTask = {
 
 export type Notification = {
   id: string;
-  kind: "comment" | "assigned" | "due_soon";
+  kind: NotificationKind;
   body: string;
   createdAt: string;
   actorName: string | null;
   taskId: string | null;
   taskTitle: string | null;
   projectId: string | null;
+  commentId: string | null;
   read: boolean;
 };
 
