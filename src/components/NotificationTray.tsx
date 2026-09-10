@@ -108,6 +108,10 @@ const Panel = styled.div`
   bottom: 12px;
   z-index: 40;
   width: 300px;
+  /* 감싸는 Layout이 overflow: hidden이라, 창이 낮으면 말풍선 위쪽이 잘려
+     나간다. 레일 높이 안에서 접어두고 넘치면 안에서 스크롤한다. */
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   padding: 10px;

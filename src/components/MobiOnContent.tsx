@@ -1937,8 +1937,15 @@ const Layout = styled.div`
 `;
 
 const IconRail = styled.nav`
-  /* 알림함 말풍선이 이 레일을 기준으로 떠오른다 */
+  /* 알림함 말풍선이 이 레일을 기준으로 떠오른다.
+   *
+   * z-index가 필요한 이유: 아래 backdrop-filter가 이 레일을 새 스태킹
+   * 컨텍스트로 만든다. 그러면 말풍선의 z-index는 이 안에 갇히고, 레일과
+   * 화면 뷰(각자 backdrop-filter를 가져 역시 스태킹 컨텍스트다)는 둘 다
+   * z-index: auto라 DOM 순서로 겨루게 된다 — 뷰가 뒤에 오므로 말풍선이
+   * 홈 화면 뒤로 숨는다. 레일을 통째로 올려야 한다. */
   position: relative;
+  z-index: 20;
   width: 56px;
   flex-shrink: 0;
   display: flex;
