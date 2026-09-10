@@ -35,7 +35,7 @@ export function notificationLabel(kind: string): string {
 /**
  * 상태 변경 알림의 body에는 상태 코드가 그대로 저장된다. 한국어 표현은
  * 상태를 고르는 select 옆에 있어야 하고, 문구가 개정되면 과거 알림도 새
- * 표현으로 읽혀야 한다 — mobion-db.ts 아래 recordActivity가 같은 판단을 한다.
+ * 표현으로 읽혀야 한다 — src/app/api/mobion/tasks/[id]/route.ts의 recordActivity가 같은 판단을 한다.
  */
 export function statusChangeText(statusCode: string): string {
   const names: Record<string, string> = {
