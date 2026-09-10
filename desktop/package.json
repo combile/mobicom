@@ -29,6 +29,7 @@
       "src/offline.html",
       "build/tray.png",
       "build/tray@2x.png",
+      "build/tray.svg",
       "build/badge.png"
     ],
     "mac": {
