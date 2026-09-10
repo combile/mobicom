@@ -38,10 +38,27 @@ export async function GET(request: Request) {
     // 모르는 값은 조용히 무시하고 전체를 준다. 필터는 화면 편의이지 권한
     // 경계가 아니므로, 오타 하나로 에러를 낼 이유가 없다.
     const kind = kindParam && isNotificationKind(kindParam) ? kindParam : null;
-    const cursor = url.searchParams.get("cursor");
+    const cursorParam = url.searchParams.get("cursor");
+
+    // 커서는 (created_at, id)의 복합 값이다. 언더스코어로 구분하고, 형식 오류는
+    // 조용히 "커서 없음"으로 취급한다 (500을 내지 않는다).
+    let cursorTimestamp: string | null = null;
+    let cursorId: string | null = null;
+    if (cursorParam) {
+      const parts = cursorParam.split("_");
+      if (parts.length === 2) {
+        // ISO 8601 타임스탬프인지 검증하고, UUID는 그냥 문자열로 받는다.
+        // new Date()는 invalid date를 throw하지 않으므로 getTime()을 체크한다.
+        const d = new Date(parts[0]);
+        if (!Number.isNaN(d.getTime())) {
+          cursorTimestamp = parts[0];
+          cursorId = parts[1];
+        }
+      }
+    }
 
     const result = await query<InboxRow>(
-      `SELECT n.id, n.kind, n.body, n.created_at, n.read_at,
+      `SELECT n.id, n.kind, n.body, n.created_at::text as created_at, n.read_at::text as read_at,
               a.name AS actor_name,
               n.task_id, t.title AS task_title, t.project_id,
               n.comment_id
@@ -50,17 +67,22 @@ export async function GET(request: Request) {
        LEFT JOIN mobion_tasks t ON t.id = n.task_id
        WHERE n.user_id = $1
          AND ($2::text IS NULL OR n.kind = $2)
-         -- 커서는 시각이다. created_at DESC로 읽으므로 "이 시각보다 이전"이
-         -- 다음 장이 된다.
-         AND ($3::timestamptz IS NULL OR n.created_at < $3)
-       ORDER BY n.created_at DESC
-       LIMIT $4`,
-      [user.id, kind, cursor, PAGE_SIZE + 1],
+         -- 커서는 (created_at, id) 복합값이다. created_at DESC, id DESC로 읽으므로
+         -- "(이 시각, 이 id)보다 이전"인 다음 장이 된다. 렉시코그래픽 순서이므로
+         -- 같은 시각의 여러 행도 id로 구분된다.
+         AND ($3::text IS NULL OR (n.created_at, n.id) < ($3::timestamptz, $4::uuid))
+       ORDER BY n.created_at DESC, n.id DESC
+       LIMIT $5`,
+      [user.id, kind, cursorTimestamp, cursorId, PAGE_SIZE + 1],
     );
 
     // 한 건 더 받아 다음 장이 있는지 본다. 있으면 그 한 건은 돌려주지 않는다.
     const hasMore = result.rows.length > PAGE_SIZE;
     const rows = hasMore ? result.rows.slice(0, PAGE_SIZE) : result.rows;
+
+    const nextCursor = hasMore
+      ? `${result.rows[PAGE_SIZE].created_at}_${result.rows[PAGE_SIZE].id}`
+      : null;
 
     return NextResponse.json({
       notifications: rows.map((r) => ({
@@ -75,7 +97,7 @@ export async function GET(request: Request) {
         projectId: r.project_id,
         commentId: r.comment_id,
       })),
-      nextCursor: hasMore ? rows[rows.length - 1].created_at : null,
+      nextCursor,
     });
   } catch (error) {
     return mobionApiError(error, "알림을 불러오지 못했습니다.");
