@@ -70,9 +70,12 @@ function refreshTrayMenu() {
 
 function createTray() {
   const icon = nativeImage.createFromPath(join(__dirname, "..", "build", "tray.png"));
-  // macOS renders a template image in the menu bar's own colour, so it follows
-  // light and dark mode instead of staying one fixed shade.
-  icon.setTemplateImage(true);
+  // Not a template image: template mode throws the colours away and keeps only
+  // the alpha, which would turn this icon — a coloured mark on its own dark
+  // ground — into a solid black square. The trade is that it no longer follows
+  // the menu bar's light/dark shade, which is the right trade for an icon whose
+  // colour is the point.
+  icon.setTemplateImage(false);
 
   tray = new Tray(icon);
   tray.setToolTip("Mobicom");
