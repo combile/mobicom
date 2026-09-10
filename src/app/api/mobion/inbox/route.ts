@@ -70,8 +70,8 @@ export async function GET(request: Request) {
          -- 커서는 (created_at, id) 복합값이다. created_at DESC, id DESC로 읽으므로
          -- "(이 시각, 이 id)보다 이전"인 다음 장이 된다. 렉시코그래픽 순서이므로
          -- 같은 시각의 여러 행도 id로 구분된다.
-         AND ($3::text IS NULL OR (n.created_at, n.id) < ($3::timestamptz, $4::uuid))
-       ORDER BY n.created_at DESC, n.id DESC
+         AND ($3::text IS NULL OR (n.created_at::text, n.id) < ($3::text, $4::uuid))
+       ORDER BY n.created_at::text DESC, n.id DESC
        LIMIT $5`,
       [user.id, kind, cursorTimestamp, cursorId, PAGE_SIZE + 1],
     );
@@ -80,8 +80,11 @@ export async function GET(request: Request) {
     const hasMore = result.rows.length > PAGE_SIZE;
     const rows = hasMore ? result.rows.slice(0, PAGE_SIZE) : result.rows;
 
-    const nextCursor = hasMore
-      ? `${result.rows[PAGE_SIZE].created_at}_${result.rows[PAGE_SIZE].id}`
+    // 커서는 반환한 마지막 행의 값이다 — 그 다음 페이지는
+    // 이 값보다 "작은" 행들이다 (DESC 정렬에서). 이전 페이지의 마지막 행보다
+    // 이전에 오는 모든 행을 다음 페이지에서 본다.
+    const nextCursor = hasMore && rows.length > 0
+      ? `${rows[rows.length - 1].created_at}_${rows[rows.length - 1].id}`
       : null;
 
     return NextResponse.json({
