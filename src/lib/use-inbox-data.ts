@@ -119,8 +119,6 @@ export function useInboxData(enabled: boolean) {
     await fetch("/api/mobion/notifications", { method: "POST" }).catch(() => {});
   }
 
-  const unreadCount = notifications.filter((n) => !n.readAt).length;
-
   return {
     notifications,
     filter,
@@ -132,7 +130,6 @@ export function useInboxData(enabled: boolean) {
     loadMore,
     markRead,
     markAllRead,
-    unreadCount,
     isEmpty: !loading && notifications.length === 0,
     reload: load,
   };

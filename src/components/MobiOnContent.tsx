@@ -1106,6 +1106,7 @@ export default function MobiOnContent() {
         {mode === "inbox" && (
           <InboxView
             data={inboxData}
+            unreadCount={homeData.unreadCount}
             onOpen={(projectId, taskId, commentId) => {
               tasksData.openTaskInProject(projectId, taskId, commentId);
               setMode("projects");

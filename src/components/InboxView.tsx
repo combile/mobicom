@@ -39,9 +39,15 @@ function bodyText(n: InboxNotification): string | null {
 
 export default function InboxView({
   data,
+  unreadCount,
   onOpen,
 }: {
   data: InboxData;
+  // 홈 레일이 이미 쓰는 전역 안읽음 수. data.unreadCount는 현재 필터·현재
+  // 페이지에 로드된 행만 세므로 "모두 읽음"(전체·전 종류를 지우는 전역
+  // 동작)을 거기에 묶으면, 다른 탭이나 더 아래 페이지에 안읽음이 남아 있어도
+  // 버튼이 사라질 수 있다. 레일 점과 같은 값을 써서 하나의 진실 원천을 둔다.
+  unreadCount: number;
   onOpen: (projectId: string, taskId: string, commentId: string | null) => void;
 }) {
   function open(n: InboxNotification) {
@@ -55,7 +61,7 @@ export default function InboxView({
     <Wrap>
       <Header>
         <Title>inbox</Title>
-        {data.unreadCount > 0 && (
+        {unreadCount > 0 && (
           <MarkAll type="button" onClick={data.markAllRead}>
             모두 읽음
           </MarkAll>
