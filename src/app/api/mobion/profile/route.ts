@@ -57,19 +57,42 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const result = await query<{ id: string; name: string; email: string; avatar_url: string | null }>(
+    // undefined는 "건드리지 않음", boolean은 "이 값으로". 이름·아바타와 같은
+    // 규칙이라 한 요청이 프로필과 설정을 함께 저장할 수 있다.
+    const notifyComment =
+      typeof body.notifyComment === "boolean" ? body.notifyComment : null;
+    const notifyStatus =
+      typeof body.notifyStatus === "boolean" ? body.notifyStatus : null;
+
+    const result = await query<{
+      id: string;
+      name: string;
+      email: string;
+      avatar_url: string | null;
+      notify_comment: boolean;
+      notify_status: boolean;
+    }>(
       `UPDATE mobion_users
        SET name = COALESCE($2, name),
            password_hash = COALESCE($3, password_hash),
-           avatar_url = COALESCE($4, avatar_url)
+           avatar_url = COALESCE($4, avatar_url),
+           notify_comment = COALESCE($5, notify_comment),
+           notify_status = COALESCE($6, notify_status)
        WHERE id = $1
-       RETURNING id, name, email, avatar_url`,
-      [user.id, name, passwordHash, avatarUrl],
+       RETURNING id, name, email, avatar_url, notify_comment, notify_status`,
+      [user.id, name, passwordHash, avatarUrl, notifyComment, notifyStatus],
     );
 
     const updated = result.rows[0];
     return NextResponse.json({
-      user: { id: updated.id, name: updated.name, email: updated.email, avatarUrl: updated.avatar_url },
+      user: {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        avatarUrl: updated.avatar_url,
+        notifyComment: updated.notify_comment,
+        notifyStatus: updated.notify_status,
+      },
     });
   } catch (error) {
     return mobionApiError(error, "프로필 수정 실패");

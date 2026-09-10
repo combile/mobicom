@@ -30,8 +30,18 @@ function resizeToSquarePng(file: File): Promise<string> {
   });
 }
 
-export default function ProfileContent({ initialName }: { initialName: string }) {
+export default function ProfileContent({
+  initialName,
+  initialNotifyComment,
+  initialNotifyStatus,
+}: {
+  initialName: string;
+  initialNotifyComment: boolean;
+  initialNotifyStatus: boolean;
+}) {
   const [name, setName] = useState(initialName);
+  const [notifyComment, setNotifyComment] = useState(initialNotifyComment);
+  const [notifyStatus, setNotifyStatus] = useState(initialNotifyStatus);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -57,6 +67,31 @@ export default function ProfileContent({ initialName }: { initialName: string })
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "요청에 실패했습니다. 다시 시도해 주세요.");
+    }
+  }
+
+  /**
+   * 토글은 누른 즉시 반영하고, 실패하면 되돌린다.
+   *
+   * 조용히 실패하면 껐다고 믿은 알림이 계속 온다 — 설정 화면에서 그보다
+   * 나쁜 실패는 없다.
+   */
+  async function saveNotifyPref(patch: { notifyComment?: boolean; notifyStatus?: boolean }) {
+    const before = { notifyComment, notifyStatus };
+    if (patch.notifyComment !== undefined) setNotifyComment(patch.notifyComment);
+    if (patch.notifyStatus !== undefined) setNotifyStatus(patch.notifyStatus);
+    setError(null);
+    try {
+      const res = await fetch("/api/mobion/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error("failed");
+    } catch {
+      setNotifyComment(before.notifyComment);
+      setNotifyStatus(before.notifyStatus);
+      setError("알림 설정을 저장하지 못했습니다.");
     }
   }
 
@@ -145,6 +180,37 @@ export default function ProfileContent({ initialName }: { initialName: string })
         {success && <Success>{success}</Success>}
 
         <ThemeSetting />
+
+        <NotifySection>
+          <NotifyHeading>알림 받기</NotifyHeading>
+          <NotifyRow>
+            <input
+              type="checkbox"
+              id="notify-comment"
+              checked={notifyComment}
+              onChange={(e) => saveNotifyPref({ notifyComment: e.target.checked })}
+            />
+            <NotifyLabel htmlFor="notify-comment">
+              댓글
+              <NotifyHint>내 태스크에 새 댓글이 달릴 때</NotifyHint>
+            </NotifyLabel>
+          </NotifyRow>
+          <NotifyRow>
+            <input
+              type="checkbox"
+              id="notify-status"
+              checked={notifyStatus}
+              onChange={(e) => saveNotifyPref({ notifyStatus: e.target.checked })}
+            />
+            <NotifyLabel htmlFor="notify-status">
+              상태 변경
+              <NotifyHint>내 태스크의 상태가 바뀔 때</NotifyHint>
+            </NotifyLabel>
+          </NotifyRow>
+          {/* 끌 수 없는 항목을 비활성 토글로 늘어놓는 것보다, 없는 이유를 한
+              줄로 말하는 편이 낫다 */}
+          <NotifyNote>멘션과 담당자 지정은 항상 받습니다.</NotifyNote>
+        </NotifySection>
 
         <Submit type="submit" disabled={saving}>
           {saving ? "저장 중..." : "저장"}
@@ -257,6 +323,53 @@ const Success = styled.p`
   font-size: 13px;
   color: var(--ok);
   text-align: center;
+`;
+
+const NotifySection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const NotifyHeading = styled.h3`
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+`;
+
+const NotifyRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 2px 0 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+`;
+
+const NotifyLabel = styled.label`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+`;
+
+const NotifyHint = styled.span`
+  font-size: 12px;
+  color: var(--text-faint);
+`;
+
+const NotifyNote = styled.p`
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
 `;
 
 const Submit = styled.button`
