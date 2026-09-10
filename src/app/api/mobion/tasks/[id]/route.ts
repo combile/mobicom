@@ -161,6 +161,28 @@ export async function PATCH(
       );
     }
 
+    // 상태 변경은 담당자에게 알린다. 자기가 바꿨으면 알리지 않고, 값이
+    // 실제로 달라졌을 때만 — 같은 상태로 저장한 것은 사건이 아니다.
+    // 담당자가 이번 요청에서 바뀌었다면 새 담당자를 기준으로 삼는다.
+    const nextAssignee = assigneeId !== undefined ? assigneeId : previousAssignee;
+    if (
+      body.status !== undefined &&
+      was &&
+      String(body.status) !== was.status &&
+      nextAssignee &&
+      nextAssignee !== user.id
+    ) {
+      await query(
+        `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
+         SELECT $1, 'status', $2, $3, $4
+         FROM mobion_users WHERE id = $1 AND notify_status`,
+        // 상태 코드를 그대로 저장한다. 한국어 표현은 상태를 고르는 select
+        // 옆에 있어야 하고, 문구가 바뀌면 과거 알림도 새 표현으로 읽혀야
+        // 한다 — 이 파일 아래 recordActivity가 같은 판단을 한다.
+        [nextAssignee, id, user.id, String(body.status)],
+      );
+    }
+
     return NextResponse.json({
       task: {
         id: t.id,
