@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 23;
+const MOBION_SCHEMA_VERSION = 24;
 
 export const pool =
   globalThis.mobionPool ??
@@ -466,6 +466,36 @@ export async function ensureMobionSchema() {
           last_seen_at TIMESTAMPTZ NOT NULL
         )
       `);
+
+      // 알림 종류 둘 추가. 'mention'은 'comment'에서 갈라져 나온 것으로,
+      // "나를 언급했다"와 "내 태스크에 댓글이 달렸다"는 인박스에서 다르게
+      // 읽혀야 한다. 기존 'comment' 행은 건드리지 않는다 — 과거 알림이
+      // 멘션이었는지는 소급 판정할 수 없다.
+      await pool.query(
+        `ALTER TABLE mobion_notifications
+           DROP CONSTRAINT IF EXISTS mobion_notifications_kind_check`,
+      );
+      await pool.query(
+        `ALTER TABLE mobion_notifications
+           ADD CONSTRAINT mobion_notifications_kind_check
+           CHECK (kind IN ('comment', 'assigned', 'due_soon', 'mention', 'status'))`,
+      );
+      // 알림이 비롯된 댓글. SET NULL인 이유는 mobion_task_comments.user_id와
+      // 같다 — 댓글이 사라져도 "누가 나를 불렀다"는 사실은 남아야 하고,
+      // 이동만 태스크 수준으로 물러나면 된다.
+      await pool.query(
+        `ALTER TABLE mobion_notifications
+           ADD COLUMN IF NOT EXISTS comment_id UUID
+           REFERENCES mobion_task_comments(id) ON DELETE SET NULL`,
+      );
+      // 수신 설정. 조회가 아니라 저장 시점에 적용된다 — 조회 경로는 45초마다
+      // 도는 이 앱의 심장박동이라 가장 단순하게 두어야 한다. 기본값 true는
+      // 기존 사용자가 지금과 똑같이 받는다는 뜻이다.
+      await pool.query(
+        `ALTER TABLE mobion_users
+           ADD COLUMN IF NOT EXISTS notify_comment BOOLEAN NOT NULL DEFAULT true,
+           ADD COLUMN IF NOT EXISTS notify_status BOOLEAN NOT NULL DEFAULT true`,
+      );
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
       globalThis.mobionSchemaVersion = undefined;
