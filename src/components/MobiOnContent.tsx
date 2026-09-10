@@ -21,6 +21,9 @@ import { useContestsData } from "@/lib/use-contests-data";
 import { useOverviewData } from "@/lib/use-overview-data";
 import { useHomeData } from "@/lib/use-home-data";
 import HomeView from "./HomeView";
+import InboxView from "./InboxView";
+import NotificationTray from "./NotificationTray";
+import { useInboxData } from "@/lib/use-inbox-data";
 import ContestsView from "./ContestsView";
 import OverviewView from "./OverviewView";
 import LabView from "./LabView";
@@ -145,10 +148,20 @@ function groupMessages(list: Message[]): MessageGroup[] {
   return groups;
 }
 
-type WorkspaceMode = "home" | "chat" | "projects" | "schedule" | "contests" | "overview" | "lab";
+type WorkspaceMode =
+  | "home"
+  | "inbox"
+  | "chat"
+  | "projects"
+  | "schedule"
+  | "contests"
+  | "overview"
+  | "lab";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("home");
+  // 알림함은 모드가 아니라 열림/닫힘이다 — 열려도 보던 화면은 그대로다.
+  const [trayOpen, setTrayOpen] = useState(false);
   // declared here rather than with the other chat state because useTasksData
   // needs it, and a const cannot be read before its declaration
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -162,6 +175,7 @@ export default function MobiOnContent() {
   const overviewData = useOverviewData(mode === "overview");
   const labData = useLabData(mode === "lab");
   const homeData = useHomeData(mode === "home");
+  const inboxData = useInboxData(mode === "inbox");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   // Which conversations have been read back to their first message, so the
@@ -1021,6 +1035,22 @@ export default function MobiOnContent() {
           </RailButton>
           <RailButton
             type="button"
+            data-active={mode === "inbox" || undefined}
+            onClick={() => setMode("inbox")}
+            aria-label={
+              homeData.unreadCount > 0
+                ? `inbox (읽지 않은 알림 ${homeData.unreadCount}건)`
+                : "inbox"
+            }
+            title="inbox"
+          >
+            <span className="material-symbols-outlined">inbox</span>
+            {/* 홈 버튼과 같은 출처를 쓴다. 알림 폴링이 모든 모드에서 돌기
+                때문에 여기서 따로 셀 필요가 없다. */}
+            {homeData.unreadCount > 0 && <RailDot />}
+          </RailButton>
+          <RailButton
+            type="button"
             data-active={mode === "chat" || undefined}
             onClick={() => setMode("chat")}
             aria-label="채팅"
@@ -1078,6 +1108,36 @@ export default function MobiOnContent() {
               <span className="material-symbols-outlined">groups</span>
             </RailButton>
           )}
+          {/* 알림함은 화면을 바꾸지 않는다 — 보던 자리를 떠나지 않고 곁눈질하는
+              도구라, 모드 버튼들과 떨어뜨려 바닥에 혼자 둔다. margin-top: auto가
+              위에 버튼이 몇 개든 바닥에 붙여준다. */}
+          <TrayButton
+            type="button"
+            data-tray-toggle
+            data-active={trayOpen || undefined}
+            onClick={() => setTrayOpen((open) => !open)}
+            aria-label={
+              homeData.unreadCount > 0
+                ? `알림함 (읽지 않은 알림 ${homeData.unreadCount}건)`
+                : "알림함"
+            }
+            aria-expanded={trayOpen}
+            title="알림함"
+          >
+            <span className="material-symbols-outlined">notifications</span>
+            {homeData.unreadCount > 0 && <RailDot />}
+          </TrayButton>
+          {trayOpen && (
+            <NotificationTray
+              data={homeData}
+              onClose={() => setTrayOpen(false)}
+              onOpenTask={(projectId, taskId, commentId) => {
+                tasksData.openTaskInProject(projectId, taskId, commentId);
+                setMode("projects");
+              }}
+              onOpenInbox={() => setMode("inbox")}
+            />
+          )}
         </IconRail>
         {mode === "projects" && (
           <>
@@ -1097,8 +1157,18 @@ export default function MobiOnContent() {
             data={homeData}
             // home only points at things; opening one switches to the view that
             // owns it and selects it there
-            onOpenTask={(projectId, taskId) => {
-              tasksData.openTaskInProject(projectId, taskId);
+            onOpenTask={(projectId, taskId, commentId) => {
+              tasksData.openTaskInProject(projectId, taskId, commentId);
+              setMode("projects");
+            }}
+          />
+        )}
+        {mode === "inbox" && (
+          <InboxView
+            data={inboxData}
+            unreadCount={homeData.unreadCount}
+            onOpen={(projectId, taskId, commentId) => {
+              tasksData.openTaskInProject(projectId, taskId, commentId);
               setMode("projects");
             }}
           />
@@ -1911,6 +1981,15 @@ const Layout = styled.div`
 `;
 
 const IconRail = styled.nav`
+  /* 알림함 말풍선이 이 레일을 기준으로 떠오른다.
+   *
+   * z-index가 필요한 이유: 아래 backdrop-filter가 이 레일을 새 스태킹
+   * 컨텍스트로 만든다. 그러면 말풍선의 z-index는 이 안에 갇히고, 레일과
+   * 화면 뷰(각자 backdrop-filter를 가져 역시 스태킹 컨텍스트다)는 둘 다
+   * z-index: auto라 DOM 순서로 겨루게 된다 — 뷰가 뒤에 오므로 말풍선이
+   * 홈 화면 뒤로 숨는다. 레일을 통째로 올려야 한다. */
+  position: relative;
+  z-index: 20;
   width: 56px;
   flex-shrink: 0;
   display: flex;
@@ -1964,6 +2043,27 @@ const RailButton = styled.button`
   &[data-active] {
     background: var(--accent-soft);
     color: var(--accent);
+  }
+`;
+
+/**
+ * 레일 바닥에 홀로 앉는 알림함 버튼.
+ *
+ * `margin-top: auto`가 위쪽 버튼 개수와 무관하게 바닥으로 밀어낸다 — 연구실
+ * 현황 버튼이 랩장에게만 보여 개수가 사람마다 다르므로 고정 여백으로는 맞출
+ * 수 없다. 위에 선을 하나 그어 모드 버튼들과 다른 물건임을 보인다.
+ */
+const TrayButton = styled(RailButton)`
+  margin-top: auto;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: 6px;
+    right: 6px;
+    height: 1px;
+    background: var(--border);
   }
 `;
 

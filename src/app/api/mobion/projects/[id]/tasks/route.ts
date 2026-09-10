@@ -46,6 +46,18 @@ export async function POST(
     );
 
     const t = result.rows[0];
+
+    // 처음 담당자로 지정되는 것도 손바뀜이다. 지금까지 이 알림은 PATCH에만
+    // 있어서, 태스크를 만들면서 담당자를 지정하면 그 사람은 아무 통지도
+    // 받지 못했다. 배정은 수신 설정과 무관하게 항상 간다.
+    if (assigneeId && assigneeId !== user.id) {
+      await query(
+        `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
+         VALUES ($1, 'assigned', $2, $3, $4)`,
+        [assigneeId, t.id, user.id, t.title.slice(0, 200)],
+      );
+    }
+
     return NextResponse.json({
       task: {
         id: t.id,

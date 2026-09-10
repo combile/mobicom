@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import styled from "@emotion/styled";
 import CustomSelect from "./CustomSelect";
@@ -788,6 +788,24 @@ function TaskDetailModal({
   const [editing, setEditing] = useState<null | "title" | "description">(null);
   const [newStep, setNewStep] = useState("");
 
+  /**
+   * 인박스에서 넘어온 댓글로 데려간다.
+   *
+   * 댓글 목록이 그려진 뒤라야 하므로 data.comments를 의존성에 둔다. 한 번
+   * 쓰고 지우는 이유는, 지우지 않으면 같은 태스크를 다시 열 때마다 그
+   * 댓글로 끌려가기 때문이다.
+   */
+  useEffect(() => {
+    const id = data.focusCommentId;
+    if (!id) return;
+    const el = document.getElementById(`comment-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.setAttribute("data-highlight", "true");
+    const timer = setTimeout(() => el.removeAttribute("data-highlight"), 2000);
+    data.clearFocusComment();
+    return () => clearTimeout(timer);
+  }, [data.focusCommentId, data.comments]);
 
   async function save() {
     const ok = await data.updateTask(task.id, {
@@ -1050,7 +1068,7 @@ function TaskDetailModal({
                 <ActivityTime>{formatCreatedAt(entry.activity.createdAt)}</ActivityTime>
               </ActivityLine>
             ) : (
-              <Comment key={`c-${entry.id}`}>
+              <Comment key={`c-${entry.id}`} id={`comment-${entry.comment.id}`}>
                 {/* an initial is enough to tell speakers apart at a glance,
                     which is what a thread needs more than a boxed card per
                     remark */}
@@ -2303,6 +2321,19 @@ const Comment = styled.div`
   display: flex;
   gap: 10px;
   padding: 8px 0;
+
+  &[data-highlight="true"] {
+    animation: comment-flash 2s ease-out;
+  }
+
+  @keyframes comment-flash {
+    from {
+      background: var(--accent-soft);
+    }
+    to {
+      background: transparent;
+    }
+  }
 `;
 
 const CommentAvatar = styled.span`

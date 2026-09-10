@@ -3,6 +3,7 @@
 import { useState } from "react";
 import styled from "@emotion/styled";
 import type { HomeData, HomeTask } from "@/lib/use-home-data";
+import { notificationLabel, statusChangeText } from "@/lib/mobion-notifications";
 import { ErrorText } from "./modal-styles";
 
 /**
@@ -17,7 +18,7 @@ export default function HomeView({
   onOpenTask,
 }: {
   data: HomeData;
-  onOpenTask: (projectId: string, taskId: string) => void;
+  onOpenTask: (projectId: string, taskId: string, commentId?: string | null) => void;
 }) {
   return (
     <Main>
@@ -66,20 +67,18 @@ export default function HomeView({
               data-read={n.read || undefined}
               onClick={() => {
                 data.markRead(n.id);
-                if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId);
+                if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId, n.commentId);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   data.markRead(n.id);
-                  if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId);
+                  if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId, n.commentId);
                 }
               }}
             >
               <NotifTop>
-                <NotifKind data-kind={n.kind}>
-                  {n.kind === "assigned" ? "배정" : n.kind === "due_soon" ? "마감" : "답글"}
-                </NotifKind>
+                <NotifKind data-kind={n.kind}>{notificationLabel(n.kind)}</NotifKind>
                 {/* nobody did this one — it is the calendar talking, and
                     "알 수 없는 사용자" would read as a bug */}
                 {n.kind !== "due_soon" && (
@@ -92,7 +91,13 @@ export default function HomeView({
                   title, so printing it here says the same thing twice. It is
                   still written: it records what the task was called at the
                   time, which the live title above stops being after a rename. */}
-              {n.kind !== "assigned" && <NotifBody>{n.body}</NotifBody>}
+              {/* 배정은 본문이 제목의 사본이라 위 줄과 같은 말이 되고,
+                  상태는 코드가 저장돼 있어 그대로 쓰면 "done"이 찍힌다 */}
+              {n.kind !== "assigned" && (
+                <NotifBody>
+                  {n.kind === "status" ? statusChangeText(n.body) : n.body}
+                </NotifBody>
+              )}
             </NotificationRow>
           ))}
         </Section>
@@ -589,6 +594,11 @@ const NotifKind = styled.span`
   &[data-kind="due_soon"] {
     background: var(--warn-soft);
     color: var(--warn);
+  }
+
+  &[data-kind="status"] {
+    background: var(--ok-soft);
+    color: var(--ok);
   }
 `;
 

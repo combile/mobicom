@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { dueState, todayISO } from "./use-tasks-data";
+import type { NotificationKind } from "./mobion-notifications";
 
 export type HomeTask = {
   id: string;
@@ -15,13 +16,15 @@ export type HomeTask = {
 
 export type Notification = {
   id: string;
-  kind: "comment" | "assigned" | "due_soon";
+  kind: NotificationKind;
   body: string;
   createdAt: string;
+  readAt: string | null;
   actorName: string | null;
   taskId: string | null;
   taskTitle: string | null;
   projectId: string | null;
+  commentId: string | null;
   read: boolean;
 };
 
@@ -101,9 +104,9 @@ export function useHomeData(enabled: boolean) {
         .then((data) => {
           if (cancelled) return;
           setNotifications(
-            (data.notifications ?? []).map((n: Notification & { readAt?: string | null }) => ({
+            (data.notifications ?? []).map((n: Notification) => ({
               ...n,
-              read: false,
+              read: n.readAt != null,
             })),
           );
           setUnreadCount(data.unreadCount ?? 0);

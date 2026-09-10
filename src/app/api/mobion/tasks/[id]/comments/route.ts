@@ -84,6 +84,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       [id, user.id, body],
     );
 
+    const commentId = result.rows[0].id;
+
     // Being named is a direct request, so mentions notify regardless of who is
     // assigned. Self-mentions are dropped, and the set removes duplicates so
     // naming someone twice in one comment does not notify them twice.
@@ -94,23 +96,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
 
     for (const userId of mentioned) {
+      // 멘션은 직접 호명이므로 수신 설정과 무관하게 항상 간다.
       await query(
-        `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
-         VALUES ($1, 'comment', $2, $3, $4)`,
-        // shown as plain text in the home feed, so the stored markup
-        // would put a uuid in the middle of the notification
-        [userId, id, user.id, mentionPlainText(body).slice(0, 200)],
+        `INSERT INTO mobion_notifications
+           (user_id, kind, task_id, comment_id, actor_id, body)
+         VALUES ($1, 'mention', $2, $3, $4, $5)`,
+        // 홈 피드에 평문으로 나가므로, 저장된 마크업 그대로면 알림
+        // 한복판에 uuid가 찍힌다
+        [userId, id, commentId, user.id, mentionPlainText(body).slice(0, 200)],
       );
     }
 
     // Then the assignee, unless they wrote it or were already named — one
     // comment should not arrive twice.
     if (task.assignee_id && task.assignee_id !== user.id && !mentioned.has(task.assignee_id)) {
+      // INSERT ... SELECT의 WHERE가 수신 설정이다. 설정을 따로 조회하는
+      // 왕복이 없고, 꺼져 있으면 0행이 들어간다.
       await query(
-        `INSERT INTO mobion_notifications (user_id, kind, task_id, actor_id, body)
-         VALUES ($1, 'comment', $2, $3, $4)`,
-        // same as above: plain text for a plain-text feed
-        [task.assignee_id, id, user.id, mentionPlainText(body).slice(0, 200)],
+        `INSERT INTO mobion_notifications
+           (user_id, kind, task_id, comment_id, actor_id, body)
+         SELECT $1, 'comment', $2, $3, $4, $5
+         FROM mobion_users WHERE id = $1 AND notify_comment`,
+        [task.assignee_id, id, commentId, user.id, mentionPlainText(body).slice(0, 200)],
       );
     }
 
