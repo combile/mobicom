@@ -85,6 +85,20 @@ export const TASK_STATUS_OPTIONS = [
   { value: "done", label: "완료" },
 ];
 
+/**
+ * The one status change offered as a single button, keyed by where the task
+ * is now. Shared by the detail panel and the board — both let a click (not
+ * just a drag) move a card forward.
+ *
+ * Done is included so finishing something is not a one-way door — reopening
+ * it otherwise means hunting through the select.
+ */
+export const NEXT_STATUS: Record<string, { value: string; label: string; hint: string }> = {
+  todo: { value: "in_progress", label: "진행 시작", hint: "상태를 진행중으로" },
+  in_progress: { value: "done", label: "완료", hint: "상태를 완료로" },
+  done: { value: "todo", label: "다시 열기", hint: "상태를 할 일로" },
+};
+
 export const MILESTONE_STATUS_OPTIONS = [
   { value: "planned", label: "계획" },
   { value: "in_progress", label: "진행중" },
@@ -179,7 +193,7 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
   // Kept in the hook rather than the view so switching projects does not throw
   // away which way you were looking at the work.
-  const [detailTab, setDetailTab] = useState<"timeline" | "list">("timeline");
+  const [detailTab, setDetailTab] = useState<"timeline" | "list" | "board">("timeline");
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("created");
   const [showCreateTask, setShowCreateTask] = useState(false);

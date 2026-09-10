@@ -15,6 +15,7 @@ import {
 import {
   MILESTONE_KINDS,
   MILESTONE_STATUS_OPTIONS,
+  NEXT_STATUS,
   SORT_OPTIONS,
   TASK_STATUS_OPTIONS,
   dueState,
@@ -23,6 +24,7 @@ import {
   type TaskActivity,
   type TasksData,
 } from "@/lib/use-tasks-data";
+import TaskBoardView from "./TaskBoardView";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import {
   ModalOverlay,
@@ -124,6 +126,14 @@ export default function ProjectDetailView({
               목록
               <TabCount>{data.tasks.length}</TabCount>
             </Tab>
+            <Tab
+              type="button"
+              data-active={data.detailTab === "board" || undefined}
+              onClick={() => data.setDetailTab("board")}
+              aria-pressed={data.detailTab === "board"}
+            >
+              보드
+            </Tab>
             {/* both add buttons stay put across tabs: what you are looking at
                 should not decide what you are allowed to create */}
             <TabActions>
@@ -146,6 +156,8 @@ export default function ProjectDetailView({
               onOpenMilestone={(id) => data.setSelectedMilestoneId(id)}
             />
           )}
+
+          {data.detailTab === "board" && <TaskBoardView data={data} />}
 
           {data.detailTab === "list" && (
           <>
@@ -390,18 +402,6 @@ function formatCreatedAt(iso: string) {
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
 }
-
-/**
- * The one status change offered as a button, keyed by where the task is now.
- *
- * Done is included so finishing something is not a one-way door — reopening it
- * otherwise means hunting through the select.
- */
-const NEXT_STATUS: Record<string, { value: string; label: string; hint: string }> = {
-  todo: { value: "in_progress", label: "진행 시작", hint: "상태를 진행중으로" },
-  in_progress: { value: "done", label: "완료", hint: "상태를 완료로" },
-  done: { value: "todo", label: "다시 열기", hint: "상태를 할 일로" },
-};
 
 /** Milestones use their own vocabulary — planned rather than todo. */
 const NEXT_MILESTONE_STATUS: Record<string, { value: string; label: string; hint: string }> = {
