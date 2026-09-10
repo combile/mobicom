@@ -197,6 +197,9 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     excerpt: string;
   } | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // 인박스에서 넘어올 때만 채워진다. 태스크가 열리고 댓글이 그려진 뒤에야
+  // 스크롤할 수 있으므로, 화면이 소비하고 지우는 방식으로 넘긴다.
+  const [focusCommentId, setFocusCommentId] = useState<string | null>(null);
   const pendingTaskRef = useRef<string | null>(null);
   /** Milestone counterpart to pendingTaskRef; see the project-switch reset. */
   const pendingMilestoneRef = useRef<string | null>(null);
@@ -686,7 +689,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
    * Used by home and the schedule, where a row names a task in a project that
    * may not be the one currently open.
    */
-  function openTaskInProject(projectId: string, taskId: string) {
+  function openTaskInProject(projectId: string, taskId: string, focusComment?: string | null) {
+    setFocusCommentId(focusComment ?? null);
     if (projectId === selectedProjectId) {
       setSelectedTaskId(taskId);
       return;
@@ -1039,6 +1043,8 @@ export function useTasksData(enabled: boolean, currentUserId: string | null = nu
     selectedTaskId,
     setSelectedTaskId,
     openTaskInProject,
+    focusCommentId,
+    clearFocusComment: () => setFocusCommentId(null),
     openMilestoneInProject,
     openTaskIndex,
     prevTaskId,

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import styled from "@emotion/styled";
 import type { HomeData, HomeTask } from "@/lib/use-home-data";
+import { notificationLabel, statusChangeText } from "@/lib/mobion-notifications";
 import { ErrorText } from "./modal-styles";
 
 /**
@@ -77,9 +78,7 @@ export default function HomeView({
               }}
             >
               <NotifTop>
-                <NotifKind data-kind={n.kind}>
-                  {n.kind === "assigned" ? "배정" : n.kind === "due_soon" ? "마감" : "답글"}
-                </NotifKind>
+                <NotifKind data-kind={n.kind}>{notificationLabel(n.kind)}</NotifKind>
                 {/* nobody did this one — it is the calendar talking, and
                     "알 수 없는 사용자" would read as a bug */}
                 {n.kind !== "due_soon" && (
@@ -92,7 +91,13 @@ export default function HomeView({
                   title, so printing it here says the same thing twice. It is
                   still written: it records what the task was called at the
                   time, which the live title above stops being after a rename. */}
-              {n.kind !== "assigned" && <NotifBody>{n.body}</NotifBody>}
+              {/* 배정은 본문이 제목의 사본이라 위 줄과 같은 말이 되고,
+                  상태는 코드가 저장돼 있어 그대로 쓰면 "done"이 찍힌다 */}
+              {n.kind !== "assigned" && (
+                <NotifBody>
+                  {n.kind === "status" ? statusChangeText(n.body) : n.body}
+                </NotifBody>
+              )}
             </NotificationRow>
           ))}
         </Section>
