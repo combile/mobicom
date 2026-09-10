@@ -21,6 +21,8 @@ import { useContestsData } from "@/lib/use-contests-data";
 import { useOverviewData } from "@/lib/use-overview-data";
 import { useHomeData } from "@/lib/use-home-data";
 import HomeView from "./HomeView";
+import InboxView from "./InboxView";
+import { useInboxData } from "@/lib/use-inbox-data";
 import ContestsView from "./ContestsView";
 import OverviewView from "./OverviewView";
 import LabView from "./LabView";
@@ -144,7 +146,15 @@ function groupMessages(list: Message[]): MessageGroup[] {
   return groups;
 }
 
-type WorkspaceMode = "home" | "chat" | "projects" | "schedule" | "contests" | "overview" | "lab";
+type WorkspaceMode =
+  | "home"
+  | "inbox"
+  | "chat"
+  | "projects"
+  | "schedule"
+  | "contests"
+  | "overview"
+  | "lab";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("home");
@@ -161,6 +171,7 @@ export default function MobiOnContent() {
   const overviewData = useOverviewData(mode === "overview");
   const labData = useLabData(mode === "lab");
   const homeData = useHomeData(mode === "home");
+  const inboxData = useInboxData(mode === "inbox");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   // Which conversations have been read back to their first message, so the
@@ -994,6 +1005,22 @@ export default function MobiOnContent() {
           </RailButton>
           <RailButton
             type="button"
+            data-active={mode === "inbox" || undefined}
+            onClick={() => setMode("inbox")}
+            aria-label={
+              homeData.unreadCount > 0
+                ? `inbox (읽지 않은 알림 ${homeData.unreadCount}건)`
+                : "inbox"
+            }
+            title="inbox"
+          >
+            <span className="material-symbols-outlined">inbox</span>
+            {/* 홈 버튼과 같은 출처를 쓴다. 알림 폴링이 모든 모드에서 돌기
+                때문에 여기서 따로 셀 필요가 없다. */}
+            {homeData.unreadCount > 0 && <RailDot />}
+          </RailButton>
+          <RailButton
+            type="button"
             data-active={mode === "chat" || undefined}
             onClick={() => setMode("chat")}
             aria-label="채팅"
@@ -1071,6 +1098,15 @@ export default function MobiOnContent() {
             // home only points at things; opening one switches to the view that
             // owns it and selects it there
             onOpenTask={(projectId, taskId) => {
+              tasksData.openTaskInProject(projectId, taskId);
+              setMode("projects");
+            }}
+          />
+        )}
+        {mode === "inbox" && (
+          <InboxView
+            data={inboxData}
+            onOpen={(projectId, taskId) => {
               tasksData.openTaskInProject(projectId, taskId);
               setMode("projects");
             }}
