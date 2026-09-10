@@ -19,6 +19,7 @@ export type Notification = {
   kind: NotificationKind;
   body: string;
   createdAt: string;
+  readAt: string | null;
   actorName: string | null;
   taskId: string | null;
   taskTitle: string | null;
@@ -103,9 +104,9 @@ export function useHomeData(enabled: boolean) {
         .then((data) => {
           if (cancelled) return;
           setNotifications(
-            (data.notifications ?? []).map((n: Notification & { readAt?: string | null }) => ({
+            (data.notifications ?? []).map((n: Notification) => ({
               ...n,
-              read: false,
+              read: n.readAt != null,
             })),
           );
           setUnreadCount(data.unreadCount ?? 0);

@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
+import type { NotificationKind } from "@/lib/mobion-notifications";
 
 type NotificationRow = {
   id: string;
-  kind: "comment" | "assigned" | "due_soon";
+  kind: NotificationKind;
   body: string;
   created_at: string;
+  read_at: string | null;
   comment_id: string | null;
   actor_name: string | null;
   task_id: string | null;
@@ -109,7 +111,7 @@ export async function GET() {
     await raiseDueSoonNotifications(user.id).catch(() => {});
 
     const result = await query<NotificationRow>(
-      `SELECT n.id, n.kind, n.body, n.created_at, n.comment_id,
+      `SELECT n.id, n.kind, n.body, n.created_at, n.read_at::text as read_at, n.comment_id,
               a.name AS actor_name,
               n.task_id, t.title AS task_title, t.project_id
        FROM mobion_notifications n
@@ -136,6 +138,7 @@ export async function GET() {
         kind: r.kind,
         body: r.body,
         createdAt: r.created_at,
+        readAt: r.read_at,
         commentId: r.comment_id,
         actorName: r.actor_name,
         taskId: r.task_id,

@@ -8,7 +8,7 @@ const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: null, label: "전체" },
   { value: "mention", label: "멘션" },
   { value: "assigned", label: "배정" },
-  { value: "comment", label: "댓글" },
+  { value: "comment", label: "답글" },
   { value: "status", label: "상태" },
 ];
 
@@ -140,6 +140,9 @@ const Wrap = styled.section`
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  background: var(--panel-wash);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
   padding: 20px 24px;
   overflow-y: auto;
 `;

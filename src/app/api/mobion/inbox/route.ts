@@ -42,15 +42,16 @@ export async function GET(request: Request) {
 
     // 커서는 (created_at, id)의 복합 값이다. 언더스코어로 구분하고, 형식 오류는
     // 조용히 "커서 없음"으로 취급한다 (500을 내지 않는다).
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let cursorTimestamp: string | null = null;
     let cursorId: string | null = null;
     if (cursorParam) {
       const parts = cursorParam.split("_");
       if (parts.length === 2) {
-        // ISO 8601 타임스탬프인지 검증하고, UUID는 그냥 문자열로 받는다.
+        // ISO 8601 타임스탬프인지 검증하고, id는 UUID 형태인지 검증한다.
         // new Date()는 invalid date를 throw하지 않으므로 getTime()을 체크한다.
         const d = new Date(parts[0]);
-        if (!Number.isNaN(d.getTime())) {
+        if (!Number.isNaN(d.getTime()) && UUID_RE.test(parts[1])) {
           cursorTimestamp = parts[0];
           cursorId = parts[1];
         }
@@ -68,10 +69,11 @@ export async function GET(request: Request) {
        WHERE n.user_id = $1
          AND ($2::text IS NULL OR n.kind = $2)
          -- 커서는 (created_at, id) 복합값이다. created_at DESC, id DESC로 읽으므로
-         -- "(이 시각, 이 id)보다 이전"인 다음 장이 된다. 렉시코그래픽 순서이므로
-         -- 같은 시각의 여러 행도 id로 구분된다.
-         AND ($3::text IS NULL OR (n.created_at::text, n.id) < ($3::text, $4::uuid))
-       ORDER BY n.created_at::text DESC, n.id DESC
+         -- "(이 시각, 이 id)보다 이전"인 다음 장이 된다. timestamptz로 비교해야
+         -- 컬레이션에 무관하게 실제 시간 순서가 유지된다 (텍스트 비교는 DB
+         -- 컬레이션에 따라 같은 초 안에서 순서가 흐트러질 수 있다).
+         AND ($3::timestamptz IS NULL OR (n.created_at, n.id) < ($3::timestamptz, $4::uuid))
+       ORDER BY n.created_at DESC, n.id DESC
        LIMIT $5`,
       [user.id, kind, cursorTimestamp, cursorId, PAGE_SIZE + 1],
     );

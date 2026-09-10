@@ -18,7 +18,7 @@ export default function HomeView({
   onOpenTask,
 }: {
   data: HomeData;
-  onOpenTask: (projectId: string, taskId: string) => void;
+  onOpenTask: (projectId: string, taskId: string, commentId?: string | null) => void;
 }) {
   return (
     <Main>
@@ -67,13 +67,13 @@ export default function HomeView({
               data-read={n.read || undefined}
               onClick={() => {
                 data.markRead(n.id);
-                if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId);
+                if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId, n.commentId);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   data.markRead(n.id);
-                  if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId);
+                  if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId, n.commentId);
                 }
               }}
             >
@@ -594,6 +594,11 @@ const NotifKind = styled.span`
   &[data-kind="due_soon"] {
     background: var(--warn-soft);
     color: var(--warn);
+  }
+
+  &[data-kind="status"] {
+    background: var(--ok-soft);
+    color: var(--ok);
   }
 `;
 

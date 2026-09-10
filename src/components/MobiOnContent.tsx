@@ -1097,8 +1097,8 @@ export default function MobiOnContent() {
             data={homeData}
             // home only points at things; opening one switches to the view that
             // owns it and selects it there
-            onOpenTask={(projectId, taskId) => {
-              tasksData.openTaskInProject(projectId, taskId);
+            onOpenTask={(projectId, taskId, commentId) => {
+              tasksData.openTaskInProject(projectId, taskId, commentId);
               setMode("projects");
             }}
           />
