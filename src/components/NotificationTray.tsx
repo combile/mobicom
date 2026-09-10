@@ -104,7 +104,9 @@ export default function NotificationTray({
 
 const Panel = styled.div`
   position: absolute;
-  left: 52px;
+  /* 레일 폭(56px) 바깥으로 8px 띄운다. 딱 붙이면 레일에서 자라난 것처럼
+     보여 어디까지가 레일이고 어디부터가 말풍선인지 흐려진다. */
+  left: 64px;
   bottom: 12px;
   z-index: 40;
   width: 300px;
@@ -114,7 +116,8 @@ const Panel = styled.div`
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  /* 아래만 0인 이유는 Footer 주석 참고 — 그 여백은 푸터가 직접 갖는다 */
+  padding: 10px 10px 0;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--panel-wash);
@@ -265,12 +268,21 @@ const TaskTitle = styled.span`
   white-space: nowrap;
 `;
 
+/**
+ * 구분선 아래 공간의 한가운데에 글자를 둔다.
+ *
+ * 말풍선의 아래 여백을 0으로 두고(위 Panel 참고) 이 버튼이 위아래 패딩을
+ * 직접 갖는다. 그러지 않으면 글자 위는 패딩뿐인데 아래는 패딩 + 말풍선
+ * 여백이 되어, 아래가 넓은 만큼 글자가 위로 떠 보인다.
+ *
+ * 음수 마진으로 말풍선 가장자리까지 밀어내는 방법도 있지만, 말풍선에
+ * overflow-y가 걸려 있어 가로로 잘리거나 스크롤이 생긴다.
+ */
 const Footer = styled.button`
-  margin-top: 4px;
-  padding: 6px;
+  margin-top: 2px;
+  padding: 10px;
   border: none;
   border-top: 1px solid var(--border);
-  border-radius: 0 0 6px 6px;
   background: transparent;
   color: var(--text-faint);
   font-size: 12px;
