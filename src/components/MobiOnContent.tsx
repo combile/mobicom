@@ -29,6 +29,7 @@ import CommandPalette, { type SearchResult } from "./CommandPalette";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
 import { notifyDesktop, onDesktopChannelOpen, setDesktopBadge } from "@/lib/mobion-desktop";
+import { playChatSound, isMuted, setMuted } from "@/lib/mobion-sounds";
 
 type Channel = {
   id: string;
@@ -209,6 +210,10 @@ export default function MobiOnContent() {
     avatarUrl: string | null;
   } | null>(null);
   const [profileDraft, setProfileDraft] = useState("");
+  // Read after mount, not during render: localStorage does not exist while
+  // this component is server-rendered.
+  const [soundMuted, setSoundMuted] = useState(false);
+  useEffect(() => setSoundMuted(isMuted()), []);
   const [showNewDm, setShowNewDm] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   const [taskFromMessage, setTaskFromMessage] = useState<Message | null>(null);
@@ -342,7 +347,12 @@ export default function MobiOnContent() {
         setPerSpaceLimit(data.perSpaceLimit ?? 0);
         setActiveChannelId((prev) => prev ?? data.channels[0]?.id ?? null);
         setConnectionError(null);
-        setReconnecting(false);
+        // Only when this was a recovery, never on the first connect — opening
+        // the app should not announce itself.
+        setReconnecting((wasReconnecting) => {
+          if (wasReconnecting) playChatSound("reconnected");
+          return false;
+        });
         retryDelay.current = 1000;
       });
 
@@ -355,8 +365,23 @@ export default function MobiOnContent() {
         // in front.
         const channel = channelsRef.current.find((c) => c.id === msg.channelId);
         const me = currentUserIdRef.current;
+        const mentionsMe = Boolean(me && messageContainsMentionOf(msg.text, me));
+
+        // The same two questions the desktop shell asks before interrupting
+        // someone: is it mine, and am I already looking at it. A sound that
+        // ignores them is worse than a banner that does — it cannot be
+        // dismissed and it fires while you are reading the message it is
+        // announcing.
+        const isMine = msg.authorId === mySocialIdRef.current;
+        const watchingThis =
+          msg.channelId === activeChannelIdRef.current &&
+          typeof document !== "undefined" &&
+          document.hasFocus();
+        if (!isMine && !watchingThis) {
+          playChatSound(mentionsMe ? "mention" : "message");
+        }
         notifyDesktop({
-          kind: me && messageContainsMentionOf(msg.text, me) ? "mention" : "message",
+          kind: mentionsMe ? "mention" : "message",
           title: channel ? `#${channel.name}` : "새 메시지",
           body: `${msg.authorName ?? "알 수 없음"}: ${mentionPlainText(msg.text).slice(0, 120)}`,
           channelId: msg.channelId,
@@ -385,6 +410,7 @@ export default function MobiOnContent() {
             not_linked: "Huly 계정이 연결되어 있지 않습니다. 관리자에게 문의해 주세요.",
           };
           setConnectionError(knownMessages[data.message] ?? data.message);
+          playChatSound("error");
           es?.close();
           return;
         }
@@ -442,6 +468,7 @@ export default function MobiOnContent() {
       }).catch(() => {});
     }
 
+    playChatSound("sent");
     setDraft("");
     setReplyingTo(null);
     setPendingFiles([]);
@@ -1157,6 +1184,23 @@ export default function MobiOnContent() {
                   {sortMode === "recent" && (
                     <ActiveCheck className="material-symbols-outlined">check</ActiveCheck>
                   )}
+                </ChannelMenuItem>
+                <ChannelMenuDivider />
+                <ChannelMenuItem
+                  type="button"
+                  onClick={() => {
+                    const next = !soundMuted;
+                    setMuted(next);
+                    setSoundMuted(next);
+                    // Play on unmute so the choice is audible immediately —
+                    // a silent toggle gives no way to tell it worked.
+                    if (!next) playChatSound("message");
+                  }}
+                >
+                  <span className="material-symbols-outlined">
+                    {soundMuted ? "volume_off" : "volume_up"}
+                  </span>
+                  {soundMuted ? "알림음 켜기" : "알림음 끄기"}
                 </ChannelMenuItem>
                 <ChannelMenuDivider />
                 <ChannelMenuItem

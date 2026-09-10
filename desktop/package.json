@@ -1,8 +1,8 @@
 {
-  "name": "mobion-desktop",
+  "name": "mobicom-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Mobi:ON 데스크톱",
+  "description": "연구실 채팅과 일정을 한자리에서 — Mobicom 데스크톱",
   "author": "Mobicom Lab",
   "main": "dist/main.js",
   "scripts": {
@@ -18,17 +18,36 @@
     "@types/node": "^20.17.6"
   },
   "build": {
-    "appId": "kr.ac.hanbat.mobicom.mobion",
-    "productName": "Mobi-ON",
-    "directories": { "output": "release", "buildResources": "build" },
-    "files": ["dist/**/*", "src/offline.html", "build/tray.png", "build/badge.png"],
+    "appId": "kr.ac.hanbat.mobicom.desktop",
+    "productName": "Mobicom",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "src/offline.html",
+      "build/tray.png",
+      "build/tray@2x.png",
+      "build/badge.png"
+    ],
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns",
       "identity": null
     },
-    "win": { "target": ["nsis"], "icon": "build/icon.ico" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

@@ -1,4 +1,4 @@
-# Mobi:ON 데스크톱
+# Mobicom 데스크톱
 
 랩 서버의 Mobi:ON을 감싼 Electron 앱. 채팅을 보고 있지 않아도 새 메시지와
 멘션이 OS 알림으로 온다.
@@ -24,8 +24,8 @@ npm --prefix desktop run dist:win   # release/*.exe
 
 ## 설정
 
-- macOS: `~/Library/Application Support/Mobi-ON/settings.json`
-- Windows: `%APPDATA%\Mobi-ON\settings.json`
+- macOS: `~/Library/Application Support/Mobicom/settings.json`
+- Windows: `%APPDATA%\Mobicom\settings.json`
 
 ```json
 {
