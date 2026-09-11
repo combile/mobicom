@@ -30,6 +30,7 @@ import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
 import { notifyDesktop, onDesktopChannelOpen, setDesktopBadge } from "@/lib/mobion-desktop";
 import { playChatSound, isMuted, setMuted } from "@/lib/mobion-sounds";
+import { applyUnreadBadge } from "@/lib/mobion-unread-badge";
 
 type Channel = {
   id: string;
@@ -951,7 +952,11 @@ export default function MobiOnContent() {
   // change rather than polled — these numbers recompute here anyway.
   const totalUnread = channels.reduce((sum, c) => sum + unreadCount(c.id), 0);
   useEffect(() => {
+    // Two surfaces, one number: the desktop shell's dock/taskbar badge, and the
+    // browser tab's title and favicon. A tab has neither of the first two, so
+    // without this the count simply does not exist on the web.
     setDesktopBadge(totalUnread);
+    applyUnreadBadge(totalUnread);
   }, [totalUnread]);
 
   function unreadLabel(count: number) {
