@@ -31,7 +31,14 @@ import { useLabData } from "@/lib/use-lab-data";
 import CommandPalette, { type SearchResult } from "./CommandPalette";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
-import { notifyDesktop, onDesktopChannelOpen, setDesktopBadge } from "@/lib/mobion-desktop";
+import {
+  notifyDesktop,
+  onDesktopChannelOpen,
+  onDesktopOpenTask,
+  setDesktopBadge,
+  setDesktopNotificationsPreview,
+} from "@/lib/mobion-desktop";
+import { notificationLabel } from "@/lib/mobion-notifications";
 import { playChatSound, isMuted, setMuted } from "@/lib/mobion-sounds";
 import { applyUnreadBadge } from "@/lib/mobion-unread-badge";
 
@@ -879,6 +886,17 @@ export default function MobiOnContent() {
     [],
   );
 
+  // Same, for a tray-menu row pointing at a task rather than a channel —
+  // same landing spot every other task notification already uses.
+  useEffect(
+    () =>
+      onDesktopOpenTask(({ projectId, taskId, commentId }) => {
+        tasksData.openTaskInProject(projectId, taskId, commentId);
+        setMode("projects");
+      }),
+    [],
+  );
+
   /** Who, other than the author, has read past this message. */
   function readersOf(m: Message) {
     return (othersReads[m.channelId] ?? [])
@@ -972,6 +990,33 @@ export default function MobiOnContent() {
     setDesktopBadge(totalUnread);
     applyUnreadBadge(totalUnread);
   }, [totalUnread]);
+
+  // The tray's recent-notifications rows, kept in step with the same poll the
+  // home screen's own list and unread dot already use (use-home-data.ts —
+  // mode-independent, so this stays current even while sitting in chat).
+  // Unread only: a read notification has already been seen, so it has
+  // nothing left to tell someone glancing at the tray.
+  useEffect(() => {
+    setDesktopNotificationsPreview(
+      homeData.notifications
+        .filter((n) => !n.read)
+        .map((n) => ({
+          id: n.id,
+          label: [
+            notificationLabel(n.kind),
+            // A due-soon reminder is the calendar speaking, not a person —
+            // NotificationTray already draws this same distinction.
+            n.kind === "due_soon" ? null : n.actorName ?? "알 수 없는 사용자",
+            n.taskTitle,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          projectId: n.projectId,
+          taskId: n.taskId,
+          commentId: n.commentId,
+        })),
+    );
+  }, [homeData.notifications]);
 
   function unreadLabel(count: number) {
     // the snapshot only carried so much, so a count at the cap is a floor
