@@ -363,6 +363,10 @@ export async function ensureMobionSchema() {
         )
       `);
 
+      // 'mention' joins them too: it was already being written by the
+      // notifications code while this list still refused it, so re-applying the
+      // constraint failed against rows that already existed — and a failing
+      // migration means every request 500s, not just the notification ones.
       // 'due_soon' joins the original two. The constraint is replaced rather
       // than the column left unchecked: the set is small and closed, and an
       // unconstrained kind is how a typo becomes a notification nobody can
@@ -374,7 +378,7 @@ export async function ensureMobionSchema() {
       await pool.query(
         `ALTER TABLE mobion_notifications
            ADD CONSTRAINT mobion_notifications_kind_check
-           CHECK (kind IN ('comment', 'assigned', 'due_soon'))`,
+           CHECK (kind IN ('comment', 'assigned', 'due_soon', 'mention'))`,
       );
 
       // Emoji reactions. One row per (message, person, emoji): the primary key

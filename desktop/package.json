@@ -29,11 +29,17 @@
       "src/offline.html",
       "build/tray.png",
       "build/tray@2x.png",
+      "build/tray.svg",
       "build/badge.png"
     ],
     "mac": {
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns",

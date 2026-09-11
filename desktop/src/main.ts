@@ -13,6 +13,42 @@ let isQuitting = false;
 // Prevents did-fail-load from re-triggering a load of the offline page when
 // the offline page itself is what failed to load.
 let showingOffline = false;
+// Polls the server while the offline page is up, so a server that comes back
+// brings the app back with it. Without this the window sits on an error screen
+// until someone notices and presses a button — and the lab server going down
+// and up again is an ordinary event here, not a rare one.
+let offlineRetryTimer: ReturnType<typeof setInterval> | undefined;
+const OFFLINE_RETRY_MS = 5000;
+
+function stopOfflineRetry() {
+  if (!offlineRetryTimer) return;
+  clearInterval(offlineRetryTimer);
+  offlineRetryTimer = undefined;
+}
+
+function startOfflineRetry() {
+  if (offlineRetryTimer) return;
+  offlineRetryTimer = setInterval(async () => {
+    const url = loadSettings().serverUrl;
+    try {
+      // Checked from the main process rather than from the offline page: that
+      // page is a file:// document, and a request from it to the server is a
+      // cross-origin one the browser would block.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(url, { method: "HEAD", signal: controller.signal });
+      clearTimeout(timeout);
+      // Any answer at all means something is listening. A 4xx or a redirect is
+      // the app talking — only a dead socket keeps us waiting.
+      if (res.status > 0) {
+        stopOfflineRetry();
+        void mainWindow?.loadURL(url);
+      }
+    } catch {
+      // Still down. The next tick will try again.
+    }
+  }, OFFLINE_RETRY_MS);
+}
 
 // A tray-resident app whose window hides on close is easy to forget is
 // already running. Without this lock, clicking the icon again launches a
@@ -70,9 +106,12 @@ function refreshTrayMenu() {
 
 function createTray() {
   const icon = nativeImage.createFromPath(join(__dirname, "..", "build", "tray.png"));
-  // macOS renders a template image in the menu bar's own colour, so it follows
-  // light and dark mode instead of staying one fixed shade.
-  icon.setTemplateImage(true);
+  // Not a template image: template mode throws the colours away and keeps only
+  // the alpha, which would turn this icon — a coloured mark on its own dark
+  // ground — into a solid black square. The trade is that it no longer follows
+  // the menu bar's light/dark shade, which is the right trade for an icon whose
+  // colour is the point.
+  icon.setTemplateImage(false);
 
   tray = new Tray(icon);
   tray.setToolTip("Mobicom");
@@ -156,13 +195,20 @@ function createWindow() {
     console.error("load failed", code, description, url);
     showingOffline = true;
     void mainWindow?.loadFile(join(__dirname, "..", "src", "offline.html"));
+    startOfflineRetry();
   });
 
   mainWindow.webContents.on("did-finish-load", () => {
     showingOffline = false;
+    // The offline page fires this event too, so the poll may only stop once
+    // what loaded is actually the server.
+    if (!mainWindow?.webContents.getURL().startsWith("file://")) {
+      stopOfflineRetry();
+    }
   });
 
   mainWindow.on("closed", () => {
+    stopOfflineRetry();
     mainWindow = null;
   });
 }
