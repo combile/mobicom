@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification, Tray, Menu, nativeImage, she
 import { join } from "path";
 import { loadSettings, saveSettings } from "./settings";
 import { shouldNotify } from "./notify-rules";
-import type { DesktopNotification } from "./preload";
+import type { DesktopNotification, DesktopNotificationPreview } from "./preload";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -13,6 +13,15 @@ let isQuitting = false;
 // Prevents did-fail-load from re-triggering a load of the offline page when
 // the offline page itself is what failed to load.
 let showingOffline = false;
+// Most-recent-first, shown at the top of the tray menu. The renderer pushes
+// this whenever its own notification poll updates — the shell has no server
+// access of its own, so this is the only way it learns anything happened.
+let recentNotifications: DesktopNotificationPreview[] = [];
+// A local snooze, independent of the "알림 받기" setting: that one is a
+// standing preference saved to disk, this is "not right now" for the current
+// session. Toggling it off does not touch the saved setting underneath.
+let away = false;
+const TRAY_NOTIFICATION_ROWS = 5;
 // Polls the server while the offline page is up, so a server that comes back
 // brings the app back with it. Without this the window sits on an error screen
 // until someone notices and presses a button — and the lab server going down
@@ -70,12 +79,37 @@ function showWindow() {
   mainWindow.focus();
 }
 
+/** Opens the task a recent-notification row points at, same as clicking the notification itself. */
+function openNotificationTarget(item: DesktopNotificationPreview) {
+  showWindow();
+  if (!item.projectId || !item.taskId) return;
+  mainWindow?.webContents.send("mobion:open-task", {
+    projectId: item.projectId,
+    taskId: item.taskId,
+    commentId: item.commentId,
+  });
+}
+
 function refreshTrayMenu() {
   if (!tray) return;
   const settings = loadSettings();
 
+  // A label truncated in the middle of a run of spaces reads as a stray
+  // trailing space; trimming after the cut avoids that.
+  const notificationRows =
+    recentNotifications.length > 0
+      ? recentNotifications
+          .slice(0, TRAY_NOTIFICATION_ROWS)
+          .map((n) => ({
+            label: n.label.length > 60 ? `${n.label.slice(0, 60).trimEnd()}…` : n.label,
+            click: () => openNotificationTarget(n),
+          }))
+      : [{ label: "새 알림 없음", enabled: false }];
+
   tray.setContextMenu(
     Menu.buildFromTemplate([
+      ...notificationRows,
+      { type: "separator" },
       { label: "열기", click: showWindow },
       {
         label: "알림 받기",
@@ -83,6 +117,18 @@ function refreshTrayMenu() {
         checked: settings.notify.enabled,
         click: (item) => {
           saveSettings({ ...settings, notify: { ...settings.notify, enabled: item.checked } });
+          refreshTrayMenu();
+        },
+      },
+      {
+        label: "자리 비움",
+        type: "checkbox",
+        checked: away,
+        // A standing setting change should not need reopening the menu to
+        // see take effect elsewhere, but this one only matters here, so
+        // rebuilding the menu is enough — no saveSettings, no disk write.
+        click: (item) => {
+          away = item.checked;
           refreshTrayMenu();
         },
       },
@@ -116,7 +162,11 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip("Mobicom");
   refreshTrayMenu();
-  tray.on("click", showWindow);
+  // No "click" handler: Tray.setContextMenu already opens that menu on a
+  // regular click (macOS does not distinguish primary/secondary click for a
+  // tray icon the way it does for other UI). A "click" listener here would
+  // instead replace that with going straight to the window, which is the
+  // behaviour being replaced — the menu is now the click.
 }
 
 function createWindow() {
@@ -218,6 +268,11 @@ function createWindow() {
 // say. The decision needs both, so it is made here with the renderer's half
 // sent along.
 ipcMain.on("mobion:notify", (_event, payload: DesktopNotification) => {
+  // Checked ahead of shouldNotify rather than folded into it: away is a
+  // session-only override, not one of the saved preferences that function
+  // already weighs, and shouldNotify has no way to receive it.
+  if (away) return;
+
   const settings = loadSettings();
 
   if (
@@ -275,6 +330,11 @@ ipcMain.on("mobion:badge", (_event, count: number) => {
   const label = n > 99 ? "99+" : String(n);
   const image = nativeImage.createFromPath(join(__dirname, "..", "build", "badge.png"));
   mainWindow.setOverlayIcon(image, `읽지 않은 메시지 ${label}개`);
+});
+
+ipcMain.on("mobion:notifications-preview", (_event, items: DesktopNotificationPreview[]) => {
+  recentNotifications = Array.isArray(items) ? items : [];
+  refreshTrayMenu();
 });
 
 ipcMain.on("mobion:retry", () => {
