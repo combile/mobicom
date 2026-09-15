@@ -87,7 +87,17 @@ export function onDesktopOpenTask(handler: (target: DesktopTaskTarget) => void):
  * The tray's "자리 비움" checkbox, toggled from outside the page. A browser
  * tab never fires this — there is no equivalent control there yet — so the
  * server-side away span currently only exists for the desktop shell.
+ *
+ * Checked with `typeof`, not just `bridge() != null` like every other
+ * function here: the web app deploys the instant this file ships, to every
+ * desktop install regardless of dmg version, while `onAwayChanged` only
+ * exists in a preload.js built after it was added. An older install's
+ * `window.mobion` is real but missing this one method — calling it anyway
+ * crashed the whole page (`TypeError: ... is not a function`) for anyone who
+ * had not rebuilt the desktop app yet.
  */
 export function onDesktopAwayChanged(handler: (away: boolean) => void): () => void {
-  return bridge()?.onAwayChanged(handler) ?? (() => {});
+  const b = bridge();
+  if (!b || typeof b.onAwayChanged !== "function") return () => {};
+  return b.onAwayChanged(handler);
 }
