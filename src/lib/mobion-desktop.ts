@@ -44,6 +44,7 @@ type MobionBridge = {
   onOpenChannel: (handler: (channelId: string) => void) => () => void;
   setNotificationsPreview: (items: DesktopNotificationPreview[]) => void;
   onOpenTask: (handler: (target: DesktopTaskTarget) => void) => () => void;
+  onAwayChanged: (handler: (away: boolean) => void) => () => void;
 };
 
 function bridge(): MobionBridge | null {
@@ -80,4 +81,13 @@ export function setDesktopNotificationsPreview(items: DesktopNotificationPreview
 /** Returns an unsubscribe function; safe to call in a browser (no-op). */
 export function onDesktopOpenTask(handler: (target: DesktopTaskTarget) => void): () => void {
   return bridge()?.onOpenTask(handler) ?? (() => {});
+}
+
+/**
+ * The tray's "자리 비움" checkbox, toggled from outside the page. A browser
+ * tab never fires this — there is no equivalent control there yet — so the
+ * server-side away span currently only exists for the desktop shell.
+ */
+export function onDesktopAwayChanged(handler: (away: boolean) => void): () => void {
+  return bridge()?.onAwayChanged(handler) ?? (() => {});
 }

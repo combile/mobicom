@@ -11,6 +11,7 @@ import {
 } from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
+import { parseMentionSegments, mentionPlainText } from "@/lib/mobion-mentions";
 
 type ChatMessage = {
   _id: string;
@@ -196,6 +197,28 @@ export async function POST(request: Request) {
          VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [messageId, replyTo],
       ).catch(() => {});
+    }
+
+    // Chat mentions raised a desktop/browser banner (see the SSE "delta"
+    // handler in MobiOnContent.tsx) but never landed here, so the tray's
+    // recent-notifications list — and the inbox — never had them: that list
+    // is drawn from this table, not from the live stream. Same rule as task
+    // comments (comments/route.ts): direct naming notifies regardless of
+    // mute settings, self-mentions are dropped, and the set dedupes so naming
+    // someone twice in one message does not notify them twice.
+    if (messageId) {
+      const mentioned = new Set(
+        parseMentionSegments(text)
+          .filter((seg) => seg.type === "mention" && seg.userId !== user.id)
+          .map((seg) => (seg as { userId: string }).userId),
+      );
+      for (const userId of mentioned) {
+        await query(
+          `INSERT INTO mobion_notifications (user_id, kind, actor_id, body)
+           VALUES ($1, 'mention', $2, $3)`,
+          [userId, user.id, mentionPlainText(text).slice(0, 200)],
+        ).catch(() => {});
+      }
     }
 
     return NextResponse.json({ ok: true, messageId });

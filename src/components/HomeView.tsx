@@ -4,6 +4,7 @@ import { useState } from "react";
 import styled from "@emotion/styled";
 import type { HomeData, HomeTask } from "@/lib/use-home-data";
 import { notificationLabel, statusChangeText } from "@/lib/mobion-notifications";
+import { formatAccumulated } from "@/lib/mobion-attendance";
 import { ErrorText } from "./modal-styles";
 
 /**
@@ -222,6 +223,14 @@ function AttendanceLine({ data }: { data: HomeData }) {
         {corrected && (
           <AttendanceOrigin>자동 {formatClock(today.firstSeenAt)}</AttendanceOrigin>
         )}
+        {/* 셋 중 하나 — 아직 연결돼 있고 자리 비움 중, 아직 연결돼 있고 근무
+            중, 아니면 연결이 끊겨 퇴근으로 처리됨. leftAt은 서버가 직접 쓰는
+            값이 아니라 마지막 하트비트가 오래됐다는 것으로 읽어낸 것이다
+            (mobion-attendance.ts). */}
+        <StatusPill data-tone={today.leftAt ? "out" : today.currentlyAway ? "away" : "in"}>
+          {today.leftAt ? `퇴근 ${formatClock(today.leftAt)}` : today.currentlyAway ? "자리 비움" : "근무 중"}
+        </StatusPill>
+        <AttendanceAccumulated>{formatAccumulated(today.accumulatedSeconds)} 누적</AttendanceAccumulated>
         {today.note && <AttendanceNote>{today.note}</AttendanceNote>}
       </AttendanceText>
 
@@ -338,6 +347,32 @@ const AttendanceTime = styled.strong`
 const AttendanceOrigin = styled.span`
   color: var(--text-faint);
   font-size: 11px;
+`;
+
+const StatusPill = styled.span`
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--surface);
+  color: var(--text-faint);
+
+  &[data-tone="in"] {
+    background: var(--ok-soft);
+    color: var(--ok);
+  }
+
+  &[data-tone="away"] {
+    background: var(--warn-soft);
+    color: var(--warn);
+  }
+`;
+
+const AttendanceAccumulated = styled.span`
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 `;
 
 const AttendanceNote = styled.span`

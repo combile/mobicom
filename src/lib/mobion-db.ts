@@ -500,6 +500,45 @@ export async function ensureMobionSchema() {
            ADD COLUMN IF NOT EXISTS notify_comment BOOLEAN NOT NULL DEFAULT true,
            ADD COLUMN IF NOT EXISTS notify_status BOOLEAN NOT NULL DEFAULT true`,
       );
+
+      // The running "still here" heartbeat for the day, distinct from both
+      // `first_seen_at` (never changes) and `checked_in_at` (a person's own
+      // correction, also never changes on its own). This one is overwritten on
+      // every poll — see notePresence's identical shape in the notifications
+      // route — so that once a day is over, whatever it was last set to is the
+      // last moment anyone saw that person, i.e. when they left. There is no
+      // scheduler to notice a disconnect as it happens, so "left" is never
+      // written directly; it is read off this column's staleness instead
+      // (mobion-attendance.ts).
+      await pool.query(
+        `ALTER TABLE mobion_attendance
+           ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ`,
+      );
+      await pool.query(
+        `UPDATE mobion_attendance
+           SET last_seen_at = COALESCE(checked_in_at, first_seen_at)
+           WHERE last_seen_at IS NULL`,
+      );
+
+      // 자리 비움 구간. 하루 중 여러 번 켜고 끌 수 있어 (user_id, work_date)당
+      // 여러 행이고, ended_at이 NULL인 행이 "지금 자리 비움 중"이다 — 그 상태를
+      // 따로 컬럼으로 두지 않고 이 테이블에 열린 행이 있는지로 판단한다(랩
+      // 현황이 mobion_presence의 최신 시각만으로 온라인을 판단하는 것과 같은
+      // 이유). 토글을 끄지 않고 연결이 끊기면 열린 채로 남는데, 누적 시간을
+      // 셀 때 last_seen_at을 넘지 않게 잘라서 처리한다.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_attendance_breaks (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          work_date DATE NOT NULL,
+          started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          ended_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_attendance_breaks_idx
+          ON mobion_attendance_breaks (user_id, work_date)
+      `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
       globalThis.mobionSchemaVersion = undefined;
