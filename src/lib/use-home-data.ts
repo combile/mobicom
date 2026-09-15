@@ -48,6 +48,10 @@ export type AttendanceDay = {
   /** The person's own correction; null means the observed time stands. */
   checkedInAt: string | null;
   note: string | null;
+  /** Null while still connected; set once the heartbeat goes stale. */
+  leftAt: string | null;
+  accumulatedSeconds: number;
+  currentlyAway: boolean;
 };
 
 export function useHomeData(enabled: boolean) {
@@ -76,13 +80,35 @@ export function useHomeData(enabled: boolean) {
       })
       .catch(() => setLoadError("홈 정보를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
+  }, [enabled]);
 
-    // The record is written by the notifications poll; this only reads it back
-    // so the person can see — and correct — what was written about them.
-    fetch("/api/mobion/attendance")
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => setAttendance(data.days ?? []))
-      .catch(() => setAttendance([]));
+  // The record is written by the notifications poll (same interval, below);
+  // this only reads it back so the person can see — and correct — what was
+  // written about them. Polled rather than fetched once: today's row keeps
+  // changing underneath it (last_seen_at every heartbeat, an away toggle
+  // any time), and a card showing "근무 중" for someone who left an hour ago
+  // is worse than the one-request cost of keeping it current.
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+
+    function load() {
+      fetch("/api/mobion/attendance")
+        .then((res) => (res.ok ? res.json() : Promise.reject()))
+        .then((data) => {
+          if (!cancelled) setAttendance(data.days ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) setAttendance([]);
+        });
+    }
+
+    load();
+    const timer = setInterval(load, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [enabled]);
 
   /**

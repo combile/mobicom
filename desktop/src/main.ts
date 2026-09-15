@@ -127,9 +127,13 @@ function refreshTrayMenu() {
         // A standing setting change should not need reopening the menu to
         // see take effect elsewhere, but this one only matters here, so
         // rebuilding the menu is enough — no saveSettings, no disk write.
+        // The server-side half (excluding this span from today's accumulated
+        // time) goes through the page instead of straight from here: main has
+        // no session, and the page already has one for every other request.
         click: (item) => {
           away = item.checked;
           refreshTrayMenu();
+          mainWindow?.webContents.send("mobion:away-changed", away);
         },
       },
       // macOS lets someone deny notifications in System Settings, and a denied

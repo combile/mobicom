@@ -62,21 +62,24 @@ async function raiseDueSoonNotifications(userId: string) {
 }
 
 /**
- * Note that this person was here today.
+ * Note that this person was here today, and that they are still here now.
  *
  * Recorded here rather than in `requireCurrentUser` because this endpoint is
  * already the app's heartbeat — the client polls it while the workspace is
- * open, in every mode — and an upsert on every authenticated request would be
- * a write per request to answer a question that changes once a day.
+ * open, in every mode.
  *
- * `DO NOTHING` means the first request of the day wins, and no later one can
- * push the observed time forward.
+ * Two different columns, two different write rules in one upsert:
+ * `first_seen_at` is set once and never touched again (there is no SET for it
+ * in the conflict clause, so the first request of the day wins); `last_seen_at`
+ * is overwritten on every call, the same running heartbeat notePresence keeps
+ * below. Going stale later is what mobion-attendance.ts reads as "left" — see
+ * that file for why nothing here ever writes a departure directly.
  */
 async function noteAttendance(userId: string) {
   await query(
-    `INSERT INTO mobion_attendance (user_id, work_date, first_seen_at)
-     VALUES ($1, CURRENT_DATE, now())
-     ON CONFLICT (user_id, work_date) DO NOTHING`,
+    `INSERT INTO mobion_attendance (user_id, work_date, first_seen_at, last_seen_at)
+     VALUES ($1, CURRENT_DATE, now(), now())
+     ON CONFLICT (user_id, work_date) DO UPDATE SET last_seen_at = now()`,
     [userId],
   );
 }

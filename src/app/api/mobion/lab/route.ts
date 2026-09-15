@@ -2,16 +2,9 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
+import { PRESENCE_STALE_MS } from "@/lib/mobion-attendance";
 
 type PresentRow = { id: string; name: string; avatar_url: string | null };
-
-/**
- * Anything older than this is gone, not lingering. The heartbeat that writes
- * `last_seen_at` (see notifications route's notePresence) fires roughly every
- * 45s, so this leaves room for one missed beat plus jitter before someone
- * quietly drops off the list.
- */
-const OFFLINE_AFTER_MS = 120_000;
 
 /**
  * Who is actually in the lab right now — no history, no one who has left.
@@ -33,7 +26,7 @@ export async function GET() {
        JOIN mobion_users u ON u.id = p.user_id
        WHERE p.last_seen_at > now() - ($1::int * interval '1 millisecond')
        ORDER BY p.last_seen_at ASC`,
-      [OFFLINE_AFTER_MS],
+      [PRESENCE_STALE_MS],
     );
 
     return NextResponse.json({

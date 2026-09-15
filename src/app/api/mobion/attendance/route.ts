@@ -2,15 +2,54 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
+import { summarizeDay, type AttendanceBreakRow } from "@/lib/mobion-attendance";
 
 type DayRow = {
   work_date: string;
   first_seen_at: string;
+  last_seen_at: string;
   checked_in_at: string | null;
   note: string | null;
 };
 
+type BreakRow = { work_date: string; started_at: string; ended_at: string | null };
+
 const HISTORY_DAYS = 14;
+
+/** Attaches leftAt/accumulatedSeconds/currentlyAway to each day, using that day's own breaks. */
+async function withSummaries(userId: string, rows: DayRow[]) {
+  if (rows.length === 0) return [];
+
+  const dates = rows.map((r) => r.work_date);
+  const breakRows = await query<BreakRow>(
+    `SELECT work_date::text, started_at, ended_at
+     FROM mobion_attendance_breaks
+     WHERE user_id = $1 AND work_date = ANY($2::date[])`,
+    [userId, dates],
+  );
+  const breaksByDate = new Map<string, AttendanceBreakRow[]>();
+  for (const b of breakRows.rows) {
+    const list = breaksByDate.get(b.work_date) ?? [];
+    list.push({ startedAt: b.started_at, endedAt: b.ended_at });
+    breaksByDate.set(b.work_date, list);
+  }
+
+  return rows.map((r) => {
+    const summary = summarizeDay(
+      { firstSeenAt: r.first_seen_at, lastSeenAt: r.last_seen_at },
+      breaksByDate.get(r.work_date) ?? [],
+    );
+    return {
+      date: r.work_date,
+      firstSeenAt: r.first_seen_at,
+      checkedInAt: r.checked_in_at,
+      note: r.note,
+      leftAt: summary.leftAt,
+      accumulatedSeconds: Math.round(summary.accumulatedSeconds),
+      currentlyAway: summary.currentlyAway,
+    };
+  });
+}
 
 /**
  * This person's own attendance, and their corrections to it.
@@ -23,29 +62,22 @@ const HISTORY_DAYS = 14;
  * keeping; one that cannot be corrected at all stops matching reality within a
  * week.
  *
- * Own records only. Reading anyone else's goes through the overview endpoint,
- * which checks the role.
+ * Own records only. Reading anyone else's goes through the team endpoint
+ * (today only) or overview (lead/professor, a week of history).
  */
 export async function GET() {
   try {
     const user = await requireCurrentUser();
 
     const result = await query<DayRow>(
-      `SELECT work_date::text, first_seen_at, checked_in_at, note
+      `SELECT work_date::text, first_seen_at, last_seen_at, checked_in_at, note
        FROM mobion_attendance
        WHERE user_id = $1 AND work_date > CURRENT_DATE - $2::int
        ORDER BY work_date DESC`,
       [user.id, HISTORY_DAYS],
     );
 
-    return NextResponse.json({
-      days: result.rows.map((r) => ({
-        date: r.work_date,
-        firstSeenAt: r.first_seen_at,
-        checkedInAt: r.checked_in_at,
-        note: r.note,
-      })),
-    });
+    return NextResponse.json({ days: await withSummaries(user.id, result.rows) });
   } catch (error) {
     return mobionApiError(error, "출근 기록을 불러오지 못했습니다.");
   }
@@ -80,7 +112,7 @@ export async function PATCH(request: Request) {
          note = $4,
          corrected_at = CASE WHEN $3::text IS NULL THEN NULL ELSE now() END
        WHERE user_id = $1 AND work_date = $2::date
-       RETURNING work_date::text, first_seen_at, checked_in_at, note`,
+       RETURNING work_date::text, first_seen_at, last_seen_at, checked_in_at, note`,
       [user.id, date, time, note],
     );
 
@@ -92,14 +124,8 @@ export async function PATCH(request: Request) {
       );
     }
 
-    return NextResponse.json({
-      day: {
-        date: row.work_date,
-        firstSeenAt: row.first_seen_at,
-        checkedInAt: row.checked_in_at,
-        note: row.note,
-      },
-    });
+    const [day] = await withSummaries(user.id, [row]);
+    return NextResponse.json({ day });
   } catch (error) {
     return mobionApiError(error, "출근 기록을 고치지 못했습니다.");
   }

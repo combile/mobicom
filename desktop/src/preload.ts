@@ -45,6 +45,14 @@ contextBridge.exposeInMainWorld("mobion", {
     ipcRenderer.on("mobion:open-task", listener);
     return () => ipcRenderer.removeListener("mobion:open-task", listener);
   },
+  // The tray's own checkbox owns the away state; this only tells the page it
+  // changed, so the page can be the one to call the server (main has no
+  // session of its own — see main.ts's "자리 비움" click handler).
+  onAwayChanged: (handler: (away: boolean) => void) => {
+    const listener = (_e: unknown, away: boolean) => handler(away);
+    ipcRenderer.on("mobion:away-changed", listener);
+    return () => ipcRenderer.removeListener("mobion:away-changed", listener);
+  },
   // Used only by offline.html's "다시 시도" button — reloading a file:// page
   // reloads itself forever, this asks main to reload the real server URL.
   retry: () => ipcRenderer.send("mobion:retry"),

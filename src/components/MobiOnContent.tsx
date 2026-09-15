@@ -28,6 +28,8 @@ import ContestsView from "./ContestsView";
 import OverviewView from "./OverviewView";
 import LabView from "./LabView";
 import { useLabData } from "@/lib/use-lab-data";
+import AttendanceView from "./AttendanceView";
+import { useAttendanceData } from "@/lib/use-attendance-data";
 import CommandPalette, { type SearchResult } from "./CommandPalette";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 import { ModalOverlay, ModalCard, ModalTitle, Field, ModalActions } from "./modal-styles";
@@ -35,6 +37,7 @@ import {
   notifyDesktop,
   onDesktopChannelOpen,
   onDesktopOpenTask,
+  onDesktopAwayChanged,
   setDesktopBadge,
   setDesktopNotificationsPreview,
 } from "@/lib/mobion-desktop";
@@ -164,7 +167,8 @@ type WorkspaceMode =
   | "schedule"
   | "contests"
   | "overview"
-  | "lab";
+  | "lab"
+  | "attendance";
 
 export default function MobiOnContent() {
   const [mode, setMode] = useState<WorkspaceMode>("home");
@@ -182,6 +186,7 @@ export default function MobiOnContent() {
   const contestsData = useContestsData(mode === "contests");
   const overviewData = useOverviewData(mode === "overview");
   const labData = useLabData(mode === "lab");
+  const attendanceData = useAttendanceData(mode === "attendance");
   const homeData = useHomeData(mode === "home");
   const inboxData = useInboxData(mode === "inbox");
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -897,6 +902,22 @@ export default function MobiOnContent() {
     [],
   );
 
+  // The tray checkbox itself already updates instantly (main.ts owns that);
+  // this is only the server-side half, so today's accumulated time excludes
+  // the span. Best effort and fire-and-forget — a dropped request here is
+  // not worth surfacing an error for.
+  useEffect(
+    () =>
+      onDesktopAwayChanged((away) => {
+        fetch("/api/mobion/attendance/away", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ away }),
+        }).catch(() => {});
+      }),
+    [],
+  );
+
   /** Who, other than the author, has read past this message. */
   function readersOf(m: Message) {
     return (othersReads[m.channelId] ?? [])
@@ -1144,6 +1165,17 @@ export default function MobiOnContent() {
           >
             <span className="material-symbols-outlined">meeting_room</span>
           </RailButton>
+          {/* Open to everyone, unlike 연구실 현황 below — today's check-in/out
+              is the same thing a whiteboard by the door would show anyone. */}
+          <RailButton
+            type="button"
+            data-active={mode === "attendance" || undefined}
+            onClick={() => setMode("attendance")}
+            aria-label="출퇴근"
+            title="출퇴근"
+          >
+            <span className="material-symbols-outlined">badge</span>
+          </RailButton>
           {/* Hidden rather than disabled for everyone else: a control that is
               visible but refuses is an invitation to wonder what is behind it,
               and the server checks the role regardless of what the rail shows. */}
@@ -1225,6 +1257,7 @@ export default function MobiOnContent() {
         )}
         {mode === "contests" && <ContestsView data={contestsData} />}
         {mode === "lab" && <LabView data={labData} />}
+        {mode === "attendance" && <AttendanceView data={attendanceData} />}
         {mode === "overview" && canOversee && (
           <OverviewView
             data={overviewData}
