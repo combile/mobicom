@@ -5,8 +5,7 @@ import type { NotificationKind } from "./mobion-notifications";
 
 export type InboxNotification = {
   id: string;
-  /** "chat"은 알림 행이 아니라 채팅 탭의 메시지다 — id가 Huly 메시지 id다. */
-  kind: NotificationKind | "chat";
+  kind: NotificationKind;
   body: string;
   createdAt: string;
   readAt: string | null;
@@ -17,13 +16,10 @@ export type InboxNotification = {
   commentId: string | null;
   /** 채팅 멘션 알림이 가리키는 대화. 태스크에서 온 알림은 null이다. */
   channelId: string | null;
-  /** 채팅 탭에서만: "#채널명" 또는 DM 상대 이름, 그리고 읽음 기준 시각. */
-  channelName?: string | null;
-  createdOn?: number;
 };
 
-/** null은 전체, "chat"은 종류와 무관하게 채팅에서 온 알림. */
-export type InboxFilter = null | NotificationKind | "chat";
+/** null은 전체. 화면의 탭 순서와 같다. */
+export type InboxFilter = null | NotificationKind;
 
 export function useInboxData(enabled: boolean) {
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
@@ -114,24 +110,6 @@ export function useInboxData(enabled: boolean) {
    */
   async function markRead(id: string) {
     const now = new Date().toISOString();
-    const target = notifications.find((n) => n.id === id);
-    if (target?.kind === "chat" && target.channelId && target.createdOn) {
-      // 채팅은 채널 단위로 "여기까지 읽음"이다 — 같은 대화의 이전 메시지도 함께 읽힌다
-      const { channelId, createdOn } = target;
-      setNotifications((prev) =>
-        prev.map((n) =>
-          n.channelId === channelId && !n.readAt && (n.createdOn ?? 0) <= createdOn
-            ? { ...n, readAt: now }
-            : n,
-        ),
-      );
-      await fetch("/api/mobion/chat/reads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channelId, lastReadOn: createdOn }),
-      }).catch(() => {});
-      return;
-    }
     setNotifications((prev) =>
       prev.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: now } : n)),
     );
@@ -144,10 +122,7 @@ export function useInboxData(enabled: boolean) {
 
   async function markAllRead() {
     const now = new Date().toISOString();
-    // 이 요청은 알림 행만 읽음으로 바꾼다 — 채팅 메시지는 건드리지 않는다
-    setNotifications((prev) =>
-      prev.map((n) => (n.readAt || n.kind === "chat" ? n : { ...n, readAt: now })),
-    );
+    setNotifications((prev) => prev.map((n) => (n.readAt ? n : { ...n, readAt: now })));
     await fetch("/api/mobion/notifications", { method: "POST" }).catch(() => {});
   }
 

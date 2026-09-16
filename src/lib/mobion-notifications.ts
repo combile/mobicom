@@ -68,46 +68,6 @@ export function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString("ko-KR", { month: "long", day: "numeric" });
 }
 
-type InboxLike = {
-  kind: string;
-  body: string;
-  actorName: string | null;
-  channelId: string | null;
-  channelName?: string | null;
-  /** epoch ms */
-  createdOn?: number;
-};
-
-/**
- * 나를 부른 채팅은 인박스 "전체"에 멘션 알림과 채팅 메시지로 두 번 잡힌다.
- * 멘션 알림 쪽을 남긴다 — 그 행의 읽음이 알림함 안읽음 수와 이어져 있다.
- * 알림에는 메시지 id가 없어서 같은 대화·같은 사람·같은 본문·1분 이내면
- * 같은 글로 본다. 채팅 쪽의 대화 이름은 남는 줄로 옮긴다.
- *
- * ponytail: 짝이 서로 다른 장에 걸리면 둘 다 보인다. 알림에 message_id 칸을
- * 두면 정확해진다.
- */
-export function dropMentionedChats<T extends InboxLike>(items: T[]): T[] {
-  const dropped = new Set<T>();
-  return items
-    .map((m) => {
-      if (m.kind !== "mention" || !m.channelId) return m;
-      const twin = items.find(
-        (c) =>
-          c.kind === "chat" &&
-          !dropped.has(c) &&
-          c.channelId === m.channelId &&
-          c.actorName === m.actorName &&
-          c.body === m.body &&
-          Math.abs((c.createdOn ?? 0) - (m.createdOn ?? 0)) < 60_000,
-      );
-      if (!twin) return m;
-      dropped.add(twin);
-      return { ...m, channelName: twin.channelName };
-    })
-    .filter((i) => !dropped.has(i));
-}
-
 // 이 저장소에는 테스트 프레임워크가 없다. mobion-mentions.ts와 같은 방식으로
 // 직접 실행한다: node --experimental-strip-types src/lib/mobion-notifications.ts
 if (process.argv[1]?.endsWith("mobion-notifications.ts")) {
@@ -145,19 +105,6 @@ if (process.argv[1]?.endsWith("mobion-notifications.ts")) {
   assert(ago(6 * DAY) === "6일 전", "6일");
   // 7일부터는 상대 표현을 버리고 날짜를 쓴다
   assert(!ago(7 * DAY).endsWith("일 전"), "7일은 날짜로 넘어간다");
-
-  // 멘션과 그 채팅은 한 줄로, 상관없는 채팅은 그대로
-  const at = (id: string, kind: string, body: string, createdOn: number, channelName?: string) => ({
-    id, kind, body, createdOn, channelName, actorName: "영희", channelId: "ch",
-  });
-  const deduped = dropMentionedChats([
-    at("n1", "mention", "hi 철수", 1_000_300),
-    at("c1", "chat", "hi 철수", 1_000_000, "#일반"),
-    at("c2", "chat", "그냥 글", 1_000_000, "#일반"),
-    at("c3", "chat", "hi 철수", 9_000_000, "#일반"),
-  ]);
-  assert(deduped.map((i) => i.id).join() === "n1,c2,c3", "멘션 채팅 중복 제거");
-  assert(deduped[0].channelName === "#일반", "대화 이름 이전");
 
   console.log("mobion-notifications self-check passed");
 }
