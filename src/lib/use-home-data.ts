@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { dueState, todayISO } from "./use-tasks-data";
 import type { NotificationKind } from "./mobion-notifications";
 
@@ -43,6 +43,13 @@ export type HomeContest = {
  * route), so this is also how often reminders get a chance to appear.
  */
 const POLL_MS = 45_000;
+
+/**
+ * 알림만 더 자주 본다. 태스크 배정·댓글처럼 다른 사람이 만든 알림은 밀어 줄
+ * 통로가 없어서 이 간격이 곧 빨간 점이 늦는 최대 시간이다. 45초는 "왔는데
+ * 안 뜬다"로 읽혔다. 채팅 멘션은 이 간격을 기다리지 않는다(refreshNotifications).
+ */
+const NOTIFICATION_POLL_MS = 15_000;
 
 export type AttendanceDay = {
   date: string;
@@ -123,6 +130,7 @@ export function useHomeData(enabled: boolean) {
    * Huly is unreachable, and coupling the two would put notifications back
    * behind chat's availability, which is the failure this app already had once.
    */
+  const reloadNotifications = useRef<() => void>(() => {});
   useEffect(() => {
     let cancelled = false;
 
@@ -144,7 +152,8 @@ export function useHomeData(enabled: boolean) {
     }
 
     load();
-    const timer = setInterval(load, POLL_MS);
+    reloadNotifications.current = load;
+    const timer = setInterval(load, NOTIFICATION_POLL_MS);
     // coming back to the tab should not wait out the rest of the interval
     function onVisible() {
       if (document.visibilityState === "visible") load();
@@ -162,6 +171,9 @@ export function useHomeData(enabled: boolean) {
    * while the request is in flight. A failure is not surfaced: the worst case
    * is seeing it again on the next load, which is the safer direction.
    */
+  /** 다음 주기를 기다리지 않고 지금 다시 읽는다. 참조가 바뀌지 않는다. */
+  const refreshNotifications = useCallback(() => reloadNotifications.current(), []);
+
   async function markRead(id: string) {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     setUnreadCount((c) => Math.max(0, c - 1));
@@ -228,6 +240,7 @@ export function useHomeData(enabled: boolean) {
     unreadCount,
     markRead,
     markAllRead,
+    refreshNotifications,
     userName,
     myTasks,
     overdue,

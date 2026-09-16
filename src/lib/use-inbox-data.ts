@@ -21,7 +21,11 @@ export type InboxNotification = {
 /** null은 전체. 화면의 탭 순서와 같다. */
 export type InboxFilter = null | NotificationKind;
 
-export function useInboxData(enabled: boolean) {
+/**
+ * @param onReadChange 여기서 읽음을 바꾼 뒤 부른다. 빨간 점(홈 쪽 안읽음 수)이
+ * 다음 주기까지 남아 있지 않게 하려는 것이다.
+ */
+export function useInboxData(enabled: boolean, onReadChange?: () => void) {
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
   const [filter, setFilter] = useState<InboxFilter>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -118,12 +122,21 @@ export function useInboxData(enabled: boolean) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     }).catch(() => {});
+    onReadChange?.();
   }
 
   async function markAllRead() {
-    const now = new Date().toISOString();
-    setNotifications((prev) => prev.map((n) => (n.readAt ? n : { ...n, readAt: now })));
+    applyRead();
     await fetch("/api/mobion/notifications", { method: "POST" }).catch(() => {});
+    onReadChange?.();
+  }
+
+  /** 다른 곳(알림함)에서 읽은 것을 목록에만 반영한다. id가 없으면 전부. */
+  function applyRead(id?: string) {
+    const now = new Date().toISOString();
+    setNotifications((prev) =>
+      prev.map((n) => (n.readAt || (id && n.id !== id) ? n : { ...n, readAt: now })),
+    );
   }
 
   return {
@@ -137,6 +150,7 @@ export function useInboxData(enabled: boolean) {
     loadMore,
     markRead,
     markAllRead,
+    applyRead,
     isEmpty: !loading && notifications.length === 0,
     reload: load,
   };
