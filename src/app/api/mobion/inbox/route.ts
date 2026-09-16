@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
-import { isNotificationKind } from "@/lib/mobion-notifications";
+import { isNotificationKind, type NotificationKind } from "@/lib/mobion-notifications";
 import { mentionPlainText } from "@/lib/mobion-mentions";
 import {
   ensureHulyLink,
@@ -15,19 +15,26 @@ import {
 /** 한 번에 가져오는 개수. 더 필요하면 cursor로 이어 받는다. */
 const PAGE_SIZE = 30;
 
-type InboxRow = {
+type User = Awaited<ReturnType<typeof requireCurrentUser>>;
+
+type InboxItem = {
   id: string;
   kind: string;
   body: string;
-  created_at: string;
-  read_at: string | null;
-  actor_name: string | null;
-  task_id: string | null;
-  task_title: string | null;
-  project_id: string | null;
-  comment_id: string | null;
-  channel_id: string | null;
+  createdAt: string;
+  readAt: string | null;
+  actorName: string | null;
+  taskId: string | null;
+  taskTitle: string | null;
+  projectId: string | null;
+  commentId: string | null;
+  channelId: string | null;
+  channelName?: string | null;
+  createdOn?: number;
 };
+
+/** 한 출처의 한 장. 각 행의 cursor는 "이 행 다음부터"를 가리킨다. */
+type Page = { items: { item: InboxItem; ts: number; cursor: string }[]; hasMore: boolean };
 
 /**
  * 인박스 전용 조회.
@@ -38,69 +45,140 @@ type InboxRow = {
  *
  * 홈과 달리 20건·3일 제한이 없다. 지난주에 누가 나를 불렀는지 찾는 것이
  * 이 화면의 존재 이유다.
+ *
+ * 출처가 둘이다: 알림 테이블과 Huly의 채팅 메시지. "전체"는 둘을 시간순으로
+ * 섞고, 커서에 출처별 위치를 따로 담는다(`n:<알림 커서>|c:<채팅 커서>`).
  */
 export async function GET(request: Request) {
   try {
     const user = await requireCurrentUser();
     const url = new URL(request.url);
     const kindParam = url.searchParams.get("kind");
+    const cursorParam = url.searchParams.get("cursor");
+
+    if (kindParam === "chat") return respond(await chatPage(user, cursorParam));
+
     // 모르는 값은 조용히 무시하고 전체를 준다. 필터는 화면 편의이지 권한
     // 경계가 아니므로, 오타 하나로 에러를 낼 이유가 없다.
     const kind = kindParam && isNotificationKind(kindParam) ? kindParam : null;
-    const cursorParam = url.searchParams.get("cursor");
-    if (kindParam === "chat") return await chatFeed(user, cursorParam);
+    if (kind) return respond(await notificationPage(user, kind, cursorParam));
 
-    // 커서는 (created_at, id)의 복합 값이다. 언더스코어로 구분하고, 형식 오류는
-    // 조용히 "커서 없음"으로 취급한다 (500을 내지 않는다).
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    let cursorTimestamp: string | null = null;
-    let cursorId: string | null = null;
-    if (cursorParam) {
-      const parts = cursorParam.split("_");
-      if (parts.length === 2) {
-        // ISO 8601 타임스탬프인지 검증하고, id는 UUID 형태인지 검증한다.
-        // new Date()는 invalid date를 throw하지 않으므로 getTime()을 체크한다.
-        const d = new Date(parts[0]);
-        if (!Number.isNaN(d.getTime()) && UUID_RE.test(parts[1])) {
-          cursorTimestamp = parts[0];
-          cursorId = parts[1];
-        }
-      }
-    }
-
-    const result = await query<InboxRow>(
-      `SELECT n.id, n.kind, n.body, n.created_at::text as created_at, n.read_at::text as read_at,
-              a.name AS actor_name,
-              n.task_id, t.title AS task_title, t.project_id,
-              n.comment_id, n.channel_id
-       FROM mobion_notifications n
-       LEFT JOIN mobion_users a ON a.id = n.actor_id
-       LEFT JOIN mobion_tasks t ON t.id = n.task_id
-       WHERE n.user_id = $1
-         AND ($2::text IS NULL OR n.kind = $2)
-         -- 커서는 (created_at, id) 복합값이다. created_at DESC, id DESC로 읽으므로
-         -- "(이 시각, 이 id)보다 이전"인 다음 장이 된다. timestamptz로 비교해야
-         -- 컬레이션에 무관하게 실제 시간 순서가 유지된다 (텍스트 비교는 DB
-         -- 컬레이션에 따라 같은 초 안에서 순서가 흐트러질 수 있다).
-         AND ($3::timestamptz IS NULL OR (n.created_at, n.id) < ($3::timestamptz, $4::uuid))
-       ORDER BY n.created_at DESC, n.id DESC
-       LIMIT $5`,
-      [user.id, kind, cursorTimestamp, cursorId, PAGE_SIZE + 1],
+    const cursors = new Map(
+      (cursorParam ?? "").split("|").map((part) => [part.slice(0, 2), part.slice(2)]),
     );
+    const nCursor = cursorParam ? (cursors.get("n:") ?? null) : null;
+    const cCursor = cursorParam ? (cursors.get("c:") ?? null) : null;
+    // 출처가 끝났으면 커서에 "-"를 남겨 다시 읽지 않는다
+    const empty: Page = { items: [], hasMore: false };
 
-    // 한 건 더 받아 다음 장이 있는지 본다. 있으면 그 한 건은 돌려주지 않는다.
-    const hasMore = result.rows.length > PAGE_SIZE;
-    const rows = hasMore ? result.rows.slice(0, PAGE_SIZE) : result.rows;
+    const [notes, chats] = await Promise.all([
+      nCursor === "-" ? empty : notificationPage(user, null, nCursor),
+      // 채팅 서버가 죽었다고 알림까지 못 보게 할 수는 없다
+      cCursor === "-" ? empty : chatPage(user, cCursor).catch(() => empty),
+    ]);
 
-    // 커서는 반환한 마지막 행의 값이다 — 그 다음 페이지는
-    // 이 값보다 "작은" 행들이다 (DESC 정렬에서). 이전 페이지의 마지막 행보다
-    // 이전에 오는 모든 행을 다음 페이지에서 본다.
-    const nextCursor = hasMore && rows.length > 0
-      ? `${rows[rows.length - 1].created_at}_${rows[rows.length - 1].id}`
-      : null;
+    const merged = [...notes.items, ...chats.items]
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, PAGE_SIZE);
+
+    // 이번 장에 실린 마지막 행이 그 출처의 다음 시작점이다. 한 행도 안 실렸으면
+    // 제자리에 머문다.
+    function nextFor(page: Page, prev: string | null) {
+      const used = page.items.filter((i) => merged.includes(i));
+      const leftover = used.length < page.items.length || page.hasMore;
+      if (!leftover) return "-";
+      return used.length ? used[used.length - 1].cursor : (prev ?? "");
+    }
+    const nNext = nextFor(notes, nCursor);
+    const cNext = nextFor(chats, cCursor);
 
     return NextResponse.json({
-      notifications: rows.map((r) => ({
+      notifications: merged.map((m) => m.item),
+      nextCursor: nNext === "-" && cNext === "-" ? null : `n:${nNext}|c:${cNext}`,
+    });
+  } catch (error) {
+    return mobionApiError(error, "알림을 불러오지 못했습니다.");
+  }
+}
+
+function respond(page: Page) {
+  return NextResponse.json({
+    notifications: page.items.map((i) => i.item),
+    nextCursor: page.hasMore ? page.items[page.items.length - 1].cursor : null,
+  });
+}
+
+type InboxRow = {
+  id: string;
+  kind: string;
+  body: string;
+  created_at: string;
+  ts: string;
+  read_at: string | null;
+  actor_name: string | null;
+  task_id: string | null;
+  task_title: string | null;
+  project_id: string | null;
+  comment_id: string | null;
+  channel_id: string | null;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function notificationPage(
+  user: User,
+  kind: NotificationKind | null,
+  cursorParam: string | null,
+): Promise<Page> {
+  // 커서는 (created_at, id)의 복합 값이다. 언더스코어로 구분하고, 형식 오류는
+  // 조용히 "커서 없음"으로 취급한다 (500을 내지 않는다).
+  let cursorTimestamp: string | null = null;
+  let cursorId: string | null = null;
+  if (cursorParam) {
+    const parts = cursorParam.split("_");
+    if (parts.length === 2) {
+      // ISO 8601 타임스탬프인지 검증하고, id는 UUID 형태인지 검증한다.
+      // new Date()는 invalid date를 throw하지 않으므로 getTime()을 체크한다.
+      const d = new Date(parts[0]);
+      if (!Number.isNaN(d.getTime()) && UUID_RE.test(parts[1])) {
+        cursorTimestamp = parts[0];
+        cursorId = parts[1];
+      }
+    }
+  }
+
+  const result = await query<InboxRow>(
+    `SELECT n.id, n.kind, n.body, n.created_at::text as created_at,
+            (extract(epoch from n.created_at) * 1000)::text as ts,
+            n.read_at::text as read_at,
+            a.name AS actor_name,
+            n.task_id, t.title AS task_title, t.project_id,
+            n.comment_id, n.channel_id
+     FROM mobion_notifications n
+     LEFT JOIN mobion_users a ON a.id = n.actor_id
+     LEFT JOIN mobion_tasks t ON t.id = n.task_id
+     WHERE n.user_id = $1
+       AND ($2::text IS NULL OR n.kind = $2)
+       -- 커서는 (created_at, id) 복합값이다. created_at DESC, id DESC로 읽으므로
+       -- "(이 시각, 이 id)보다 이전"인 다음 장이 된다. timestamptz로 비교해야
+       -- 컬레이션에 무관하게 실제 시간 순서가 유지된다 (텍스트 비교는 DB
+       -- 컬레이션에 따라 같은 초 안에서 순서가 흐트러질 수 있다).
+       AND ($3::timestamptz IS NULL OR (n.created_at, n.id) < ($3::timestamptz, $4::uuid))
+     ORDER BY n.created_at DESC, n.id DESC
+     LIMIT $5`,
+    [user.id, kind, cursorTimestamp, cursorId, PAGE_SIZE + 1],
+  );
+
+  // 한 건 더 받아 다음 장이 있는지 본다. 있으면 그 한 건은 돌려주지 않는다.
+  const hasMore = result.rows.length > PAGE_SIZE;
+  const rows = hasMore ? result.rows.slice(0, PAGE_SIZE) : result.rows;
+
+  return {
+    hasMore,
+    items: rows.map((r) => ({
+      ts: Number(r.ts),
+      cursor: `${r.created_at}_${r.id}`,
+      item: {
         id: r.id,
         kind: r.kind,
         body: r.body,
@@ -112,12 +190,9 @@ export async function GET(request: Request) {
         projectId: r.project_id,
         commentId: r.comment_id,
         channelId: r.channel_id,
-      })),
-      nextCursor,
-    });
-  } catch (error) {
-    return mobionApiError(error, "알림을 불러오지 못했습니다.");
-  }
+      },
+    })),
+  };
 }
 
 type ChatSpace = { _id: string; name?: string; private?: boolean; members?: string[] };
@@ -130,7 +205,7 @@ type ChatMessage = {
 };
 
 /**
- * 채팅 탭: 내가 볼 수 있는 채널과 DM에 다른 사람이 보낸 메시지 전부.
+ * 내가 볼 수 있는 채널과 DM에 다른 사람이 보낸 메시지 전부.
  *
  * 알림 테이블을 거치지 않고 Huly에서 바로 읽는다. 메시지마다 수신자 수만큼
  * 알림 행을 쓰면 채널 하나에 글 하나가 인원수만큼의 쓰기가 되고, 그 행들은
@@ -139,12 +214,10 @@ type ChatMessage = {
  *
  * 커서는 마지막 행의 createdOn(epoch ms)이다.
  */
-async function chatFeed(
-  user: Awaited<ReturnType<typeof requireCurrentUser>>,
-  cursorParam: string | null,
-) {
+async function chatPage(user: User, cursorParam: string | null): Promise<Page> {
+  const none: Page = { items: [], hasMore: false };
   const link = await ensureHulyLink(user);
-  if (!link) return NextResponse.json({ notifications: [], nextCursor: null });
+  if (!link) return none;
 
   const before = cursorParam && /^\d+$/.test(cursorParam) ? Number(cursorParam) : null;
   const client = await getWorkspaceClient(link);
@@ -159,7 +232,7 @@ async function chatFeed(
     ...channels.filter((c) => canSeeChannel(c, me)),
     ...dms.filter((d) => (d.members ?? []).includes(me)),
   ];
-  if (spaces.length === 0) return NextResponse.json({ notifications: [], nextCursor: null });
+  if (spaces.length === 0) return none;
 
   const rows = await client.findAll<ChatMessage>(
     CHUNTER_CLASS.ChatMessage,
@@ -195,25 +268,29 @@ async function chatFeed(
     spaceName.set(d._id, other ? (nameByAccount.get(other) ?? "DM") : "DM");
   }
 
-  return NextResponse.json({
-    notifications: page.map((m) => ({
-      id: m._id,
-      kind: "chat",
-      body: mentionPlainText(m.message).slice(0, 200),
-      createdAt: new Date(m.createdOn).toISOString(),
-      readAt:
-        m.createdOn <= (lastRead.get(m.attachedTo) ?? 0)
-          ? new Date(m.createdOn).toISOString()
-          : null,
-      actorName: nameBySocial.get(m.createdBy) ?? null,
-      taskId: null,
-      taskTitle: null,
-      projectId: null,
-      commentId: null,
-      channelId: m.attachedTo,
-      channelName: spaceName.get(m.attachedTo) ?? null,
-      createdOn: m.createdOn,
+  return {
+    hasMore,
+    items: page.map((m) => ({
+      ts: m.createdOn,
+      cursor: String(m.createdOn),
+      item: {
+        id: m._id,
+        kind: "chat",
+        body: mentionPlainText(m.message).slice(0, 200),
+        createdAt: new Date(m.createdOn).toISOString(),
+        readAt:
+          m.createdOn <= (lastRead.get(m.attachedTo) ?? 0)
+            ? new Date(m.createdOn).toISOString()
+            : null,
+        actorName: nameBySocial.get(m.createdBy) ?? null,
+        taskId: null,
+        taskTitle: null,
+        projectId: null,
+        commentId: null,
+        channelId: m.attachedTo,
+        channelName: spaceName.get(m.attachedTo) ?? null,
+        createdOn: m.createdOn,
+      },
     })),
-    nextCursor: hasMore ? String(page[page.length - 1].createdOn) : null,
-  });
+  };
 }
