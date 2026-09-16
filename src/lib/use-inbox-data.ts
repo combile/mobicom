@@ -5,7 +5,8 @@ import type { NotificationKind } from "./mobion-notifications";
 
 export type InboxNotification = {
   id: string;
-  kind: NotificationKind;
+  /** "chat"은 알림 행이 아니라 채팅 탭의 메시지다 — id가 Huly 메시지 id다. */
+  kind: NotificationKind | "chat";
   body: string;
   createdAt: string;
   readAt: string | null;
@@ -14,10 +15,15 @@ export type InboxNotification = {
   taskTitle: string | null;
   projectId: string | null;
   commentId: string | null;
+  /** 채팅 멘션 알림이 가리키는 대화. 태스크에서 온 알림은 null이다. */
+  channelId: string | null;
+  /** 채팅 탭에서만: "#채널명" 또는 DM 상대 이름, 그리고 읽음 기준 시각. */
+  channelName?: string | null;
+  createdOn?: number;
 };
 
-/** null은 전체. 화면의 탭 순서와 같다. */
-export type InboxFilter = null | NotificationKind;
+/** null은 전체, "chat"은 종류와 무관하게 채팅에서 온 알림. */
+export type InboxFilter = null | NotificationKind | "chat";
 
 export function useInboxData(enabled: boolean) {
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
@@ -69,7 +75,12 @@ export function useInboxData(enabled: boolean) {
   // 화면을 열 때와 필터를 바꿀 때만 부른다. 홈의 알림 폴링이 이미 45초마다
   // 돌고 있으므로 여기서 또 타이머를 걸 이유가 없다.
   useEffect(() => {
-    if (!enabled) return;
+    // 이 훅은 인박스를 떠나도 살아 있다. 나갈 때 탭을 되돌려 두어야
+    // 다시 들어왔을 때 "전체"에서 시작한다.
+    if (!enabled) {
+      setFilter(null);
+      return;
+    }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, filter]);
@@ -103,6 +114,24 @@ export function useInboxData(enabled: boolean) {
    */
   async function markRead(id: string) {
     const now = new Date().toISOString();
+    const target = notifications.find((n) => n.id === id);
+    if (target?.kind === "chat" && target.channelId && target.createdOn) {
+      // 채팅은 채널 단위로 "여기까지 읽음"이다 — 같은 대화의 이전 메시지도 함께 읽힌다
+      const { channelId, createdOn } = target;
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.channelId === channelId && !n.readAt && (n.createdOn ?? 0) <= createdOn
+            ? { ...n, readAt: now }
+            : n,
+        ),
+      );
+      await fetch("/api/mobion/chat/reads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelId, lastReadOn: createdOn }),
+      }).catch(() => {});
+      return;
+    }
     setNotifications((prev) =>
       prev.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: now } : n)),
     );
@@ -115,7 +144,10 @@ export function useInboxData(enabled: boolean) {
 
   async function markAllRead() {
     const now = new Date().toISOString();
-    setNotifications((prev) => prev.map((n) => (n.readAt ? n : { ...n, readAt: now })));
+    // 이 요청은 알림 행만 읽음으로 바꾼다 — 채팅 메시지는 건드리지 않는다
+    setNotifications((prev) =>
+      prev.map((n) => (n.readAt || n.kind === "chat" ? n : { ...n, readAt: now })),
+    );
     await fetch("/api/mobion/notifications", { method: "POST" }).catch(() => {});
   }
 
