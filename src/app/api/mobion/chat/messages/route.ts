@@ -11,7 +11,7 @@ import {
 } from "@/lib/mobion-huly";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
-import { parseMentionSegments, mentionPlainText } from "@/lib/mobion-mentions";
+import { mentionedUserIds, mentionPlainText } from "@/lib/mobion-mentions";
 
 type ChatMessage = {
   _id: string;
@@ -26,6 +26,13 @@ type ChatMessage = {
 
 type WorkspaceClient = Awaited<ReturnType<typeof getWorkspaceClient>>;
 
+type ChannelAccess = {
+  error: NextResponse | null;
+  /** 통과한 경우의 대화 문서. 멘션 알림이 수신자별로 같은 판정을 다시 한다. */
+  doc?: { private?: boolean; members?: string[] };
+  isChannel?: boolean;
+};
+
 /**
  * Refuses the request unless this account may use the given conversation.
  *
@@ -38,7 +45,7 @@ async function assertChannelAccess(
   client: WorkspaceClient,
   channelId: string,
   kind: "channel" | "dm" | null,
-): Promise<{ error: NextResponse | null }> {
+): Promise<ChannelAccess> {
   const asChannel =
     kind === "dm" ? null : await findChannelForAccess(client, CHUNTER_CLASS.Channel, channelId);
   const doc =
@@ -56,7 +63,57 @@ async function assertChannelAccess(
   if (!allowed) {
     return { error: NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 }) };
   }
-  return { error: null };
+  return { error: null, doc, isChannel: Boolean(asChannel) };
+}
+
+/** 클라이언트가 보낸 글에서 뽑은 id다 — uuid 형태가 아닌 것은 질의에 넣지 않는다. */
+const MENTION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 채팅에서 호명된 사람에게 알림을 남긴다.
+ *
+ * 태스크 댓글(tasks/[id]/comments)이 이미 하던 일을 채팅도 한다. 이것이
+ * 없어서 채팅 멘션은 그 순간의 소리와 데스크톱 팝업뿐이었고 — 자리를 비운
+ * 사이에 불린 사람에게는 인박스에도 알림함에도 아무 흔적이 남지 않았다.
+ *
+ * 볼 수 없는 대화의 알림은 보내지 않는다. body에 메시지 본문이 실려 나가므로
+ * 그러지 않으면 비공개 채널에 이름을 적는 것만으로 내용이 밖으로 샌다.
+ * 판정식은 assertChannelAccess가 보낸 사람에게 쓴 것과 같다.
+ */
+async function notifyChatMentions(
+  text: string,
+  channelId: string,
+  authorId: string,
+  access: ChannelAccess,
+) {
+  const ids = mentionedUserIds(text, authorId).filter((id) => MENTION_ID_RE.test(id));
+  if (ids.length === 0 || !access.doc) return;
+
+  // Huly의 Channel.members는 AccountUuid로 적혀 있다(mobion-db.ts 참고).
+  // 링크가 없는 사람은 애초에 채팅을 볼 수 없으므로 여기서 자연히 빠진다.
+  const links = await query<{ user_id: string; huly_account_uuid: string | null }>(
+    `SELECT user_id, huly_account_uuid FROM mobion_huly_link WHERE user_id = ANY($1::uuid[])`,
+    [ids],
+  );
+
+  // 저장된 마크업 그대로면 알림 한복판에 uuid가 찍힌다
+  const body = mentionPlainText(text).slice(0, 200);
+
+  for (const row of links.rows) {
+    const uuid = row.huly_account_uuid;
+    if (!uuid) continue;
+    const visible = access.isChannel
+      ? canSeeChannel(access.doc, uuid)
+      : (access.doc.members ?? []).includes(uuid);
+    if (!visible) continue;
+
+    // 멘션은 직접 호명이므로 수신 설정과 무관하게 항상 간다 — 댓글 쪽과 같다.
+    await query(
+      `INSERT INTO mobion_notifications (user_id, kind, actor_id, channel_id, body)
+       VALUES ($1, 'mention', $2, $3, $4)`,
+      [row.user_id, authorId, channelId, body],
+    );
+  }
 }
 
 const PAGE_LIMIT = 50;
@@ -199,27 +256,8 @@ export async function POST(request: Request) {
       ).catch(() => {});
     }
 
-    // Chat mentions raised a desktop/browser banner (see the SSE "delta"
-    // handler in MobiOnContent.tsx) but never landed here, so the tray's
-    // recent-notifications list — and the inbox — never had them: that list
-    // is drawn from this table, not from the live stream. Same rule as task
-    // comments (comments/route.ts): direct naming notifies regardless of
-    // mute settings, self-mentions are dropped, and the set dedupes so naming
-    // someone twice in one message does not notify them twice.
-    if (messageId) {
-      const mentioned = new Set(
-        parseMentionSegments(text)
-          .filter((seg) => seg.type === "mention" && seg.userId !== user.id)
-          .map((seg) => (seg as { userId: string }).userId),
-      );
-      for (const userId of mentioned) {
-        await query(
-          `INSERT INTO mobion_notifications (user_id, kind, actor_id, body)
-           VALUES ($1, 'mention', $2, $3)`,
-          [userId, user.id, mentionPlainText(text).slice(0, 200)],
-        ).catch(() => {});
-      }
-    }
+    // 최선 노력: 알림을 못 남겼다고 이미 보낸 메시지를 실패로 돌릴 수는 없다.
+    await notifyChatMentions(text, channelId, user.id, access).catch(() => {});
 
     return NextResponse.json({ ok: true, messageId });
   } catch (error) {

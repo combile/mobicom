@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 24;
+const MOBION_SCHEMA_VERSION = 25;
 
 export const pool =
   globalThis.mobionPool ??
@@ -491,6 +491,15 @@ export async function ensureMobionSchema() {
         `ALTER TABLE mobion_notifications
            ADD COLUMN IF NOT EXISTS comment_id UUID
            REFERENCES mobion_task_comments(id) ON DELETE SET NULL`,
+      );
+      // 알림이 비롯된 채팅 채널. 태스크 알림의 task_id에 해당하는 자리로,
+      // 이것이 있어야 채팅 멘션 알림을 눌러 그 대화로 갈 수 있다. TEXT이고
+      // 외래키가 없는 이유는 mobion_message_reactions.message_id와 같다 —
+      // 채널은 Huly에 있고 이 DB에 행이 없다. DM도 같은 칸을 쓴다(클라이언트의
+      // activeChannelId가 둘을 구분하지 않는다).
+      await pool.query(
+        `ALTER TABLE mobion_notifications
+           ADD COLUMN IF NOT EXISTS channel_id TEXT`,
       );
       // 수신 설정. 조회가 아니라 저장 시점에 적용된다 — 조회 경로는 45초마다
       // 도는 이 앱의 심장박동이라 가장 단순하게 두어야 한다. 기본값 true는
