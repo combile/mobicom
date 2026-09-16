@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
-import { isNotificationKind, type NotificationKind } from "@/lib/mobion-notifications";
+import {
+  dropMentionedChats,
+  isNotificationKind,
+  type NotificationKind,
+} from "@/lib/mobion-notifications";
 import { mentionPlainText } from "@/lib/mobion-mentions";
 import {
   ensureHulyLink,
@@ -93,7 +97,7 @@ export async function GET(request: Request) {
     const cNext = nextFor(chats, cCursor);
 
     return NextResponse.json({
-      notifications: merged.map((m) => m.item),
+      notifications: dropMentionedChats(merged.map((m) => m.item)),
       nextCursor: nNext === "-" && cNext === "-" ? null : `n:${nNext}|c:${cNext}`,
     });
   } catch (error) {
@@ -190,6 +194,7 @@ async function notificationPage(
         projectId: r.project_id,
         commentId: r.comment_id,
         channelId: r.channel_id,
+        createdOn: Number(r.ts),
       },
     })),
   };
