@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 25;
+const MOBION_SCHEMA_VERSION = 26;
 
 export const pool =
   globalThis.mobionPool ??
@@ -547,6 +547,29 @@ export async function ensureMobionSchema() {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS mobion_attendance_breaks_idx
           ON mobion_attendance_breaks (user_id, work_date)
+      `);
+
+      // 알림 행이 커밋되면 받는 사람의 id를 실어 신호를 보낸다
+      // (mobion-notify-bus.ts가 받아 열린 화면에 바로 전한다). 알림을 쓰는
+      // 자리가 여러 곳이라 각자 신호를 보내게 하지 않고 여기 한 번 둔다.
+      // pg_notify는 커밋 때 나가므로 받는 쪽이 읽으면 행이 이미 있다.
+      await pool.query(`
+        CREATE OR REPLACE FUNCTION mobion_notification_inserted() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+          PERFORM pg_notify('mobion_notification', NEW.user_id::text);
+          RETURN NEW;
+        END
+        $$
+      `);
+      await pool.query(
+        `DROP TRIGGER IF EXISTS mobion_notification_inserted ON mobion_notifications`,
+      );
+      // EXECUTE PROCEDURE: 랩 서버의 PostgreSQL 버전과 무관하게 받아들여지는 표기
+      await pool.query(`
+        CREATE TRIGGER mobion_notification_inserted
+          AFTER INSERT ON mobion_notifications
+          FOR EACH ROW EXECUTE PROCEDURE mobion_notification_inserted()
       `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;

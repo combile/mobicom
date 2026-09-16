@@ -44,13 +44,6 @@ export type HomeContest = {
  */
 const POLL_MS = 45_000;
 
-/**
- * 알림만 더 자주 본다. 태스크 배정·댓글처럼 다른 사람이 만든 알림은 밀어 줄
- * 통로가 없어서 이 간격이 곧 빨간 점이 늦는 최대 시간이다. 45초는 "왔는데
- * 안 뜬다"로 읽혔다. 채팅 멘션은 이 간격을 기다리지 않는다(refreshNotifications).
- */
-const NOTIFICATION_POLL_MS = 15_000;
-
 export type AttendanceDay = {
   date: string;
   firstSeenAt: string;
@@ -129,6 +122,10 @@ export function useHomeData(enabled: boolean) {
    * Polling rather than riding the chat stream: that stream closes itself when
    * Huly is unreachable, and coupling the two would put notifications back
    * behind chat's availability, which is the failure this app already had once.
+   *
+   * 새 알림은 기다리지 않는다: 알림 전용 스트림(notifications/stream)이 행이
+   * 생기는 순간 신호를 주고, 그때 바로 다시 읽는다. 주기 조회는 그 스트림이
+   * 끊긴 동안의 안전망이자 출근·재실 심장박동으로 남는다.
    */
   const reloadNotifications = useRef<() => void>(() => {});
   useEffect(() => {
@@ -153,27 +150,42 @@ export function useHomeData(enabled: boolean) {
 
     load();
     reloadNotifications.current = load;
-    const timer = setInterval(load, NOTIFICATION_POLL_MS);
+    const timer = setInterval(load, POLL_MS);
     // coming back to the tab should not wait out the rest of the interval
     function onVisible() {
       if (document.visibilityState === "visible") load();
     }
     document.addEventListener("visibilitychange", onVisible);
+
+    // 한꺼번에 여러 건(태스크 여러 개 배정 등)이 와도 한 번만 읽는다.
+    // EventSource는 끊기면 알아서 다시 붙고, 다시 붙은 직후에도 읽어 그 사이
+    // 놓친 것을 채운다.
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    function loadSoon() {
+      clearTimeout(pending);
+      pending = setTimeout(load, 200);
+    }
+    const events = new EventSource("/api/mobion/notifications/stream");
+    events.addEventListener("notification", loadSoon);
+    events.addEventListener("open", loadSoon);
+
     return () => {
       cancelled = true;
       clearInterval(timer);
+      clearTimeout(pending);
+      events.close();
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
+
+  /** 다음 주기를 기다리지 않고 지금 다시 읽는다. 참조가 바뀌지 않는다. */
+  const refreshNotifications = useCallback(() => reloadNotifications.current(), []);
 
   /**
    * Marks read locally as soon as it is acted on, so the row does not linger
    * while the request is in flight. A failure is not surfaced: the worst case
    * is seeing it again on the next load, which is the safer direction.
    */
-  /** 다음 주기를 기다리지 않고 지금 다시 읽는다. 참조가 바뀌지 않는다. */
-  const refreshNotifications = useCallback(() => reloadNotifications.current(), []);
-
   async function markRead(id: string) {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     setUnreadCount((c) => Math.max(0, c - 1));

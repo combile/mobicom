@@ -414,12 +414,6 @@ export default function MobiOnContent() {
         if (!isMine && !watchingThis) {
           playChatSound(mentionsMe ? "mention" : "message");
         }
-        // 멘션 알림 행은 보낸 쪽 요청이 메시지를 만든 "뒤에" 쓴다 — 이 delta가
-        // 그보다 먼저 올 수 있어서 조금 기다렸다 읽는다.
-        // ponytail: 고정 지연. 서버가 쓰기를 마친 뒤 이벤트를 보내면 없앨 수 있다.
-        if (mentionsMe && !isMine) {
-          setTimeout(homeData.refreshNotifications, 1500);
-        }
         notifyDesktop({
           kind: mentionsMe ? "mention" : "message",
           title: channel ? `#${channel.name}` : "새 메시지",
