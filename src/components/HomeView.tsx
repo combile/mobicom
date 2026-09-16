@@ -17,9 +17,11 @@ import { ErrorText } from "./modal-styles";
 export default function HomeView({
   data,
   onOpenTask,
+  onOpenChannel,
 }: {
   data: HomeData;
   onOpenTask: (projectId: string, taskId: string, commentId?: string | null) => void;
+  onOpenChannel: (channelId: string) => void;
 }) {
   return (
     <Main>
@@ -69,12 +71,14 @@ export default function HomeView({
               onClick={() => {
                 data.markRead(n.id);
                 if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId, n.commentId);
+                else if (n.channelId) onOpenChannel(n.channelId);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   data.markRead(n.id);
                   if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId, n.commentId);
+                  else if (n.channelId) onOpenChannel(n.channelId);
                 }
               }}
             >

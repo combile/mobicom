@@ -11,6 +11,7 @@ type NotificationRow = {
   created_at: string;
   read_at: string | null;
   comment_id: string | null;
+  channel_id: string | null;
   actor_name: string | null;
   task_id: string | null;
   task_title: string | null;
@@ -114,7 +115,7 @@ export async function GET() {
     await raiseDueSoonNotifications(user.id).catch(() => {});
 
     const result = await query<NotificationRow>(
-      `SELECT n.id, n.kind, n.body, n.created_at, n.read_at::text as read_at, n.comment_id,
+      `SELECT n.id, n.kind, n.body, n.created_at, n.read_at::text as read_at, n.comment_id, n.channel_id,
               a.name AS actor_name,
               n.task_id, t.title AS task_title, t.project_id
        FROM mobion_notifications n
@@ -143,6 +144,7 @@ export async function GET() {
         createdAt: r.created_at,
         readAt: r.read_at,
         commentId: r.comment_id,
+        channelId: r.channel_id,
         actorName: r.actor_name,
         taskId: r.task_id,
         taskTitle: r.task_title,

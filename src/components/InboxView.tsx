@@ -6,6 +6,7 @@ import type { InboxData, InboxFilter, InboxNotification } from "@/lib/use-inbox-
 
 const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: null, label: "전체" },
+  { value: "chat", label: "채팅" },
   { value: "mention", label: "멘션" },
   { value: "assigned", label: "배정" },
   { value: "comment", label: "답글" },
@@ -28,6 +29,7 @@ export default function InboxView({
   data,
   unreadCount,
   onOpen,
+  onOpenChannel,
 }: {
   data: InboxData;
   // 홈 레일이 이미 쓰는 전역 안읽음 수. data.unreadCount는 현재 필터·현재
@@ -36,12 +38,14 @@ export default function InboxView({
   // 버튼이 사라질 수 있다. 레일 점과 같은 값을 써서 하나의 진실 원천을 둔다.
   unreadCount: number;
   onOpen: (projectId: string, taskId: string, commentId: string | null) => void;
+  onOpenChannel: (channelId: string) => void;
 }) {
   function open(n: InboxNotification) {
     // 이미 읽은 행을 다시 열 때마다 요청을 또 쏠 이유가 없다 — markRead 안의
     // 상태 갱신은 이미 no-op이지만 네트워크 호출은 그렇지 않다.
     if (!n.readAt) data.markRead(n.id);
     if (n.projectId && n.taskId) onOpen(n.projectId, n.taskId, n.commentId);
+    else if (n.channelId) onOpenChannel(n.channelId);
   }
 
   return (
@@ -74,9 +78,11 @@ export default function InboxView({
 
       {data.isEmpty && !data.loadError && (
         <Empty>
-          <EmptyTitle>알림이 없습니다</EmptyTitle>
+          <EmptyTitle>{data.filter === "chat" ? "받은 채팅이 없습니다" : "알림이 없습니다"}</EmptyTitle>
           <EmptyHint>
-            누군가 나를 멘션하거나, 태스크를 맡기거나, 상태를 바꾸면 여기에 쌓입니다
+            {data.filter === "chat"
+              ? "내가 참여한 채널과 DM에 다른 사람이 글을 쓰면 여기에 쌓입니다"
+              : "누군가 나를 멘션하거나, 태스크를 맡기거나, 상태를 바꾸면 여기에 쌓입니다"}
           </EmptyHint>
         </Empty>
       )}
@@ -101,11 +107,15 @@ export default function InboxView({
               {/* 안 읽음은 카드 배경으로 드러난다(아래 Row 참고). 색만으로는
                   화면 낭독기에 아무것도 전달되지 않으므로 숨은 텍스트를 둔다 */}
               {!n.readAt && <SrOnly>읽지 않음</SrOnly>}
-              <Kind data-kind={n.kind}>{notificationLabel(n.kind)}</Kind>
+              <Kind data-kind={n.kind}>
+                {n.kind === "chat" ? "채팅" : notificationLabel(n.kind)}
+              </Kind>
               {/* 마감은 사람이 한 일이 아니다 — "알 수 없는 사용자"라고 쓰면
                   버그처럼 읽힌다 */}
               {n.kind !== "due_soon" && <Actor>{n.actorName ?? "알 수 없는 사용자"}</Actor>}
-              {n.taskTitle && <TaskTitle>{n.taskTitle}</TaskTitle>}
+              {(n.taskTitle ?? n.channelName) && (
+                <TaskTitle>{n.taskTitle ?? n.channelName}</TaskTitle>
+              )}
               <Time>{relativeTime(n.createdAt)}</Time>
             </Top>
             {text && <Body>{text}</Body>}
@@ -134,17 +144,20 @@ const Wrap = styled.section`
   overflow-y: auto;
 `;
 
-const Header = styled.div`
+// 일정·대회 화면의 헤더와 같은 값이다
+const Header = styled.header`
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 0 8px;
+  gap: 10px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
 `;
 
-const Title = styled.h2`
-  font-size: 13px;
+const Title = styled.h1`
+  font-size: 20px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--text-strong);
 `;
 
 const MarkAll = styled.button`

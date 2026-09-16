@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
-import { parseMentionSegments, mentionPlainText } from "@/lib/mobion-mentions";
+import { mentionedUserIds, mentionPlainText } from "@/lib/mobion-mentions";
 
 type CommentRow = {
   id: string;
@@ -87,13 +87,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const commentId = result.rows[0].id;
 
     // Being named is a direct request, so mentions notify regardless of who is
-    // assigned. Self-mentions are dropped, and the set removes duplicates so
-    // naming someone twice in one comment does not notify them twice.
-    const mentioned = new Set(
-      parseMentionSegments(body)
-        .filter((seg) => seg.type === "mention" && seg.userId !== user.id)
-        .map((seg) => (seg as { userId: string }).userId),
-    );
+    // assigned. Self-mentions are dropped, and duplicates collapse so naming
+    // someone twice in one comment does not notify them twice — the chat send
+    // path asks the same question, so the rule lives in mobion-mentions.ts.
+    const mentioned = new Set(mentionedUserIds(body, user.id));
 
     for (const userId of mentioned) {
       // 멘션은 직접 호명이므로 수신 설정과 무관하게 항상 간다.

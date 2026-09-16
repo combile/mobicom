@@ -121,6 +121,22 @@ export function mentionPlainText(text: string): string {
     .join("");
 }
 
+/**
+ * 이 글이 호명한 사람들의 id — 본인은 빼고, 중복 없이.
+ *
+ * 태스크 댓글과 채팅이 같은 판단을 한다. 한쪽에만 두면 "댓글에서는 뜨는데
+ * 채팅에서는 안 뜬다"가 그대로 벌어진다 — 실제로 그래서 여기로 옮겼다.
+ */
+export function mentionedUserIds(text: string, excludeUserId: string): string[] {
+  return [
+    ...new Set(
+      parseMentionSegments(text)
+        .filter((seg) => seg.type === "mention" && seg.userId !== excludeUserId)
+        .map((seg) => (seg as { userId: string }).userId),
+    ),
+  ];
+}
+
 export function messageContainsMentionOf(text: string, userId: string): boolean {
   return parseMentionSegments(text).some(
     (s) => s.type === "mention" && s.userId === userId,
@@ -167,6 +183,10 @@ if (typeof process !== "undefined" && process.argv?.[1] && import.meta.url === `
   ]);
   assert.strictEqual(messageContainsMentionOf("hi @[u1:철수]", "u1"), true);
   assert.strictEqual(messageContainsMentionOf("hi @[u1:철수]", "u2"), false);
+  // 같은 사람을 두 번 불러도 알림은 한 번, 자기 자신은 빠진다
+  assert.deepStrictEqual(mentionedUserIds("@[u1:철수] @[u1:철수] @[u2:영희]", "me"), ["u1", "u2"]);
+  assert.deepStrictEqual(mentionedUserIds("@[me:나] 혼잣말", "me"), []);
+  assert.deepStrictEqual(mentionedUserIds("아무도 안 불렀다", "me"), []);
   assert.deepStrictEqual(detectMentionTrigger("hi @eun", 7), { start: 3, query: "eun" });
   assert.strictEqual(detectMentionTrigger("hi @eun there", 13), null);
   assert.strictEqual(detectMentionTrigger("no trigger", 5), null);
