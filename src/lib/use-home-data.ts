@@ -196,6 +196,13 @@ export function useHomeData(enabled: boolean) {
     }).catch(() => {});
   }
 
+  /** 알림함·홈 목록을 비운다. 인박스 기록은 남는다(DELETE 라우트 참고). */
+  async function clearAll() {
+    setNotifications([]);
+    setUnreadCount(0);
+    await fetch("/api/mobion/notifications", { method: "DELETE" }).catch(() => {});
+  }
+
   async function markAllRead() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
@@ -252,6 +259,7 @@ export function useHomeData(enabled: boolean) {
     unreadCount,
     markRead,
     markAllRead,
+    clearAll,
     refreshNotifications,
     userName,
     myTasks,

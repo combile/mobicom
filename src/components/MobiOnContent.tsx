@@ -1229,6 +1229,11 @@ export default function MobiOnContent() {
                   inboxData.applyRead();
                   return homeData.markAllRead();
                 },
+                // 인박스 줄은 남되 읽음이 된다 (서버도 그렇게 처리한다)
+                clearAll: () => {
+                  inboxData.applyRead();
+                  return homeData.clearAll();
+                },
               }}
               onClose={() => setTrayOpen(false)}
               onOpenTask={(projectId, taskId, commentId) => {

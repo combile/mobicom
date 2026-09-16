@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 26;
+const MOBION_SCHEMA_VERSION = 27;
 
 export const pool =
   globalThis.mobionPool ??
@@ -571,6 +571,13 @@ export async function ensureMobionSchema() {
           AFTER INSERT ON mobion_notifications
           FOR EACH ROW EXECUTE PROCEDURE mobion_notification_inserted()
       `);
+
+      // 알림함의 "모두 삭제" 시각. 행을 지우지 않고 이 시각 이전 것을 알림함·홈
+      // 목록에서 감춘다 — 인박스는 기록이라 거기서까지 사라지면 안 된다.
+      await pool.query(
+        `ALTER TABLE mobion_users
+           ADD COLUMN IF NOT EXISTS notifications_cleared_at TIMESTAMPTZ`,
+      );
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
       globalThis.mobionSchemaVersion = undefined;
