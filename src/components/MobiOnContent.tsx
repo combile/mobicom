@@ -28,6 +28,9 @@ import ContestsView from "./ContestsView";
 import OverviewView from "./OverviewView";
 import LabView from "./LabView";
 import { useLabData } from "@/lib/use-lab-data";
+import DocumentsView from "./DocumentsView";
+import { useDocumentsData } from "@/lib/use-documents-data";
+import { useDocumentCategoriesData } from "@/lib/use-document-categories-data";
 import AttendanceView from "./AttendanceView";
 import { useAttendanceData } from "@/lib/use-attendance-data";
 import CommandPalette, { type SearchResult } from "./CommandPalette";
@@ -168,6 +171,7 @@ type WorkspaceMode =
   | "contests"
   | "overview"
   | "lab"
+  | "documents"
   | "attendance";
 
 export default function MobiOnContent() {
@@ -186,6 +190,8 @@ export default function MobiOnContent() {
   const contestsData = useContestsData(mode === "contests");
   const overviewData = useOverviewData(mode === "overview");
   const labData = useLabData(mode === "lab");
+  const documentsData = useDocumentsData(mode === "documents");
+  const documentCategoriesData = useDocumentCategoriesData(mode === "documents");
   const attendanceData = useAttendanceData(mode === "attendance");
   const homeData = useHomeData(mode === "home");
   const inboxData = useInboxData(mode === "inbox");
@@ -834,10 +840,14 @@ export default function MobiOnContent() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  /** Search results live in four different places; each opens where it lives. */
+  /** Search results live in five different places; each opens where it lives. */
   function openSearchResult(r: SearchResult) {
     if (r.kind === "contest") {
       setMode("contests");
+      return;
+    }
+    if (r.kind === "document") {
+      setMode("documents");
       return;
     }
     if (!r.projectId) return;
@@ -1165,6 +1175,15 @@ export default function MobiOnContent() {
           >
             <span className="material-symbols-outlined">meeting_room</span>
           </RailButton>
+          <RailButton
+            type="button"
+            data-active={mode === "documents" || undefined}
+            onClick={() => setMode("documents")}
+            aria-label="문서"
+            title="문서"
+          >
+            <span className="material-symbols-outlined">description</span>
+          </RailButton>
           {/* Open to everyone, unlike 연구실 현황 below — today's check-in/out
               is the same thing a whiteboard by the door would show anyone. */}
           <RailButton
@@ -1257,6 +1276,14 @@ export default function MobiOnContent() {
         )}
         {mode === "contests" && <ContestsView data={contestsData} />}
         {mode === "lab" && <LabView data={labData} />}
+        {mode === "documents" && (
+          <DocumentsView
+            data={documentsData}
+            categoriesData={documentCategoriesData}
+            canArchive={canOversee}
+            projects={tasksData.projects}
+          />
+        )}
         {mode === "attendance" && <AttendanceView data={attendanceData} />}
         {mode === "overview" && canOversee && (
           <OverviewView

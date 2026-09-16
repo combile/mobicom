@@ -6,7 +6,7 @@ import styled from "@emotion/styled";
 import { useCloseOnEscape, useModalEnterAnimation } from "@/lib/use-modal-enter-animation";
 
 export type SearchResult = {
-  kind: "project" | "task" | "milestone" | "contest";
+  kind: "project" | "task" | "milestone" | "contest" | "document";
   id: string;
   title: string;
   subtitle: string | null;
@@ -20,6 +20,7 @@ const KIND_LABEL: Record<SearchResult["kind"], string> = {
   task: "태스크",
   milestone: "마일스톤",
   contest: "대회",
+  document: "문서",
 };
 
 const KIND_ICON: Record<SearchResult["kind"], string> = {
@@ -27,6 +28,7 @@ const KIND_ICON: Record<SearchResult["kind"], string> = {
   task: "check_circle",
   milestone: "flag",
   contest: "emoji_events",
+  document: "description",
 };
 
 /**

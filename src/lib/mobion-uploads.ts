@@ -40,22 +40,28 @@ export function expiryFor(size: number): Date | null {
  * Called from the upload route rather than from a cron job: disk only grows
  * when something is uploaded, so sweeping at that moment keeps the two in step
  * and leaves nothing to install or monitor on the server. The row is kept with
- * its storage_path cleared, so the message still shows that a file was here.
+ * its storage_path cleared, so the message (or document) still shows that a
+ * file was here.
  *
  * ponytail: sweep-on-upload, no scheduler. If the lab ever goes months without
  * an upload while expired files sit on disk, add a cron hitting this.
+ *
+ * `table` is one of this app's own two attachment tables, never arbitrary
+ * input, so interpolating it into the query text is safe despite not going
+ * through a placeholder — identifiers can't be parameterized in SQL at all.
  */
 export async function sweepExpired(
   query: <T extends { storage_path: string }>(
     text: string,
     params: unknown[],
   ) => Promise<{ rows: T[] }>,
+  table: "mobion_attachments" | "mobion_document_attachments" = "mobion_attachments",
 ): Promise<number> {
   const { join } = await import("path");
   const { unlink } = await import("fs/promises");
 
   const expired = await query<{ storage_path: string }>(
-    `UPDATE mobion_attachments
+    `UPDATE ${table}
         SET storage_path = ''
       WHERE expires_at IS NOT NULL AND expires_at <= now() AND storage_path <> ''
       RETURNING storage_path`,

@@ -10,7 +10,7 @@ declare global {
 }
 
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-const MOBION_SCHEMA_VERSION = 24;
+const MOBION_SCHEMA_VERSION = 27;
 
 export const pool =
   globalThis.mobionPool ??
@@ -538,6 +538,101 @@ export async function ensureMobionSchema() {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS mobion_attendance_breaks_idx
           ON mobion_attendance_breaks (user_id, work_date)
+      `);
+
+      // Lab documents. `project_id` NULL means a lab-wide document (연구실
+      // 공용 문서) rather than one scoped to a project — both are the same
+      // table because a doc can move between the two without changing shape.
+      // No per-document ACL: like projects/tasks/milestones, any logged-in
+      // member may create or edit one, matching this app's collaborative-by-
+      // default model. `archived_at` follows the same "mark, don't delete"
+      // idiom as mobion_attachments.expires_at, so archiving (MOB-DOC-005)
+      // never loses data.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_documents (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          title TEXT NOT NULL,
+          body TEXT NOT NULL DEFAULT '',
+          project_id UUID REFERENCES mobion_projects(id) ON DELETE SET NULL,
+          created_by UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          updated_by UUID REFERENCES mobion_users(id) ON DELETE SET NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          archived_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_documents_project_idx
+          ON mobion_documents (project_id)
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_documents_created_by_idx
+          ON mobion_documents (created_by)
+      `);
+
+      // Files attached to documents (발표 자료 등). Mirrors mobion_attachments'
+      // shape (bytes on disk, metadata here — see mobion-uploads.ts), but kept
+      // as its own table rather than reused: mobion_attachments is chat-shaped
+      // end-to-end (its access route checks Huly channel membership via
+      // channel_id, which a document has no equivalent of). Documents have no
+      // per-item ACL, so any logged-in member may attach or remove a file,
+      // same as editing the document itself. `document_id` is nullable for the
+      // same reason mobion_attachments.message_id is: a file can be uploaded
+      // while a new document is still being composed, before it has an id, and
+      // linked afterward.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_document_attachments (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          document_id UUID REFERENCES mobion_documents(id) ON DELETE CASCADE,
+          filename TEXT NOT NULL,
+          mime TEXT NOT NULL,
+          size BIGINT NOT NULL,
+          storage_path TEXT NOT NULL,
+          uploaded_by UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          expires_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_document_attachments_document_idx
+          ON mobion_document_attachments (document_id)
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_document_attachments_expires_idx
+          ON mobion_document_attachments (expires_at) WHERE expires_at IS NOT NULL
+      `);
+
+      // Folders for organizing documents, Notion/Huly-sidebar style — self
+      // referencing so a folder can nest inside another to whatever depth the
+      // lab wants (the reference screenshot for this went two deep:
+      // METTING > ARCHIVED). Deliberately independent of mobion_projects: a
+      // document's project and its category answer different questions ("what
+      // is this for" vs "where does it live in the sidebar"), so a category
+      // tree spans every project rather than living inside one.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS mobion_document_categories (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name TEXT NOT NULL,
+          parent_id UUID REFERENCES mobion_document_categories(id) ON DELETE CASCADE,
+          created_by UUID NOT NULL REFERENCES mobion_users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_document_categories_parent_idx
+          ON mobion_document_categories (parent_id)
+      `);
+      // A document keeps existing when its category is deleted (SET NULL,
+      // same "never lose the document itself" rule archiving already
+      // follows) — only child *categories* cascade away with their parent.
+      await pool.query(
+        `ALTER TABLE mobion_documents
+           ADD COLUMN IF NOT EXISTS category_id UUID
+           REFERENCES mobion_document_categories(id) ON DELETE SET NULL`,
+      );
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS mobion_documents_category_idx
+          ON mobion_documents (category_id)
       `);
     })().catch((error) => {
       globalThis.mobionSchemaReady = undefined;
