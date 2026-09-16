@@ -6,7 +6,6 @@ import type { InboxData, InboxFilter, InboxNotification } from "@/lib/use-inbox-
 
 const FILTERS: { value: InboxFilter; label: string }[] = [
   { value: null, label: "전체" },
-  { value: "chat", label: "채팅" },
   { value: "mention", label: "멘션" },
   { value: "assigned", label: "배정" },
   { value: "comment", label: "답글" },
@@ -78,11 +77,9 @@ export default function InboxView({
 
       {data.isEmpty && !data.loadError && (
         <Empty>
-          <EmptyTitle>{data.filter === "chat" ? "받은 채팅이 없습니다" : "알림이 없습니다"}</EmptyTitle>
+          <EmptyTitle>알림이 없습니다</EmptyTitle>
           <EmptyHint>
-            {data.filter === "chat"
-              ? "내가 참여한 채널과 DM에 다른 사람이 글을 쓰면 여기에 쌓입니다"
-              : "누군가 나를 멘션하거나, 태스크를 맡기거나, 상태를 바꾸면 여기에 쌓입니다"}
+            누군가 나를 멘션하거나, 태스크를 맡기거나, 상태를 바꾸면 여기에 쌓입니다
           </EmptyHint>
         </Empty>
       )}
@@ -107,15 +104,11 @@ export default function InboxView({
               {/* 안 읽음은 카드 배경으로 드러난다(아래 Row 참고). 색만으로는
                   화면 낭독기에 아무것도 전달되지 않으므로 숨은 텍스트를 둔다 */}
               {!n.readAt && <SrOnly>읽지 않음</SrOnly>}
-              <Kind data-kind={n.kind}>
-                {n.kind === "chat" ? "채팅" : notificationLabel(n.kind)}
-              </Kind>
+              <Kind data-kind={n.kind}>{notificationLabel(n.kind)}</Kind>
               {/* 마감은 사람이 한 일이 아니다 — "알 수 없는 사용자"라고 쓰면
                   버그처럼 읽힌다 */}
               {n.kind !== "due_soon" && <Actor>{n.actorName ?? "알 수 없는 사용자"}</Actor>}
-              {(n.taskTitle ?? n.channelName) && (
-                <TaskTitle>{n.taskTitle ?? n.channelName}</TaskTitle>
-              )}
+              {n.taskTitle && <TaskTitle>{n.taskTitle}</TaskTitle>}
               <Time>{relativeTime(n.createdAt)}</Time>
             </Top>
             {text && <Body>{text}</Body>}

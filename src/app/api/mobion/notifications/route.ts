@@ -123,6 +123,11 @@ export async function GET() {
        LEFT JOIN mobion_tasks t ON t.id = n.task_id
        WHERE n.user_id = $1
          AND (n.read_at IS NULL OR n.created_at > now() - interval '3 days')
+         -- 알림함에서 "모두 삭제"한 것은 감춘다 (행은 인박스를 위해 남는다)
+         AND n.created_at > COALESCE(
+           (SELECT notifications_cleared_at FROM mobion_users WHERE id = $1),
+           '-infinity'::timestamptz
+         )
        ORDER BY n.read_at IS NOT NULL, n.created_at DESC
        LIMIT 20`,
       [user.id],
@@ -185,5 +190,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     return mobionApiError(error, "알림을 읽음으로 표시하지 못했습니다.");
+  }
+}
+
+/**
+ * 알림함의 "모두 삭제".
+ *
+ * 행을 지우지 않는다. 인박스는 지난 기록을 찾는 곳이라 거기서까지 사라지면
+ * 안 되므로, 지금 시각을 기록해 두고 GET이 그 이전 것을 감춘다. 감춰진
+ * 알림이 안읽음으로 남으면 빨간 점만 떠 있고 볼 곳이 없으니 함께 읽음 처리한다.
+ */
+export async function DELETE() {
+  try {
+    const user = await requireCurrentUser();
+    await query(
+      `UPDATE mobion_notifications SET read_at = now()
+       WHERE user_id = $1 AND read_at IS NULL`,
+      [user.id],
+    );
+    await query(`UPDATE mobion_users SET notifications_cleared_at = now() WHERE id = $1`, [
+      user.id,
+    ]);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return mobionApiError(error, "알림을 지우지 못했습니다.");
   }
 }
