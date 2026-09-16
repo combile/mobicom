@@ -1217,6 +1217,10 @@ export default function MobiOnContent() {
                 tasksData.openTaskInProject(projectId, taskId, commentId);
                 setMode("projects");
               }}
+              onOpenChannel={(channelId) => {
+                setActiveChannelId(channelId);
+                setMode("chat");
+              }}
               onOpenInbox={() => setMode("inbox")}
             />
           )}
@@ -1243,6 +1247,10 @@ export default function MobiOnContent() {
               tasksData.openTaskInProject(projectId, taskId, commentId);
               setMode("projects");
             }}
+            onOpenChannel={(channelId) => {
+              setActiveChannelId(channelId);
+              setMode("chat");
+            }}
           />
         )}
         {mode === "inbox" && (
@@ -1252,6 +1260,10 @@ export default function MobiOnContent() {
             onOpen={(projectId, taskId, commentId) => {
               tasksData.openTaskInProject(projectId, taskId, commentId);
               setMode("projects");
+            }}
+            onOpenChannel={(channelId) => {
+              setActiveChannelId(channelId);
+              setMode("chat");
             }}
           />
         )}

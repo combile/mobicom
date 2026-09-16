@@ -21,11 +21,13 @@ export default function NotificationTray({
   data,
   onClose,
   onOpenTask,
+  onOpenChannel,
   onOpenInbox,
 }: {
   data: HomeData;
   onClose: () => void;
   onOpenTask: (projectId: string, taskId: string, commentId?: string | null) => void;
+  onOpenChannel: (channelId: string) => void;
   onOpenInbox: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -74,6 +76,7 @@ export default function NotificationTray({
           onClick={() => {
             if (!n.read) data.markRead(n.id);
             if (n.projectId && n.taskId) onOpenTask(n.projectId, n.taskId, n.commentId);
+            else if (n.channelId) onOpenChannel(n.channelId);
             onClose();
           }}
         >
@@ -85,7 +88,9 @@ export default function NotificationTray({
             {n.kind !== "due_soon" && <Actor>{n.actorName ?? "알 수 없는 사용자"}</Actor>}
             <Time>{relativeTime(n.createdAt)}</Time>
           </Top>
-          {n.taskTitle && <TaskTitle>{n.taskTitle}</TaskTitle>}
+          {/* 태스크에서 온 알림은 제목이 단서이고, 채팅 멘션은 본문이 그 자리다.
+              둘 다 없으면 종류·이름·시각만 남아 무슨 알림인지 알 수 없다. */}
+          {(n.taskTitle || n.body) && <TaskTitle>{n.taskTitle || n.body}</TaskTitle>}
         </Row>
       ))}
 
@@ -119,11 +124,13 @@ const Panel = styled.div`
   /* 아래만 0인 이유는 Footer 주석 참고 — 그 여백은 푸터가 직접 갖는다 */
   padding: 10px 10px 0;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--panel-wash);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border-strong);
+  /* 불투명하다. --panel-wash는 다크 모드에서 알파 0.35라, 채팅 위에 떠오르면
+     뒤의 대화가 말풍선 제 글자를 뚫고 올라와 둘 다 읽을 수 없게 된다.
+     블러는 큰 면에서나 효과지 300px 패널에서는 경쟁만 붙인다 —
+     같은 이유로 ChannelMenu도 --surface를 쓴다. */
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.26);
 `;
 
 const Header = styled.div`

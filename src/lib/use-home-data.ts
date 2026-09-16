@@ -25,6 +25,8 @@ export type Notification = {
   taskTitle: string | null;
   projectId: string | null;
   commentId: string | null;
+  /** 채팅 멘션 알림이 가리키는 대화. 태스크에서 온 알림은 null이다. */
+  channelId: string | null;
   read: boolean;
 };
 

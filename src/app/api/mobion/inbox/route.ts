@@ -3,6 +3,14 @@ import { requireCurrentUser } from "@/lib/mobion-auth";
 import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 import { isNotificationKind } from "@/lib/mobion-notifications";
+import { mentionPlainText } from "@/lib/mobion-mentions";
+import {
+  ensureHulyLink,
+  getWorkspaceClient,
+  CHUNTER_CLASS,
+  SortingOrder,
+  canSeeChannel,
+} from "@/lib/mobion-huly";
 
 /** 한 번에 가져오는 개수. 더 필요하면 cursor로 이어 받는다. */
 const PAGE_SIZE = 30;
@@ -18,6 +26,7 @@ type InboxRow = {
   task_title: string | null;
   project_id: string | null;
   comment_id: string | null;
+  channel_id: string | null;
 };
 
 /**
@@ -39,6 +48,7 @@ export async function GET(request: Request) {
     // 경계가 아니므로, 오타 하나로 에러를 낼 이유가 없다.
     const kind = kindParam && isNotificationKind(kindParam) ? kindParam : null;
     const cursorParam = url.searchParams.get("cursor");
+    if (kindParam === "chat") return await chatFeed(user, cursorParam);
 
     // 커서는 (created_at, id)의 복합 값이다. 언더스코어로 구분하고, 형식 오류는
     // 조용히 "커서 없음"으로 취급한다 (500을 내지 않는다).
@@ -62,7 +72,7 @@ export async function GET(request: Request) {
       `SELECT n.id, n.kind, n.body, n.created_at::text as created_at, n.read_at::text as read_at,
               a.name AS actor_name,
               n.task_id, t.title AS task_title, t.project_id,
-              n.comment_id
+              n.comment_id, n.channel_id
        FROM mobion_notifications n
        LEFT JOIN mobion_users a ON a.id = n.actor_id
        LEFT JOIN mobion_tasks t ON t.id = n.task_id
@@ -101,10 +111,109 @@ export async function GET(request: Request) {
         taskTitle: r.task_title,
         projectId: r.project_id,
         commentId: r.comment_id,
+        channelId: r.channel_id,
       })),
       nextCursor,
     });
   } catch (error) {
     return mobionApiError(error, "알림을 불러오지 못했습니다.");
   }
+}
+
+type ChatSpace = { _id: string; name?: string; private?: boolean; members?: string[] };
+type ChatMessage = {
+  _id: string;
+  attachedTo: string;
+  message: string;
+  createdBy: string;
+  createdOn: number;
+};
+
+/**
+ * 채팅 탭: 내가 볼 수 있는 채널과 DM에 다른 사람이 보낸 메시지 전부.
+ *
+ * 알림 테이블을 거치지 않고 Huly에서 바로 읽는다. 메시지마다 수신자 수만큼
+ * 알림 행을 쓰면 채널 하나에 글 하나가 인원수만큼의 쓰기가 되고, 그 행들은
+ * 채팅 쪽 읽음 표시(mobion_channel_reads)와 따로 놀게 된다. 읽음 여부도
+ * 그 표시에서 계산하므로 채팅 화면에서 읽은 것은 여기서도 읽은 것이다.
+ *
+ * 커서는 마지막 행의 createdOn(epoch ms)이다.
+ */
+async function chatFeed(
+  user: Awaited<ReturnType<typeof requireCurrentUser>>,
+  cursorParam: string | null,
+) {
+  const link = await ensureHulyLink(user);
+  if (!link) return NextResponse.json({ notifications: [], nextCursor: null });
+
+  const before = cursorParam && /^\d+$/.test(cursorParam) ? Number(cursorParam) : null;
+  const client = await getWorkspaceClient(link);
+  const me = client.account.accountUuid;
+
+  const [channels, dms] = await Promise.all([
+    client.findAll<ChatSpace>(CHUNTER_CLASS.Channel, {}),
+    client.findAll<ChatSpace>(CHUNTER_CLASS.DirectMessage, {}),
+  ]);
+  // stream/route.ts와 같은 판정: DM은 참여자 목록만으로 본다
+  const spaces = [
+    ...channels.filter((c) => canSeeChannel(c, me)),
+    ...dms.filter((d) => (d.members ?? []).includes(me)),
+  ];
+  if (spaces.length === 0) return NextResponse.json({ notifications: [], nextCursor: null });
+
+  const rows = await client.findAll<ChatMessage>(
+    CHUNTER_CLASS.ChatMessage,
+    {
+      attachedTo: { $in: spaces.map((s) => s._id) },
+      createdBy: { $ne: client.account.primarySocialId },
+      ...(before !== null ? { createdOn: { $lt: before } } : {}),
+    },
+    { limit: PAGE_SIZE + 1, sort: { createdOn: SortingOrder.Descending } },
+  );
+  const hasMore = rows.length > PAGE_SIZE;
+  const page = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+
+  const [people, reads] = await Promise.all([
+    query<{ huly_social_id: string | null; huly_account_uuid: string | null; name: string }>(
+      `SELECT l.huly_social_id, l.huly_account_uuid, u.name
+         FROM mobion_huly_link l JOIN mobion_users u ON u.id = l.user_id`,
+    ),
+    query<{ channel_id: string; last_read_on: string }>(
+      `SELECT channel_id, last_read_on::text FROM mobion_channel_reads WHERE user_id = $1`,
+      [user.id],
+    ),
+  ]);
+  const nameBySocial = new Map(people.rows.map((p) => [p.huly_social_id, p.name]));
+  const nameByAccount = new Map(people.rows.map((p) => [p.huly_account_uuid, p.name]));
+  const lastRead = new Map(reads.rows.map((r) => [r.channel_id, Number(r.last_read_on)]));
+
+  // DM은 이름이 없다 — 상대방 이름이 곧 대화의 이름이다
+  const spaceName = new Map<string, string>();
+  for (const c of channels) spaceName.set(c._id, `#${c.name ?? ""}`);
+  for (const d of dms) {
+    const other = (d.members ?? []).find((m) => m !== me);
+    spaceName.set(d._id, other ? (nameByAccount.get(other) ?? "DM") : "DM");
+  }
+
+  return NextResponse.json({
+    notifications: page.map((m) => ({
+      id: m._id,
+      kind: "chat",
+      body: mentionPlainText(m.message).slice(0, 200),
+      createdAt: new Date(m.createdOn).toISOString(),
+      readAt:
+        m.createdOn <= (lastRead.get(m.attachedTo) ?? 0)
+          ? new Date(m.createdOn).toISOString()
+          : null,
+      actorName: nameBySocial.get(m.createdBy) ?? null,
+      taskId: null,
+      taskTitle: null,
+      projectId: null,
+      commentId: null,
+      channelId: m.attachedTo,
+      channelName: spaceName.get(m.attachedTo) ?? null,
+      createdOn: m.createdOn,
+    })),
+    nextCursor: hasMore ? String(page[page.length - 1].createdOn) : null,
+  });
 }
