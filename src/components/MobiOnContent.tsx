@@ -194,7 +194,14 @@ export default function MobiOnContent() {
   const documentCategoriesData = useDocumentCategoriesData(mode === "documents");
   const attendanceData = useAttendanceData(mode === "attendance");
   const homeData = useHomeData(mode === "home");
-  const inboxData = useInboxData(mode === "inbox");
+  const inboxData = useInboxData(mode === "inbox", homeData.refreshNotifications);
+  // 홈 쪽 폴링이 새 알림을 가져오면 열려 있는 인박스도 따라 갱신한다.
+  // 안읽음이 먼저, 그 안에서 최신순이라 새로 온 알림은 늘 맨 앞에 선다.
+  const newestNotificationId = homeData.notifications[0]?.id;
+  useEffect(() => {
+    if (mode === "inbox" && newestNotificationId) inboxData.reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newestNotificationId]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   // Which conversations have been read back to their first message, so the
@@ -1230,7 +1237,23 @@ export default function MobiOnContent() {
           </TrayButton>
           {trayOpen && (
             <NotificationTray
-              data={homeData}
+              // 인박스가 열린 채로 알림함에서 읽어도 인박스 줄이 함께 흐려지게
+              data={{
+                ...homeData,
+                markRead: (id: string) => {
+                  inboxData.applyRead(id);
+                  return homeData.markRead(id);
+                },
+                markAllRead: () => {
+                  inboxData.applyRead();
+                  return homeData.markAllRead();
+                },
+                // 인박스 줄은 남되 읽음이 된다 (서버도 그렇게 처리한다)
+                clearAll: () => {
+                  inboxData.applyRead();
+                  return homeData.clearAll();
+                },
+              }}
               onClose={() => setTrayOpen(false)}
               onOpenTask={(projectId, taskId, commentId) => {
                 tasksData.openTaskInProject(projectId, taskId, commentId);

@@ -64,6 +64,15 @@ export default function NotificationTray({
             모두 읽음
           </MarkAll>
         )}
+        {recent.length > 0 && (
+          <ClearAll
+            type="button"
+            onClick={data.clearAll}
+            title="알림함을 비웁니다. 인박스 기록은 남습니다."
+          >
+            모두 삭제
+          </ClearAll>
+        )}
       </Header>
 
       {recent.length === 0 && <Empty>새 알림이 없습니다</Empty>}
@@ -165,6 +174,17 @@ const MarkAll = styled.button`
 
   &:hover {
     color: var(--accent);
+  }
+`;
+
+// "모두 읽음"이 없을 때는 이 버튼이 오른쪽 끝으로 간다
+const ClearAll = styled(MarkAll)`
+  &:hover {
+    color: var(--danger);
+  }
+
+  button + & {
+    margin-left: 0;
   }
 `;
 
