@@ -4,7 +4,7 @@ import { mobionApiError } from "@/lib/mobion-api";
 import { query } from "@/lib/mobion-db";
 
 type ResultRow = {
-  kind: "project" | "task" | "milestone" | "contest";
+  kind: "project" | "task" | "milestone" | "contest" | "document";
   id: string;
   title: string;
   subtitle: string | null;
@@ -79,6 +79,16 @@ export async function GET(request: Request) {
        -- title hits first, then unfinished work: a search is usually looking
        -- for something to act on, not something already closed
        ORDER BY (t.title ILIKE $1) DESC, (t.status = 'done'), t.created_at DESC
+       LIMIT $2)
+
+      UNION ALL
+
+      (SELECT 'document', d.id::text, d.title, p.name,
+              d.project_id::text, NULL::text, NULL::text
+       FROM mobion_documents d
+       LEFT JOIN mobion_projects p ON p.id = d.project_id
+       WHERE d.archived_at IS NULL AND (d.title ILIKE $1 OR d.body ILIKE $1)
+       ORDER BY (d.title ILIKE $1) DESC, d.updated_at DESC
        LIMIT $2)
       `,
       [like, PER_KIND],
